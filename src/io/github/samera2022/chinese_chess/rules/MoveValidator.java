@@ -1,6 +1,7 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.rules;
 
-import java.util.*;
+import io.github.samera2022.chinese_chess.engine.Board;
+import io.github.samera2022.chinese_chess.model.Piece;
 
 /**
  * 移动规则检查器 - 验证棋子的合法移动
@@ -304,4 +305,3 @@ public class MoveValidator {
         return false;
     }
 }
-

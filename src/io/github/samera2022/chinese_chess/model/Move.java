@@ -1,4 +1,4 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.model;
 
 /**
  * 着法记录 - 记录一步棋的信息
@@ -53,4 +53,3 @@ public class Move {
         return notation;
     }
 }
-

@@ -1,4 +1,10 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.engine;
+
+import io.github.samera2022.chinese_chess.model.Move;
+import io.github.samera2022.chinese_chess.model.Piece;
+
+import io.github.samera2022.chinese_chess.rules.CheckDetector;
+import io.github.samera2022.chinese_chess.rules.MoveValidator;
 
 import java.util.*;
 
@@ -195,4 +201,3 @@ public class GameEngine {
         listeners.remove(listener);
     }
 }
-

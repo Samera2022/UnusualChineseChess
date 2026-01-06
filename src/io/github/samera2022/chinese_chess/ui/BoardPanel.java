@@ -1,9 +1,14 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.ui;
+
+import io.github.samera2022.chinese_chess.GameConfig;
+import io.github.samera2022.chinese_chess.engine.Board;
+import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.rules.MoveValidator;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.*;
 
 /**
  * 棋盘UI - 显示棋盘和棋子

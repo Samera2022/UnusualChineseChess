@@ -1,4 +1,6 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.engine;
+
+import io.github.samera2022.chinese_chess.model.Piece;
 
 import java.util.*;
 
@@ -176,4 +178,3 @@ public class Board {
         return sb.toString();
     }
 }
-

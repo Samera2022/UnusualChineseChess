@@ -1,4 +1,4 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.rules;
 
 /**
  * 将军检测器 - 检测是否有棋子在将军

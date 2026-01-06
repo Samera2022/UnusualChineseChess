@@ -1,4 +1,7 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.ui;
+
+import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.model.Move;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;

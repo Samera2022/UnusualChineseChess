@@ -1,4 +1,4 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.model;
 
 /**
  * 棋子类 - 表示中国象棋中的一个棋子
@@ -95,4 +95,3 @@ public class Piece {
         return type.getSymbol();
     }
 }
-

@@ -1,8 +1,10 @@
-package io.github.samera2022.chinese_chess;
+package io.github.samera2022.chinese_chess.ui;
+
+import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.model.Move;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.List;
 
 /**
  * 主窗口 - 中国象棋游戏的GUI
@@ -131,11 +133,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         updateStatus();
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            ChineseChessFrame frame = new ChineseChessFrame();
-            frame.setVisible(true);
-        });
-    }
+
 }
 
