@@ -191,6 +191,15 @@ public class BoardPanel extends JPanel {
             }
         }
 
+        // 绘制“楚河      汉界”文字
+        g2d.setColor(GRID_COLOR);
+        g2d.setFont(new Font("LiSu", Font.BOLD, (int) Math.max(16, cellSize / 1.5)));
+        String riverText = "楚河      汉界";
+        FontMetrics riverFm = g2d.getFontMetrics();
+        int riverTextX = (boardWidth - riverFm.stringWidth(riverText)) / 2;
+        int riverTextY = 4 * cellSize + (cellSize / 2) + (riverFm.getAscent() - riverFm.getDescent()) / 2;
+        g2d.drawString(riverText, riverTextX, riverTextY);
+
         // 绘制"宫"（King's palace）
         drawPalace(g2d);
 

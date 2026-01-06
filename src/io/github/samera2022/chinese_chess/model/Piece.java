@@ -8,10 +8,10 @@ public class Piece {
     public enum Type {
         // 红方棋子
         RED_KING("帥", "K", true),
-        RED_ADVISOR("士", "A", true),
-        RED_ELEPHANT("象", "E", true),
+        RED_ADVISOR("仕", "A", true),
+        RED_ELEPHANT("相", "E", true),
         RED_HORSE("马", "H", true),
-        RED_CHARIOT("车", "R", true),
+        RED_CHARIOT("車", "R", true),
         RED_CANNON("炮", "C", true),
         RED_SOLDIER("兵", "P", true),
 
@@ -20,9 +20,9 @@ public class Piece {
         BLACK_ADVISOR("士", "a", false),
         BLACK_ELEPHANT("象", "e", false),
         BLACK_HORSE("马", "h", false),
-        BLACK_CHARIOT("车", "r", false),
-        BLACK_CANNON("炮", "c", false),
-        BLACK_SOLDIER("兵", "p", false);
+        BLACK_CHARIOT("車", "r", false),
+        BLACK_CANNON("砲", "c", false),
+        BLACK_SOLDIER("卒", "p", false);
 
         private final String chineseName;
         private final String symbol;
