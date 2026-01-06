@@ -227,7 +227,7 @@ public class BoardPanel extends JPanel {
      * 九宫是 3×3 的交点范围：列 3-5，行 0-2 或 7-9
      */
     private void drawPalace(Graphics2D g2d) {
-        g2d.setColor(new Color(150, 150, 150));
+        g2d.setColor(GRID_COLOR);
         g2d.setStroke(new BasicStroke(1));
 
         // 黑方宫（上方，行 0-2）
@@ -235,20 +235,27 @@ public class BoardPanel extends JPanel {
         int y1 = 0;
         int x2 = 5 * cellSize;
         int y2 = 2 * cellSize;
-        // 绘制宫的框
-        g2d.drawRect(x1, y1, x2 - x1, y2 - y1);
-        // 绘制宫的对角线
+        drawDoublePalaceFrame(g2d, x1, y1, x2, y2);
+        // 单黑细线对角线
         g2d.drawLine(x1, y1, x2, y2);
         g2d.drawLine(x2, y1, x1, y2);
 
         // 红方宫（下方，行 7-9）
         y1 = 7 * cellSize;
         y2 = 9 * cellSize;
-        // 绘制宫的框
-        g2d.drawRect(x1, y1, x2 - x1, y2 - y1);
-        // 绘制宫的对角线
+        drawDoublePalaceFrame(g2d, x1, y1, x2, y2);
+        // 单黑细线对角线
         g2d.drawLine(x1, y1, x2, y2);
         g2d.drawLine(x2, y1, x1, y2);
+    }
+
+    // 绘制双黑细线宫框
+    private void drawDoublePalaceFrame(Graphics2D g2d, int x1, int y1, int x2, int y2) {
+        int width = x2 - x1;
+        int height = y2 - y1;
+        g2d.drawRect(x1, y1, width, height);
+        int inset = 2; // 内缩 2px 的第二条细线
+        g2d.drawRect(x1 + inset, y1 + inset, width - 2 * inset, height - 2 * inset);
     }
 
     /**
