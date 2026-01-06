@@ -1,5 +1,8 @@
 package io.github.samera2022.chinese_chess.rules;
 
+import io.github.samera2022.chinese_chess.engine.Board;
+import io.github.samera2022.chinese_chess.model.Piece;
+
 /**
  * 将军检测器 - 检测是否有棋子在将军
  */
