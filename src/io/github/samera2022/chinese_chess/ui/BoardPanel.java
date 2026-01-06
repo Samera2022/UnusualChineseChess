@@ -203,6 +203,9 @@ public class BoardPanel extends JPanel {
         // 绘制"宫"（King's palace）
         drawPalace(g2d);
 
+        // 绘制炮的位置标记（空心圆点）
+        drawCannonMarks(g2d);
+
         // 绘制所选棋子的高亮 - 显示在交点周围
         if (selectedRow != -1 && selectedCol != -1) {
             int highlightX = selectedCol * cellSize;
@@ -302,6 +305,26 @@ public class BoardPanel extends JPanel {
         int textX = x - fm.stringWidth(text) / 2;
         int textY = y + fm.getAscent() / 2 - fm.getDescent();
         g2d.drawString(text, textX, textY);
+    }
+
+    /**
+     * 绘制炮的位置标记（空心圆点）
+     */
+    private void drawCannonMarks(Graphics2D g2d) {
+        g2d.setColor(Color.BLACK);
+        g2d.setStroke(new BasicStroke(2));
+
+        int cannonMarkRadius = 5; // 圆的半径（直径10）
+
+        // 红方炮的位置（初始位置：行7，列1和列7）
+        int redCannonY = 7 * cellSize;
+        g2d.drawOval(1 * cellSize - cannonMarkRadius, redCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
+        g2d.drawOval(7 * cellSize - cannonMarkRadius, redCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
+
+        // 黑方炮的位置（初始位置：行2，列1和列7）
+        int blackCannonY = 2 * cellSize;
+        g2d.drawOval(1 * cellSize - cannonMarkRadius, blackCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
+        g2d.drawOval(7 * cellSize - cannonMarkRadius, blackCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
     }
 
     @Override

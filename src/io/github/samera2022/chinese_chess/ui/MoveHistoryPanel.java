@@ -24,8 +24,8 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
         setBorder(new TitledBorder("着法记录"));
 
         // 创建文本区
-        moveTextArea = new JTextArea(10, 20);
-        moveTextArea.setFont(new Font("Courier New", Font.PLAIN, 12));
+        moveTextArea = new JTextArea(10, 18);
+        moveTextArea.setFont(new Font("Microsoft YaHei", Font.PLAIN, 12));
         moveTextArea.setEditable(false);
         moveTextArea.setLineWrap(true);
         moveTextArea.setWrapStyleWord(true);
