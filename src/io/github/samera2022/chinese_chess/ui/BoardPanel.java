@@ -168,20 +168,28 @@ public class BoardPanel extends JPanel {
 
         // 竖线：从第 0 列到第 cols-1 列（共 cols 条线）
         for (int col = 0; col < board.getCols(); col++) {
-            g2d.drawLine(col * cellSize, 0, col * cellSize, boardHeight);
+            // 边界线贯穿全局，内部线在“河”区域留空
+            if (col == 0 || col == board.getCols() - 1) {
+                g2d.drawLine(col * cellSize, 0, col * cellSize, boardHeight);
+            } else {
+                int yTopEnd = 4 * cellSize;      // 河上缘（0-based 第5行之上）
+                int yBottomStart = 5 * cellSize; // 河下缘（0-based 第6行之下）
+                g2d.drawLine(col * cellSize, 0, col * cellSize, yTopEnd);
+                g2d.drawLine(col * cellSize, yBottomStart, col * cellSize, boardHeight);
+            }
         }
 
         // 横线：从第 0 行到第 rows-1 行（共 rows 条线）
         for (int row = 0; row < board.getRows(); row++) {
-            g2d.drawLine(0, row * cellSize, boardWidth, row * cellSize);
+            int y = row * cellSize;
+            if (row == 4 || row == 5) {
+                // “楚河汉界”双细线标记
+                g2d.drawLine(0, y - 2, boardWidth, y - 2);
+                g2d.drawLine(0, y + 2, boardWidth, y + 2);
+            } else {
+                g2d.drawLine(0, y, boardWidth, y);
+            }
         }
-
-        // 绘制"河"
-        g2d.setColor(new Color(100, 100, 100));
-        g2d.setFont(new Font("SimHei", Font.PLAIN, 12));
-        int riverRow = 4;
-        int boardWidth_actual = (board.getCols() - 1) * cellSize;
-        g2d.drawString("河", boardWidth_actual / 2 - 10, riverRow * cellSize + cellSize / 2);
 
         // 绘制"宫"（King's palace）
         drawPalace(g2d);
@@ -292,4 +300,3 @@ public class BoardPanel extends JPanel {
         return new Dimension(width, height);
     }
 }
-
