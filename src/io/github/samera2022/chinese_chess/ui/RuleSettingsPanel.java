@@ -61,12 +61,44 @@ public class RuleSettingsPanel extends JPanel {
 
         form.add(Box.createVerticalStrut(10));
 
-        // 特殊玩法分组
+        // 延申玩法分组（可折叠）
         JPanel special = new JPanel();
         special.setLayout(new BoxLayout(special, BoxLayout.Y_AXIS));
-        special.setBorder(new TitledBorder("特殊玩法"));
         // 作为 form 的子组件，整体左对齐
         special.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 创建可点击的TitledBorder
+        TitledBorder titledBorder = new TitledBorder("▼ 延申玩法");
+        special.setBorder(titledBorder);
+
+        // 创建内容面板，用于折叠/展开
+        JPanel specialContent = new JPanel();
+        specialContent.setLayout(new BoxLayout(specialContent, BoxLayout.Y_AXIS));
+        specialContent.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 标记用于折叠状态
+        final boolean[] isExpanded = {true};
+
+        // 使TitledBorder的标题可点击
+        special.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                // 检查是否点击了标题区域（大约在顶部20像素内）
+                if (e.getY() < 20) {
+                    isExpanded[0] = !isExpanded[0];
+                    specialContent.setVisible(isExpanded[0]);
+                    titledBorder.setTitle(isExpanded[0] ? "▼ 延申玩法" : "▶ 延申玩法");
+                    // 折叠时设置为30像素高度，展开时根据内容设置高度
+                    if (isExpanded[0]) {
+                        special.setMaximumSize(new Dimension(Integer.MAX_VALUE, specialContent.getPreferredSize().height + 20));
+                    } else {
+                        special.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+                    }
+                    special.revalidate();
+                    special.repaint();
+                }
+            }
+        });
         JCheckBox chkFlyingGeneral = new JCheckBox("允许飞将");
         JCheckBox chkPawnBack = new JCheckBox("兵卒可后退");
         JCheckBox chkNoRiverLimit = new JCheckBox("允许过河");
@@ -88,20 +120,15 @@ public class RuleSettingsPanel extends JPanel {
         chkInternationalKing.setAlignmentX(Component.LEFT_ALIGNMENT);
         chkPawnPromotion.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        special.add(chkFlyingGeneral);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkPawnBack);
-        // 缩进"允许境内后退"
-        JPanel indentedRetreat = new JPanel();
-        indentedRetreat.setLayout(new BoxLayout(indentedRetreat, BoxLayout.X_AXIS));
-        indentedRetreat.add(Box.createHorizontalStrut(20));
-        indentedRetreat.add(chkAllowInsideRetreat);
-        indentedRetreat.setAlignmentX(Component.LEFT_ALIGNMENT);
-        indentedRetreat.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        special.add(Box.createVerticalStrut(6));
-        special.add(indentedRetreat);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkNoRiverLimit);
+        specialContent.add(chkFlyingGeneral);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkAdvisorCanLeave);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkInternationalKing);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkInternationalAdvisor);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkNoRiverLimit);
         // 缩进并水平排列"相"、"仕"、"帥"
         JPanel indentedRiverOptions = new JPanel();
         indentedRiverOptions.setLayout(new BoxLayout(indentedRiverOptions, BoxLayout.X_AXIS));
@@ -114,14 +141,21 @@ public class RuleSettingsPanel extends JPanel {
         indentedRiverOptions.add(Box.createHorizontalGlue());
         indentedRiverOptions.setAlignmentX(Component.LEFT_ALIGNMENT);
         indentedRiverOptions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        special.add(Box.createVerticalStrut(6));
-        special.add(indentedRiverOptions);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkAdvisorCanLeave);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkInternationalKing);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkPawnPromotion);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(indentedRiverOptions);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkPawnBack);
+        // 缩进"允许境内后退"
+        JPanel indentedRetreat = new JPanel();
+        indentedRetreat.setLayout(new BoxLayout(indentedRetreat, BoxLayout.X_AXIS));
+        indentedRetreat.add(Box.createHorizontalStrut(20));
+        indentedRetreat.add(chkAllowInsideRetreat);
+        indentedRetreat.setAlignmentX(Component.LEFT_ALIGNMENT);
+        indentedRetreat.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(indentedRetreat);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(chkPawnPromotion);
         // 缩进"允许己方底线晋升"
         JPanel indentedPanel = new JPanel();
         indentedPanel.setLayout(new BoxLayout(indentedPanel, BoxLayout.X_AXIS));
@@ -130,27 +164,25 @@ public class RuleSettingsPanel extends JPanel {
         // 作为 special 的子组件，整体左对齐
         indentedPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         indentedPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        special.add(Box.createVerticalStrut(6));
-        special.add(indentedPanel);
-        special.add(Box.createVerticalStrut(6));
-        special.add(chkInternationalAdvisor);
+        specialContent.add(Box.createVerticalStrut(6));
+        specialContent.add(indentedPanel);
+
+        special.add(specialContent);
+        form.add(special);
 
         // 操作按钮：复制配置 / 输入配置（在弹窗中点击确定应用）
         JPanel btnBar = new JPanel();
         btnBar.setLayout(new BoxLayout(btnBar, BoxLayout.Y_AXIS));
-        // 作为 special 的子组件，整体左对齐
         btnBar.setAlignmentX(Component.LEFT_ALIGNMENT);
         JButton copyBtn = new JButton("复制配置");
         JButton importBtn = new JButton("输入配置");
         copyBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
         importBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnBar.add(Box.createVerticalStrut(8));
         btnBar.add(copyBtn);
         btnBar.add(Box.createVerticalStrut(6));
         btnBar.add(importBtn);
-        special.add(Box.createVerticalStrut(8));
-        special.add(btnBar);
-
-        form.add(special);
+        form.add(btnBar);
 
         add(new JScrollPane(form), BorderLayout.CENTER);
 
@@ -244,17 +276,17 @@ public class RuleSettingsPanel extends JPanel {
         copyBtn.addActionListener(e -> {
             JsonObject obj = new JsonObject();
             obj.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
-            obj.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
-            obj.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
             obj.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
             obj.addProperty("internationalKing", chkInternationalKing.isSelected());
-            obj.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
-            obj.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
-            obj.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             obj.addProperty("internationalAdvisor", chkInternationalAdvisor.isSelected());
+            obj.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
             obj.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
             obj.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             obj.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
+            obj.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
+            obj.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
+            obj.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
+            obj.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
             StringSelection sel = new StringSelection(obj.toString());
             Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
             cb.setContents(sel, sel);
@@ -268,17 +300,17 @@ public class RuleSettingsPanel extends JPanel {
             // 预填当前配置，方便修改
             JsonObject current = new JsonObject();
             current.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
-            current.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
-            current.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
             current.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
             current.addProperty("internationalKing", chkInternationalKing.isSelected());
-            current.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
-            current.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
-            current.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             current.addProperty("internationalAdvisor", chkInternationalAdvisor.isSelected());
+            current.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
             current.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
             current.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             current.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
+            current.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
+            current.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
+            current.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
+            current.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
             area.setText(current.toString());
 
             JScrollPane scroll = new JScrollPane(area);
