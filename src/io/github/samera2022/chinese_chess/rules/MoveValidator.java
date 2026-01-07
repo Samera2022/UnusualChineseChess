@@ -9,10 +9,41 @@ import io.github.samera2022.chinese_chess.model.Piece;
  */
 public class MoveValidator {
     private Board board;
+    private boolean allowFlyingGeneral = false;
+    private boolean pawnCanRetreat = false;
+    private boolean noRiverLimit = false;
+    private boolean advisorCanLeave = false;
+    private boolean internationalKing = false;
+    private boolean pawnPromotion = false;
+    private boolean allowOwnBaseLine = false;
+    private boolean allowInsideRetreat = false;
+    private boolean internationalAdvisor = false;
+    private boolean allowElephantCrossRiver = false;
+    private boolean allowAdvisorCrossRiver = false;
+    private boolean allowKingCrossRiver = false;
 
     public MoveValidator(Board board) {
         this.board = board;
     }
+
+    // 供引擎注入特殊玩法开关
+    public void setAllowFlyingGeneral(boolean allow) { this.allowFlyingGeneral = allow; }
+    public void setPawnCanRetreat(boolean allow) { this.pawnCanRetreat = allow; }
+    public void setNoRiverLimit(boolean allow) { this.noRiverLimit = allow; }
+    public void setAdvisorCanLeave(boolean allow) { this.advisorCanLeave = allow; }
+    public void setInternationalKing(boolean allow) { this.internationalKing = allow; }
+    public void setPawnPromotion(boolean allow) { this.pawnPromotion = allow; }
+    public void setAllowOwnBaseLine(boolean allow) { this.allowOwnBaseLine = allow; }
+    public void setAllowInsideRetreat(boolean allow) { this.allowInsideRetreat = allow; }
+    public void setInternationalAdvisor(boolean allow) { this.internationalAdvisor = allow; }
+    public void setAllowElephantCrossRiver(boolean allow) { this.allowElephantCrossRiver = allow; }
+    public void setAllowAdvisorCrossRiver(boolean allow) { this.allowAdvisorCrossRiver = allow; }
+    public void setAllowKingCrossRiver(boolean allow) { this.allowKingCrossRiver = allow; }
+
+    public boolean isPawnPromotion() { return pawnPromotion; }
+    public boolean isAllowOwnBaseLine() { return allowOwnBaseLine; }
+    public boolean isAllowInsideRetreat() { return allowInsideRetreat; }
+    public boolean isInternationalAdvisor() { return internationalAdvisor; }
 
     /**
      * 验证着法是否合法
@@ -70,6 +101,7 @@ public class MoveValidator {
 
     /**
      * 王（帅）：在宫内活动，每次只能走一步，可以前进、后退、左右走
+     * 若启用"国际化将军"，则可以八个方向移动（包括斜向）
      */
     private boolean isValidKingMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
         // 检查是否在宫内
@@ -78,35 +110,75 @@ public class MoveValidator {
         int minRow = piece.isRed() ? 7 : 0;
         int maxRow = piece.isRed() ? 9 : 2;
 
-        if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
-            return false;
+        // 只有在不允许飞将且不允许将过河时才限制在九宫格内
+        if (!allowFlyingGeneral && !allowKingCrossRiver) {
+            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
+                return false;
+            }
         }
 
-        // 只能走一步
+        // 计算移动距离
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
 
-        return (rowDiff + colDiff) == 1;
+        // 如果启用国际化将军，允许八个方向移动一步
+        if (internationalKing) {
+            // 国际象棋国王走法：横、竖、斜都可以，但只能走一步
+            return rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0;
+        } else {
+            // 传统中国象棋走法：只能横竖走一步
+            return (rowDiff + colDiff) == 1;
+        }
     }
 
     /**
      * 士（仕）：只能在宫内走，每次走一步，走的方向只能是斜线
      */
     private boolean isValidAdvisorMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        // 检查是否在宫内
-        int minCol = 3;
-        int maxCol = 5;
-        int minRow = piece.isRed() ? 7 : 0;
-        int maxRow = piece.isRed() ? 9 : 2;
-
-        if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
-            return false;
+        // 宫限制（仅当不可出仕且不允许仕过河时生效）
+        if (!advisorCanLeave && !allowAdvisorCrossRiver) {
+            int minCol = 3;
+            int maxCol = 5;
+            int minRow = piece.isRed() ? 7 : 0;
+            int maxRow = piece.isRed() ? 9 : 2;
+            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
+                return false;
+            }
         }
 
-        // 只能走对角线，每次一步
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
 
+        if (internationalAdvisor) {
+            // 皇后走法：任意直/斜线，路径需畅通
+            if (rowDiff == 0 && colDiff > 0) {
+                int step = toCol > fromCol ? 1 : -1;
+                for (int c = fromCol + step; c != toCol; c += step) {
+                    if (board.getPiece(fromRow, c) != null) return false;
+                }
+                return true;
+            }
+            if (colDiff == 0 && rowDiff > 0) {
+                int step = toRow > fromRow ? 1 : -1;
+                for (int r = fromRow + step; r != toRow; r += step) {
+                    if (board.getPiece(r, fromCol) != null) return false;
+                }
+                return true;
+            }
+            if (rowDiff == colDiff && rowDiff > 0) {
+                int rowStep = toRow > fromRow ? 1 : -1;
+                int colStep = toCol > fromCol ? 1 : -1;
+                int r = fromRow + rowStep, c = fromCol + colStep;
+                while (r != toRow && c != toCol) {
+                    if (board.getPiece(r, c) != null) return false;
+                    r += rowStep; c += colStep;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        // 传统士：只能斜一步
         return rowDiff == 1 && colDiff == 1;
     }
 
@@ -116,12 +188,13 @@ public class MoveValidator {
      * 同时象不能被象眼(中间的格子)阻挡
      */
     private boolean isValidElephantMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        // 检查是否过河
-        if (piece.isRed() && toRow < 5) {
-            return false;
-        }
-        if (!piece.isRed() && toRow > 4) {
-            return false;
+        if (!noRiverLimit && !allowElephantCrossRiver) {
+            if (piece.isRed() && toRow < 5) {
+                return false;
+            }
+            if (!piece.isRed() && toRow > 4) {
+                return false;
+            }
         }
 
         // 只能走对角线，每次两步
@@ -269,36 +342,27 @@ public class MoveValidator {
         boolean hasCrossedRiver;
 
         if (isRed) {
-            // 红方：row >= 5表示未过河（在己方），row < 5表示已过河
             hasCrossedRiver = fromRow < 5;
 
-            if (!hasCrossedRiver) {
-                // 未过河，只能向前走
-                return rowDiff == -1 && colDiff == 0;
+            if (!hasCrossedRiver && !noRiverLimit) {
+                if (rowDiff == -1 && colDiff == 0) return true;
+                if (allowInsideRetreat && pawnCanRetreat && rowDiff == 1 && colDiff == 0) return true;
+                return false;
             } else {
-                // 已过河，可以向前或横向走
-                if (rowDiff == -1 && colDiff == 0) {
-                    return true; // 向前走
-                }
-                if (rowDiff == 0 && colDiff == 1) {
-                    return true; // 横向走
-                }
+                if (rowDiff == -1 && colDiff == 0) return true;
+                if (rowDiff == 0 && colDiff == 1) return true;
+                if (pawnCanRetreat && rowDiff == 1 && colDiff == 0) return true;
             }
         } else {
-            // 黑方：row <= 4表示未过河（在己方），row > 4表示已过河
             hasCrossedRiver = fromRow > 4;
-
-            if (!hasCrossedRiver) {
-                // 未过河，只能向前走
-                return rowDiff == 1 && colDiff == 0;
+            if (!hasCrossedRiver && !noRiverLimit) {
+                if (rowDiff == 1 && colDiff == 0) return true;
+                if (allowInsideRetreat && pawnCanRetreat && rowDiff == -1 && colDiff == 0) return true;
+                return false;
             } else {
-                // 已过河，可以向前或横向走
-                if (rowDiff == 1 && colDiff == 0) {
-                    return true; // 向前走
-                }
-                if (rowDiff == 0 && colDiff == 1) {
-                    return true; // 横向走
-                }
+                if (rowDiff == 1 && colDiff == 0) return true;
+                if (rowDiff == 0 && colDiff == 1) return true;
+                if (pawnCanRetreat && rowDiff == -1 && colDiff == 0) return true;
             }
         }
 

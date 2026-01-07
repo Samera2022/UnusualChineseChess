@@ -20,6 +20,16 @@ public class BoardPanel extends JPanel {
     private int selectedCol = -1;
     private java.util.List<Point> validMoves = new java.util.ArrayList<>();
 
+    // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
+    private Boolean localControlsRed = null;
+
+    // 新增：本地走子事件监听
+    public interface LocalMoveListener {
+        void onLocalMove(int fromRow, int fromCol, int toRow, int toCol);
+    }
+    private LocalMoveListener localMoveListener;
+    public void setLocalMoveListener(LocalMoveListener listener) { this.localMoveListener = listener; }
+
     // 棋盘偏移量（用于居中显示）
     private int offsetX = 0;
     private int offsetY = 0;
@@ -41,6 +51,11 @@ public class BoardPanel extends JPanel {
                 handleMouseClick(e);
             }
         });
+    }
+
+    // 供外部设置：本地操控一方（true=红；false=黑；null=不限制）
+    public void setLocalControlsRed(Boolean localControlsRed) {
+        this.localControlsRed = localControlsRed;
     }
 
     /**
@@ -68,7 +83,8 @@ public class BoardPanel extends JPanel {
         // 如果没有选择棋子，选择点击的棋子
         if (selectedRow == -1) {
             Piece piece = board.getPiece(row, col);
-            if (piece != null && piece.isRed() == gameEngine.isRedTurn()) {
+            if (piece != null && piece.isRed() == gameEngine.isRedTurn()
+                    && (localControlsRed == null || piece.isRed() == localControlsRed)) {
                 selectedRow = row;
                 selectedCol = col;
                 calculateValidMoves();
@@ -78,7 +94,39 @@ public class BoardPanel extends JPanel {
         }
 
         // 已有选择的棋子，尝试移动
-        if (gameEngine.makeMove(selectedRow, selectedCol, row, col)) {
+        int fromR = selectedRow; int fromC = selectedCol; int toR = row; int toC = col; // 记录坐标
+
+        // 检查是否是兵卒移动到底线需要晋升
+        Piece movingPiece = board.getPiece(fromR, fromC);
+        Piece.Type promotionType = null;
+
+        if (movingPiece != null && gameEngine.isSpecialRuleEnabled("pawnPromotion")) {
+            boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
+                               movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
+            // 对方底线晋升（总是允许）
+            boolean isAtOpponentBaseLine = (movingPiece.isRed() && toR == 0) ||
+                                          (!movingPiece.isRed() && toR == 9);
+            // 己方底线晋升（仅在启用时允许）
+            boolean isAtOwnBaseLine = (movingPiece.isRed() && toR == 9) ||
+                                     (!movingPiece.isRed() && toR == 0);
+            boolean allowOwnBaseLine = gameEngine.isSpecialRuleEnabled("allowOwnBaseLine");
+
+            if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
+                // 弹出晋升选择对话框
+                promotionType = showPromotionDialog(movingPiece.isRed());
+                if (promotionType == null) {
+                    // 用户取消了晋升选择
+                    repaint();
+                    return;
+                }
+            }
+        }
+
+        if (gameEngine.makeMove(fromR, fromC, toR, toC, promotionType)) {
+            // 通知本地走子（供联机发送）
+            if (localMoveListener != null) {
+                localMoveListener.onLocalMove(fromR, fromC, toR, toC);
+            }
             selectedRow = -1;
             selectedCol = -1;
             validMoves.clear();
@@ -87,7 +135,8 @@ public class BoardPanel extends JPanel {
             selectedRow = row;
             selectedCol = col;
             Piece piece = board.getPiece(row, col);
-            if (piece == null || piece.isRed() != gameEngine.isRedTurn()) {
+            if (piece == null || piece.isRed() != gameEngine.isRedTurn()
+                    || (localControlsRed != null && piece.isRed() != localControlsRed)) {
                 selectedRow = -1;
                 selectedCol = -1;
                 validMoves.clear();
@@ -100,12 +149,74 @@ public class BoardPanel extends JPanel {
     }
 
     /**
+     * 显示晋升选择对话框
+     * @param isRed 是否是红方
+     * @return 选择的棋子类型，null表示取消
+     */
+    private Piece.Type showPromotionDialog(boolean isRed) {
+        Piece.Type[] types;
+
+        if (isRed) {
+            types = new Piece.Type[]{
+                Piece.Type.RED_CHARIOT,    // 車
+                Piece.Type.RED_HORSE,      // 马
+                Piece.Type.RED_CANNON,     // 炮
+                Piece.Type.RED_ELEPHANT,   // 相
+                Piece.Type.RED_ADVISOR     // 仕
+            };
+        } else {
+            types = new Piece.Type[]{
+                Piece.Type.BLACK_CHARIOT,  // 車
+                Piece.Type.BLACK_HORSE,    // 马
+                Piece.Type.BLACK_CANNON,   // 砲
+                Piece.Type.BLACK_ELEPHANT, // 象
+                Piece.Type.BLACK_ADVISOR   // 士
+            };
+        }
+
+        // 使用每个类型的中文名称作为选项
+        String[] options = new String[types.length];
+        for (int i = 0; i < types.length; i++) {
+            options[i] = types[i].getChineseName();
+        }
+
+        int choice = JOptionPane.showOptionDialog(
+            this,
+            "选择晋升的棋子：",
+            "兵卒晋升",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]
+        );
+
+        if (choice >= 0 && choice < types.length) {
+            return types[choice];
+        }
+        return null;
+    }
+
+    /**
      * 计算所有可能的移动
      */
     private void calculateValidMoves() {
         validMoves.clear();
         Board board = gameEngine.getBoard();
         MoveValidator validator = new MoveValidator(board);
+        // 将特殊玩法开关同步到临时校验器，确保指示与实际规则一致
+        validator.setAllowFlyingGeneral(gameEngine.isSpecialRuleEnabled("allowFlyingGeneral"));
+        validator.setPawnCanRetreat(gameEngine.isSpecialRuleEnabled("pawnCanRetreat"));
+        validator.setNoRiverLimit(gameEngine.isSpecialRuleEnabled("noRiverLimit"));
+        validator.setAdvisorCanLeave(gameEngine.isSpecialRuleEnabled("advisorCanLeave"));
+        validator.setInternationalKing(gameEngine.isSpecialRuleEnabled("internationalKing"));
+        validator.setPawnPromotion(gameEngine.isSpecialRuleEnabled("pawnPromotion"));
+        validator.setAllowOwnBaseLine(gameEngine.isSpecialRuleEnabled("allowOwnBaseLine"));
+        validator.setAllowInsideRetreat(gameEngine.isSpecialRuleEnabled("allowInsideRetreat"));
+        validator.setInternationalAdvisor(gameEngine.isSpecialRuleEnabled("internationalAdvisor"));
+        validator.setAllowElephantCrossRiver(gameEngine.isSpecialRuleEnabled("allowElephantCrossRiver"));
+        validator.setAllowAdvisorCrossRiver(gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"));
+        validator.setAllowKingCrossRiver(gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"));
 
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {
@@ -148,6 +259,9 @@ public class BoardPanel extends JPanel {
 
         // 绘制棋子
         drawPieces(g2d, board);
+
+        // 绘制移动指示器（在棋子之后，显示在最上层）
+        drawMoveIndicators(g2d, board);
     }
 
     /**
@@ -205,7 +319,12 @@ public class BoardPanel extends JPanel {
 
         // 绘制炮的位置标记（空心圆点）
         drawCannonMarks(g2d);
+    }
 
+    /**
+     * 绘制移动指示器（高亮选中和可能的移动位置）
+     */
+    private void drawMoveIndicators(Graphics2D g2d, Board board) {
         // 绘制所选棋子的高亮 - 显示在交点周围
         if (selectedRow != -1 && selectedCol != -1) {
             int highlightX = selectedCol * cellSize;

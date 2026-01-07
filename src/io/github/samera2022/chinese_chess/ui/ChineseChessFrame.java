@@ -1,10 +1,17 @@
 package io.github.samera2022.chinese_chess.ui;
 
+import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.io.GameStateExporter;
+import io.github.samera2022.chinese_chess.io.GameStateImporter;
 import io.github.samera2022.chinese_chess.model.Move;
+import io.github.samera2022.chinese_chess.net.NetModeController;
+import io.github.samera2022.chinese_chess.net.NetworkSession;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.io.File;
 
 /**
  * 主窗口 - 中国象棋游戏的GUI
@@ -13,17 +20,20 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     private GameEngine gameEngine;
     private BoardPanel boardPanel;
     private MoveHistoryPanel moveHistoryPanel;
-    // 新增：右侧容器与右侧列表
     private JPanel rightPanel;
-    private JPanel extraListPanel;
-    private DefaultListModel<String> extraListModel;
-    private JList<String> extraList;
-    private JPanel controlPanel;
-    private JLabel statusLabel;
+    private JToggleButton togglePanelButton;
     private JButton undoButton;
     private JButton restartButton;
-    // 新增：切换右侧列表显示的按钮
-    private JToggleButton toggleExtraListButton;
+
+    // 新的右侧网络面板
+    private NetModeController netController = new NetModeController();
+    private NetworkSidePanel networkSidePanel;
+    private RuleSettingsPanel ruleSettingsPanel;
+    private boolean ruleSettingsLocked = false;
+    private JPanel westDock;
+
+    // 状态标签（左侧）
+    private JLabel statusLabel;
 
     public ChineseChessFrame() {
         setTitle("中国象棋 - Offline Mode");
@@ -37,45 +47,134 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 创建主面板
         JPanel mainPanel = new JPanel(new BorderLayout());
 
-        // 创建左侧面板（棋盘）
-        JPanel leftPanel = new JPanel(new BorderLayout());
+        // 棋盘 + 控制栏
+        JPanel center = new JPanel(new BorderLayout());
         boardPanel = new BoardPanel(gameEngine);
-        leftPanel.add(boardPanel, BorderLayout.CENTER);
-        leftPanel.add(createControlPanel(), BorderLayout.SOUTH);
+        // 设置本地走子监听：若在联机中，发送到对端
+        boardPanel.setLocalMoveListener((fr, fc, tr, tc) -> {
+            if (netController.isActive()) {
+                netController.getSession().sendMove(fr, fc, tr, tc);
+            }
+        });
+        center.add(boardPanel, BorderLayout.CENTER);
+        center.add(createControlPanel(), BorderLayout.SOUTH);
 
-        // 创建右侧面板（着法记录 + 新增列表）
+        // 右侧：着法记录
         moveHistoryPanel = new MoveHistoryPanel(gameEngine);
+        // 设置步数变化监听器
+        moveHistoryPanel.setStepChangeListener(step -> {
+            gameEngine.rebuildBoardToStep(step);
+            boardPanel.repaint();
+            updateStatus();
+        });
         rightPanel = new JPanel(new BorderLayout());
         rightPanel.add(moveHistoryPanel, BorderLayout.CENTER);
-        createExtraListPanel();
-        rightPanel.add(extraListPanel, BorderLayout.EAST);
 
-        // 将左右两个面板添加到主面板
-        mainPanel.add(leftPanel, BorderLayout.CENTER);
+        // 左侧停靠：最左是设置，右边是“面板”
+        ruleSettingsPanel = new RuleSettingsPanel();
+        ruleSettingsPanel.setVisible(false);
+        ruleSettingsPanel.bindSettings(new RuleSettingsPanel.SettingsBinder() {
+            @Override public void setAllowUndo(boolean allowUndo) {
+                if (ruleSettingsLocked) return;
+                gameEngine.setAllowUndo(allowUndo);
+                undoButton.setEnabled(allowUndo && !netController.isActive());
+            }
+            @Override public boolean isAllowUndo() { return gameEngine.isAllowUndo(); }
+            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowFlyingGeneral", allow); boardPanel.repaint(); }
+            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("pawnCanRetreat", allow); boardPanel.repaint(); }
+            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("noRiverLimit", noLimit); boardPanel.repaint(); }
+            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("advisorCanLeave", allow); boardPanel.repaint(); }
+            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("internationalKing", allow); boardPanel.repaint(); }
+            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("pawnPromotion", allow); boardPanel.repaint(); }
+            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowOwnBaseLine", allow); boardPanel.repaint(); }
+            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowInsideRetreat", allow); boardPanel.repaint(); }
+            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("internationalAdvisor", allow); boardPanel.repaint(); }
+            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowElephantCrossRiver", allow); boardPanel.repaint(); }
+            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowAdvisorCrossRiver", allow); boardPanel.repaint(); }
+            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowKingCrossRiver", allow); boardPanel.repaint(); }
+            @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled("allowFlyingGeneral"); }
+            @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled("pawnCanRetreat"); }
+            @Override public boolean isNoRiverLimit() { return gameEngine.isSpecialRuleEnabled("noRiverLimit"); }
+            @Override public boolean isAdvisorCanLeave() { return gameEngine.isSpecialRuleEnabled("advisorCanLeave"); }
+            @Override public boolean isInternationalKing() { return gameEngine.isSpecialRuleEnabled("internationalKing"); }
+            @Override public boolean isPawnPromotion() { return gameEngine.isSpecialRuleEnabled("pawnPromotion"); }
+            @Override public boolean isAllowOwnBaseLine() { return gameEngine.isSpecialRuleEnabled("allowOwnBaseLine"); }
+            @Override public boolean isAllowInsideRetreat() { return gameEngine.isSpecialRuleEnabled("allowInsideRetreat"); }
+            @Override public boolean isInternationalAdvisor() { return gameEngine.isSpecialRuleEnabled("internationalAdvisor"); }
+            @Override public boolean isAllowElephantCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowElephantCrossRiver"); }
+            @Override public boolean isAllowAdvisorCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"); }
+            @Override public boolean isAllowKingCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"); }
+        });
+
+        // 面板，带"玩法设置"按钮，点击后切换左侧设置组件
+        networkSidePanel = new NetworkSidePanel(
+                netController,
+                boardPanel,
+                gameEngine,
+                undoButton,
+                () -> {
+                    ruleSettingsPanel.setVisible(!ruleSettingsPanel.isVisible());
+                    ChineseChessFrame.this.pack();
+                    ChineseChessFrame.this.revalidate();
+                    ChineseChessFrame.this.repaint();
+                },
+                () -> ruleSettingsPanel.isVisible(),
+                () -> exportGameState(),
+                () -> importGameState()
+        );
+        networkSidePanel.setVisible(false);
+
+        westDock = new JPanel(new BorderLayout());
+        westDock.add(ruleSettingsPanel, BorderLayout.WEST);
+        westDock.add(networkSidePanel, BorderLayout.CENTER);
+
+        // 组装
+        mainPanel.add(westDock, BorderLayout.WEST);
+        mainPanel.add(center, BorderLayout.CENTER);
         mainPanel.add(rightPanel, BorderLayout.EAST);
 
         setContentPane(mainPanel);
         pack();
         setLocationRelativeTo(null);
 
+        // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
+        netController.getSession().setListener(new NetworkSession.Listener() {
+            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> { gameEngine.makeMove(fromRow, fromCol, toRow, toCol); boardPanel.repaint(); }); }
+            @Override public void onPeerRestart() { SwingUtilities.invokeLater(() -> { gameEngine.restart(); boardPanel.repaint(); }); }
+            @Override public void onDisconnected(String reason) {
+                SwingUtilities.invokeLater(() -> {
+                    ruleSettingsLocked = false;
+                    setRuleSettingsEnabled(true);
+                    undoButton.setEnabled(true);
+                    boardPanel.setLocalControlsRed(null);
+                    networkSidePanel.onDisconnected(reason);
+                });
+            }
+            @Override public void onConnected(String peerInfo) {
+                SwingUtilities.invokeLater(() -> {
+                    networkSidePanel.onConnected(peerInfo);
+                    if (netController.isHost()) {
+                        JsonObject snap = gameEngine.getSettingsSnapshot();
+                        netController.getSession().sendSettings(snap);
+                    }
+                    ruleSettingsLocked = !netController.isHost();
+                    setRuleSettingsEnabled(netController.isHost());
+                    ruleSettingsPanel.refreshFromBinder();
+                });
+            }
+            @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> networkSidePanel.onPong(sentMillis, rttMillis)); }
+            @Override public void onSettingsReceived(JsonObject settings) {
+                SwingUtilities.invokeLater(() -> {
+                    if (!netController.isHost() && settings != null) {
+                        gameEngine.applySettingsSnapshot(settings);
+                        undoButton.setEnabled(gameEngine.isAllowUndo() && !netController.isActive());
+                        ruleSettingsPanel.refreshFromBinder();
+                    }
+                });
+            }
+        });
+
         updateStatus();
-    }
-
-    // 新增：构建右侧列表面板
-    private void createExtraListPanel() {
-        extraListModel = new DefaultListModel<>();
-        // 可按需填充默认项目；此处保留为空
-        extraList = new JList<>(extraListModel);
-        extraList.setFont(new Font("Microsoft YaHei", Font.PLAIN, 12));
-
-        JScrollPane sp = new JScrollPane(extraList);
-        sp.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-
-        extraListPanel = new JPanel(new BorderLayout());
-        extraListPanel.setBorder(BorderFactory.createTitledBorder("附加列表"));
-        extraListPanel.add(sp, BorderLayout.CENTER);
-        extraListPanel.setPreferredSize(new Dimension(160, 0)); // 固定右侧宽度
-        extraListPanel.setVisible(false); // 默认隐藏，由按钮控制
     }
 
     /**
@@ -86,14 +185,14 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         panel.setBackground(new Color(240, 240, 240));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // 状态标签
+        // 状态标签（左侧）
         statusLabel = new JLabel();
         statusLabel.setFont(new Font("SimHei", Font.BOLD, 16));
         panel.add(statusLabel, BorderLayout.WEST);
 
         // 按钮面板
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        buttonPanel.setBackground(new Color(240, 240, 240));
+        JPanel buttonBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonBar.setBackground(new Color(240, 240, 240));
 
         // 撤销按钮
         undoButton = new JButton("撤销");
@@ -104,33 +203,39 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 updateStatus();
             }
         });
-        buttonPanel.add(undoButton);
+        buttonBar.add(undoButton);
 
         // 重新开始按钮
         restartButton = new JButton("重新开始");
         restartButton.setFont(new Font("SimHei", Font.PLAIN, 14));
         restartButton.addActionListener(e -> {
             gameEngine.restart();
+            // 若处于联机，对端也重开
+            if (netController.isActive()) {
+                netController.getSession().sendRestart();
+            }
+            // 隐藏导航面板
+            moveHistoryPanel.hideNavigation();
             boardPanel.repaint();
             updateStatus();
         });
-        buttonPanel.add(restartButton);
+        buttonBar.add(restartButton);
 
-        // 切换“右侧新增列表”按钮
-        toggleExtraListButton = new JToggleButton("显示右侧列表");
-        toggleExtraListButton.setFont(new Font("SimHei", Font.PLAIN, 14));
-        toggleExtraListButton.addActionListener(e -> {
-            boolean show = toggleExtraListButton.isSelected();
-            extraListPanel.setVisible(show);
-            toggleExtraListButton.setText(show ? "隐藏右侧列表" : "显示右侧列表");
-            // 重新布局并调整窗口大小，确保非可调整窗口也能适配宽度变化
+
+        // 单按钮切换"面板"
+        togglePanelButton = new JToggleButton("显示面板");
+        togglePanelButton.setFont(new Font("SimHei", Font.PLAIN, 14));
+        togglePanelButton.addActionListener(e -> {
+            boolean show = togglePanelButton.isSelected();
+            networkSidePanel.setVisible(show);
+            togglePanelButton.setText(show ? "隐藏面板" : "显示面板");
             ChineseChessFrame.this.pack();
             ChineseChessFrame.this.revalidate();
             ChineseChessFrame.this.repaint();
         });
-        buttonPanel.add(toggleExtraListButton);
+        buttonBar.add(togglePanelButton);
 
-        panel.add(buttonPanel, BorderLayout.EAST);
+        panel.add(buttonBar, BorderLayout.EAST);
 
         return panel;
     }
@@ -160,7 +265,9 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 status = "游戏进行中";
         }
 
-        statusLabel.setText(status);
+        if (statusLabel != null) {
+            statusLabel.setText(status);
+        }
     }
 
     @Override
@@ -175,6 +282,94 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         updateStatus();
     }
 
+    private void setRuleSettingsEnabled(boolean enabled) {
+        ruleSettingsPanel.setEnabled(enabled);
+        enableRecursively(ruleSettingsPanel, enabled);
+    }
 
+    private void enableRecursively(Container container, boolean enabled) {
+        for (Component c : container.getComponents()) {
+            c.setEnabled(enabled);
+            if (c instanceof Container) {
+                enableRecursively((Container) c, enabled);
+            }
+        }
+    }
+
+    /**
+     * 导出游戏状态
+     */
+    private void exportGameState() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("导出残局");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("JSON文件 (*.json)", "json"));
+        fileChooser.setSelectedFile(new File("endgame.json"));
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+
+            // 确保文件名以.json结尾
+            String filePath = file.getAbsolutePath();
+            if (!filePath.toLowerCase().endsWith(".json")) {
+                filePath += ".json";
+            }
+
+            try {
+                GameStateExporter.exportGameState(gameEngine, filePath);
+                JOptionPane.showMessageDialog(this,
+                    "残局导出成功！\n文件路径: " + filePath,
+                    "导出成功",
+                    JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this,
+                    "导出失败: " + ex.getMessage(),
+                    "导出错误",
+                    JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * 导入游戏状态
+     */
+    private void importGameState() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("导入残局");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("JSON文件 (*.json)", "json"));
+
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+
+            try {
+                GameStateImporter.importGameState(gameEngine, file.getAbsolutePath());
+
+                // 刷新UI
+                boardPanel.repaint();
+                updateStatus();
+
+                // 刷新规则设置面板
+                if (ruleSettingsPanel != null) {
+                    ruleSettingsPanel.refreshFromBinder();
+                }
+
+                // 刷新着法记录显示并显示导航
+                moveHistoryPanel.refreshHistory();
+                moveHistoryPanel.showNavigation();
+
+                JOptionPane.showMessageDialog(this,
+                    "残局导入成功！",
+                    "导入成功",
+                    JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this,
+                    "导入失败: " + ex.getMessage(),
+                    "导入错误",
+                    JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
+            }
+        }
+    }
 }
-

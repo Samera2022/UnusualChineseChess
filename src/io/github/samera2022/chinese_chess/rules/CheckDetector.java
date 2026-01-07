@@ -10,9 +10,9 @@ public class CheckDetector {
     private Board board;
     private MoveValidator validator;
 
-    public CheckDetector(Board board) {
+    public CheckDetector(Board board, MoveValidator validator) {
         this.board = board;
-        this.validator = new MoveValidator(board);
+        this.validator = validator;
     }
 
     /**

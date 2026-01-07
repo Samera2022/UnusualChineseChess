@@ -161,6 +161,37 @@ public class Board {
         initializeBoard();
     }
 
+    public void clearBoard() {
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                board[i][j] = null;
+            }
+        }
+        redPieces.clear();
+        blackPieces.clear();
+    }
+
+    /**
+     * 创建棋盘的深拷贝
+     */
+    public Board deepCopy() {
+        Board copy = new Board();
+        copy.clearBoard(); // 先清空默认初始化的棋盘
+
+        // 复制所有棋子
+        for (int row = 0; row < ROWS; row++) {
+            for (int col = 0; col < COLS; col++) {
+                Piece piece = this.board[row][col];
+                if (piece != null) {
+                    Piece pieceCopy = new Piece(piece.getType(), row, col);
+                    copy.setPiece(row, col, pieceCopy);
+                }
+            }
+        }
+
+        return copy;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
