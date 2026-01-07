@@ -9,7 +9,12 @@ public enum UpdateInfo {
                     " - 支持进行基本的象棋游玩。"),
     VERSION_0_2_0("0.2.0", "2026-01-07 00:18",
             "## [Added]\n" +
-                    " - 美化了象棋棋盘和整体UI布局。");
+                    " - 美化了象棋棋盘和整体UI布局。"),
+    VERSION_1_0_0("1.0.0", "2026-01-07 15:37",
+            "## [Added]\n" +
+                    " - 添加了完整的残局功能！你现在可以导出和导入残局了！\n" +
+                    " - 添加了局域网对战功能！你现在可以邀请不同玩家来一起玩象棋了！\n" +
+                    " - 添加“玩法”功能，你可以打破传统中国象棋中的一些规则，体验更加独特的中国象棋了！");
     private final String version;
     private final String releaseDate;
     private final String description;
@@ -49,6 +54,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_0_2_0.getFormattedLog());
+        System.out.println(VERSION_1_0_0.getFormattedLog());
     }
 }
