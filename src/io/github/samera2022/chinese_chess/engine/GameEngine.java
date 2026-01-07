@@ -31,6 +31,14 @@ public class GameEngine {
     // 特殊玩法
     private final JsonObject specialRules = new JsonObject();
 
+    // 新增：取消卡子相关规则
+    private boolean unblockPiece = false;
+    private boolean unblockHorseLeg = false;
+    private boolean unblockElephantEye = false;
+
+    // 兵过河特殊规则
+    private boolean noRiverLimitPawn = false;
+
     public enum GameState {
         RUNNING,
         RED_CHECKMATE,
@@ -64,6 +72,7 @@ public class GameEngine {
         specialRules.addProperty("allowElephantCrossRiver", false);
         specialRules.addProperty("allowAdvisorCrossRiver", false);
         specialRules.addProperty("allowKingCrossRiver", false);
+        specialRules.addProperty("leftRightConnected", false);
     }
 
     /**
@@ -121,13 +130,14 @@ public class GameEngine {
         Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
         moveHistory.add(move);
 
+        // 切换回合
+        isRedTurn = !isRedTurn;
+
         // 通知监听器
         for (GameStateListener listener : listeners) {
             listener.onMoveExecuted(move);
         }
 
-        // 切换回合
-        isRedTurn = !isRedTurn;
 
         // 检查游戏状态
         checkGameState();
@@ -390,6 +400,9 @@ public class GameEngine {
             case "allowKingCrossRiver":
                 validator.setAllowKingCrossRiver(value);
                 break;
+            case "leftRightConnected":
+                validator.setLeftRightConnected(value);
+                break;
             default:
                 break;
         }
@@ -416,4 +429,14 @@ public class GameEngine {
             }
         }
     }
+
+    public void setUnblockPiece(boolean allow) { this.unblockPiece = allow; validator.setUnblockPiece(allow); }
+    public void setUnblockHorseLeg(boolean allow) { this.unblockHorseLeg = allow; validator.setUnblockHorseLeg(allow); }
+    public void setUnblockElephantEye(boolean allow) { this.unblockElephantEye = allow; validator.setUnblockElephantEye(allow); }
+    public boolean isUnblockPiece() { return unblockPiece; }
+    public boolean isUnblockHorseLeg() { return unblockHorseLeg; }
+    public boolean isUnblockElephantEye() { return unblockElephantEye; }
+    // 兵过河特殊规则
+    public void setNoRiverLimitPawn(boolean allow) { this.noRiverLimitPawn = allow; validator.setNoRiverLimitPawn(allow); }
+    public boolean isNoRiverLimitPawn() { return noRiverLimitPawn; }
 }

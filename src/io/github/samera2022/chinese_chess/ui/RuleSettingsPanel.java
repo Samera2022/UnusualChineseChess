@@ -28,6 +28,11 @@ public class RuleSettingsPanel extends JPanel {
         void setAllowElephantCrossRiver(boolean allow);
         void setAllowAdvisorCrossRiver(boolean allow);
         void setAllowKingCrossRiver(boolean allow);
+        void setLeftRightConnected(boolean allow);
+        void setUnblockPiece(boolean allow);
+        void setUnblockHorseLeg(boolean allow);
+        void setUnblockElephantEye(boolean allow);
+        void setNoRiverLimitPawn(boolean allow);
         boolean isAllowFlyingGeneral();
         boolean isPawnCanRetreat();
         boolean isNoRiverLimit();
@@ -40,6 +45,11 @@ public class RuleSettingsPanel extends JPanel {
         boolean isAllowElephantCrossRiver();
         boolean isAllowAdvisorCrossRiver();
         boolean isAllowKingCrossRiver();
+        boolean isLeftRightConnected();
+        boolean isUnblockPiece();
+        boolean isUnblockHorseLeg();
+        boolean isUnblockElephantEye();
+        boolean isNoRiverLimitPawn();
     }
 
     public void refreshFromBinder() {
@@ -101,7 +111,7 @@ public class RuleSettingsPanel extends JPanel {
         });
         JCheckBox chkFlyingGeneral = new JCheckBox("允许飞将");
         JCheckBox chkPawnBack = new JCheckBox("兵卒可后退");
-        JCheckBox chkNoRiverLimit = new JCheckBox("允许过河");
+        JCheckBox chkNoRiverLimit = new JCheckBox("取消河界");
         JCheckBox chkAdvisorCanLeave = new JCheckBox("允许出仕");
         JCheckBox chkInternationalKing = new JCheckBox("国际化将军");
         JCheckBox chkPawnPromotion = new JCheckBox("兵卒底线晋升");
@@ -111,6 +121,7 @@ public class RuleSettingsPanel extends JPanel {
         JCheckBox chkAllowElephantCrossRiver = new JCheckBox("相");
         JCheckBox chkAllowAdvisorCrossRiver = new JCheckBox("仕");
         JCheckBox chkAllowKingCrossRiver = new JCheckBox("帥");
+        JCheckBox chkLeftRightConnected = new JCheckBox("左右连通");
 
         // 在 Y 轴 BoxLayout 中，逐项左对齐
         chkFlyingGeneral.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -129,59 +140,158 @@ public class RuleSettingsPanel extends JPanel {
         specialContent.add(chkInternationalAdvisor);
         specialContent.add(Box.createVerticalStrut(6));
         specialContent.add(chkNoRiverLimit);
-        // 缩进并水平排列"相"、"仕"、"帥"
-        JPanel indentedRiverOptions = new JPanel();
-        indentedRiverOptions.setLayout(new BoxLayout(indentedRiverOptions, BoxLayout.X_AXIS));
-        indentedRiverOptions.add(Box.createHorizontalStrut(20));
-        indentedRiverOptions.add(chkAllowElephantCrossRiver);
-        indentedRiverOptions.add(Box.createHorizontalStrut(10));
-        indentedRiverOptions.add(chkAllowAdvisorCrossRiver);
-        indentedRiverOptions.add(Box.createHorizontalStrut(10));
-        indentedRiverOptions.add(chkAllowKingCrossRiver);
-        indentedRiverOptions.add(Box.createHorizontalGlue());
-        indentedRiverOptions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        indentedRiverOptions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        specialContent.add(Box.createVerticalStrut(6));
-        specialContent.add(indentedRiverOptions);
         specialContent.add(Box.createVerticalStrut(6));
         specialContent.add(chkPawnBack);
-        // 缩进"允许境内后退"
-        JPanel indentedRetreat = new JPanel();
-        indentedRetreat.setLayout(new BoxLayout(indentedRetreat, BoxLayout.X_AXIS));
-        indentedRetreat.add(Box.createHorizontalStrut(20));
-        indentedRetreat.add(chkAllowInsideRetreat);
-        indentedRetreat.setAlignmentX(Component.LEFT_ALIGNMENT);
-        indentedRetreat.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        specialContent.add(Box.createVerticalStrut(6));
-        specialContent.add(indentedRetreat);
         specialContent.add(Box.createVerticalStrut(6));
         specialContent.add(chkPawnPromotion);
-        // 缩进"允许己方底线晋升"
-        JPanel indentedPanel = new JPanel();
-        indentedPanel.setLayout(new BoxLayout(indentedPanel, BoxLayout.X_AXIS));
-        indentedPanel.add(Box.createHorizontalStrut(20));
-        indentedPanel.add(chkAllowOwnBaseLine);
-        // 作为 special 的子组件，整体左对齐
-        indentedPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        indentedPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         specialContent.add(Box.createVerticalStrut(6));
-        specialContent.add(indentedPanel);
+        // 删除所有和“相”、“仕”、“帥”、“兵”有关的显示和逻辑
+        // 只保留“取消河界”主勾选框
+        // specialContent.add(chkNoRiverLimit);
+        // 删除“相”、“仕”、“帥”、“兵”相关的缩进面板和勾选框
+        // 新增：取消卡子及其子选项
+        JCheckBox chkUnblockPiece = new JCheckBox("取消卡子");
+        chkUnblockPiece.setAlignmentX(Component.LEFT_ALIGNMENT);
+        specialContent.add(chkUnblockPiece);
+        // 缩进子选项（上下排列）
+        JPanel indentedUnblockPanel = new JPanel();
+        indentedUnblockPanel.setLayout(new BoxLayout(indentedUnblockPanel, BoxLayout.Y_AXIS));
+        indentedUnblockPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        indentedUnblockPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        JCheckBox chkUnblockHorseLeg = new JCheckBox("取消卡马脚");
+        JCheckBox chkUnblockElephantEye = new JCheckBox("取消卡象眼");
+        JPanel horsePanel = new JPanel();
+        horsePanel.setLayout(new BoxLayout(horsePanel, BoxLayout.X_AXIS));
+        horsePanel.add(Box.createHorizontalStrut(32));
+        horsePanel.add(chkUnblockHorseLeg);
+        horsePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel elephantPanel = new JPanel();
+        elephantPanel.setLayout(new BoxLayout(elephantPanel, BoxLayout.X_AXIS));
+        elephantPanel.add(Box.createHorizontalStrut(32));
+        elephantPanel.add(chkUnblockElephantEye);
+        elephantPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        indentedUnblockPanel.add(horsePanel);
+        indentedUnblockPanel.add(Box.createVerticalStrut(2));
+        indentedUnblockPanel.add(elephantPanel);
+        specialContent.add(indentedUnblockPanel);
+        // 依赖关系：主选项未勾选时，子选项禁用且为false
+        chkUnblockPiece.addActionListener(e -> {
+            boolean enabled = chkUnblockPiece.isSelected();
+            chkUnblockHorseLeg.setEnabled(enabled);
+            chkUnblockElephantEye.setEnabled(enabled);
+            if (!enabled) {
+                chkUnblockHorseLeg.setSelected(false);
+                chkUnblockElephantEye.setSelected(false);
+            }
+        });
+        // 初始化禁用
+        chkUnblockHorseLeg.setEnabled(false);
+        chkUnblockElephantEye.setEnabled(false);
+
+        // 新增：取消河界下的“兵”勾选框，和引擎联动
+        // JCheckBox chkNoRiverLimitPawn = new JCheckBox("兵");
+        // chkNoRiverLimitPawn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // JPanel indentedRiverOptions2 = new JPanel();
+        // indentedRiverOptions2.setLayout(new BoxLayout(indentedRiverOptions2, BoxLayout.X_AXIS));
+        // indentedRiverOptions2.add(Box.createHorizontalStrut(20));
+        // indentedRiverOptions2.add(chkNoRiverLimitPawn);
+        // indentedRiverOptions2.add(Box.createHorizontalGlue());
+        // indentedRiverOptions2.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // indentedRiverOptions2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        // specialContent.add(Box.createVerticalStrut(6));
+        // specialContent.add(indentedRiverOptions2);
+        // 联动逻辑：只有“取消河界”勾选时“兵”可编辑，否则禁用且为false
+        chkNoRiverLimit.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setNoRiverLimit(chkNoRiverLimit.isSelected());
+        });
+        // ActionListener：同步到引擎
+        // chkNoRiverLimitPawn.addActionListener(e -> {
+        //     SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+        //     if (b != null) b.setNoRiverLimitPawn(chkNoRiverLimitPawn.isSelected());
+        // });
 
         special.add(specialContent);
         form.add(special);
 
+        // 强制计算specialContent的大小，用于初始化special的高度
+        SwingUtilities.invokeLater(() -> {
+            Dimension contentSize = specialContent.getPreferredSize();
+            special.setMaximumSize(new Dimension(Integer.MAX_VALUE, contentSize.height + 30));
+            special.revalidate();
+        });
+
+        // 增加延申玩法和特殊玩法之间的间距
+        form.add(Box.createVerticalStrut(12));
+
+        // 特殊玩法分组（可折叠）
+        JPanel special2 = new JPanel();
+        special2.setLayout(new BoxLayout(special2, BoxLayout.Y_AXIS));
+        // 作为 form 的子组件，整体左对齐
+        special2.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 创建可点击的TitledBorder
+        TitledBorder titledBorder2 = new TitledBorder("▼ 特殊玩法");
+        special2.setBorder(titledBorder2);
+
+        // 创建内容面板，用于折叠/展开
+        JPanel special2Content = new JPanel();
+        special2Content.setLayout(new BoxLayout(special2Content, BoxLayout.Y_AXIS));
+        special2Content.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // 标记用于折叠状态
+        final boolean[] isExpanded2 = {true};
+
+        // 使TitledBorder的标题可点击
+        special2.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                // 检查是否点击了标题区域（大约在顶部20像素内）
+                if (e.getY() < 20) {
+                    isExpanded2[0] = !isExpanded2[0];
+                    special2Content.setVisible(isExpanded2[0]);
+                    titledBorder2.setTitle(isExpanded2[0] ? "▼ 特殊玩法" : "▶ 特殊玩法");
+                    // 折叠时设置为30像素高度，展开时根据内容设置高度
+                    if (isExpanded2[0]) {
+                        special2.setMaximumSize(new Dimension(Integer.MAX_VALUE, special2Content.getPreferredSize().height + 20));
+                    } else {
+                        special2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+                    }
+                    special2.revalidate();
+                    special2.repaint();
+                }
+            }
+        });
+
+        special2.add(special2Content);
+        form.add(special2);
+
+        // 强制计算special2Content的大小，用于初始化special2的高度
+        SwingUtilities.invokeLater(() -> {
+            Dimension contentSize = special2Content.getPreferredSize();
+            special2.setMaximumSize(new Dimension(Integer.MAX_VALUE, contentSize.height + 30));
+            special2.revalidate();
+        });
+
+        // 在special2Content中添加"左右连通"复选框
+        chkLeftRightConnected.setAlignmentX(Component.LEFT_ALIGNMENT);
+        chkLeftRightConnected.setToolTipText("仍在开发中，存在bug。");
+        special2Content.add(chkLeftRightConnected);
+
+        // 增加特殊玩法和操作按钮之间的间距
+        form.add(Box.createVerticalStrut(12));
+
         // 操作按钮：复制配置 / 输入配置（在弹窗中点击确定应用）
         JPanel btnBar = new JPanel();
-        btnBar.setLayout(new BoxLayout(btnBar, BoxLayout.Y_AXIS));
+        btnBar.setLayout(new BoxLayout(btnBar, BoxLayout.X_AXIS));
         btnBar.setAlignmentX(Component.LEFT_ALIGNMENT);
         JButton copyBtn = new JButton("复制配置");
         JButton importBtn = new JButton("输入配置");
-        copyBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        importBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnBar.add(Box.createVerticalStrut(8));
         btnBar.add(copyBtn);
-        btnBar.add(Box.createVerticalStrut(6));
+        btnBar.add(Box.createHorizontalStrut(6));
         btnBar.add(importBtn);
+        btnBar.add(Box.createHorizontalGlue());
+        btnBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         form.add(btnBar);
 
         add(new JScrollPane(form), BorderLayout.CENTER);
@@ -201,32 +311,10 @@ public class RuleSettingsPanel extends JPanel {
         chkPawnBack.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setPawnCanRetreat(chkPawnBack.isSelected());
-            // 依赖：后退开启时才能勾选境内后退
-            chkAllowInsideRetreat.setEnabled(chkPawnBack.isSelected());
-            if (!chkPawnBack.isSelected()) {
-                chkAllowInsideRetreat.setSelected(false);
-                SettingsBinder b2 = (SettingsBinder) getClientProperty("binder");
-                if (b2 != null) b2.setAllowInsideRetreat(false);
-            }
         });
         chkNoRiverLimit.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setNoRiverLimit(chkNoRiverLimit.isSelected());
-            // 依赖：允许过河开启时才能勾选子选项
-            chkAllowElephantCrossRiver.setEnabled(chkNoRiverLimit.isSelected());
-            chkAllowAdvisorCrossRiver.setEnabled(chkNoRiverLimit.isSelected());
-            chkAllowKingCrossRiver.setEnabled(chkNoRiverLimit.isSelected());
-            if (!chkNoRiverLimit.isSelected()) {
-                chkAllowElephantCrossRiver.setSelected(false);
-                chkAllowAdvisorCrossRiver.setSelected(false);
-                chkAllowKingCrossRiver.setSelected(false);
-                SettingsBinder b2 = (SettingsBinder) getClientProperty("binder");
-                if (b2 != null) {
-                    b2.setAllowElephantCrossRiver(false);
-                    b2.setAllowAdvisorCrossRiver(false);
-                    b2.setAllowKingCrossRiver(false);
-                }
-            }
         });
         chkAdvisorCanLeave.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
@@ -243,13 +331,6 @@ public class RuleSettingsPanel extends JPanel {
         chkPawnPromotion.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setPawnPromotion(chkPawnPromotion.isSelected());
-            // 同时更新"允许己方底线晋升"的启用状态
-            chkAllowOwnBaseLine.setEnabled(chkPawnPromotion.isSelected());
-            if (!chkPawnPromotion.isSelected()) {
-                chkAllowOwnBaseLine.setSelected(false);
-                SettingsBinder b2 = (SettingsBinder) getClientProperty("binder");
-                if (b2 != null) b2.setAllowOwnBaseLine(false);
-            }
         });
         chkAllowOwnBaseLine.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
@@ -271,6 +352,22 @@ public class RuleSettingsPanel extends JPanel {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setAllowKingCrossRiver(chkAllowKingCrossRiver.isSelected());
         });
+        chkLeftRightConnected.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setLeftRightConnected(chkLeftRightConnected.isSelected());
+        });
+        chkUnblockPiece.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setUnblockPiece(chkUnblockPiece.isSelected());
+        });
+        chkUnblockHorseLeg.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setUnblockHorseLeg(chkUnblockHorseLeg.isSelected());
+        });
+        chkUnblockElephantEye.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setUnblockElephantEye(chkUnblockElephantEye.isSelected());
+        });
 
         // 复制配置：构造 JSON 并写入剪贴板
         copyBtn.addActionListener(e -> {
@@ -283,10 +380,14 @@ public class RuleSettingsPanel extends JPanel {
             obj.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
             obj.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             obj.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
+            obj.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
             obj.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
             obj.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             obj.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
             obj.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
+            obj.addProperty("unblockPiece", chkUnblockPiece.isSelected());
+            obj.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
+            obj.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
             StringSelection sel = new StringSelection(obj.toString());
             Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
             cb.setContents(sel, sel);
@@ -307,10 +408,15 @@ public class RuleSettingsPanel extends JPanel {
             current.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
             current.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             current.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
+            current.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
             current.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
             current.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             current.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
             current.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
+            current.addProperty("unblockPiece", chkUnblockPiece.isSelected());
+            current.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
+            current.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
+            // current.addProperty("noRiverLimitPawn",chkNoRiverLimitPawn.isSelected());
             area.setText(current.toString());
 
             JScrollPane scroll = new JScrollPane(area);
@@ -331,6 +437,10 @@ public class RuleSettingsPanel extends JPanel {
                 boolean elephantCross = obj.has("allowElephantCrossRiver") && obj.get("allowElephantCrossRiver").getAsBoolean();
                 boolean advisorCross = obj.has("allowAdvisorCrossRiver") && obj.get("allowAdvisorCrossRiver").getAsBoolean();
                 boolean kingCross = obj.has("allowKingCrossRiver") && obj.get("allowKingCrossRiver").getAsBoolean();
+                boolean leftRight = obj.has("leftRightConnected") && obj.get("leftRightConnected").getAsBoolean();
+                boolean unblockPiece = obj.has("unblockPiece") && obj.get("unblockPiece").getAsBoolean();
+                boolean unblockHorseLeg = obj.has("unblockHorseLeg") && obj.get("unblockHorseLeg").getAsBoolean();
+                boolean unblockElephantEye = obj.has("unblockElephantEye") && obj.get("unblockElephantEye").getAsBoolean();
 
                 chkFlyingGeneral.setSelected(allowFG);
                 chkPawnBack.setSelected(pawnBack);
@@ -344,11 +454,15 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowElephantCrossRiver.setSelected(elephantCross);
                 chkAllowAdvisorCrossRiver.setSelected(advisorCross);
                 chkAllowKingCrossRiver.setSelected(kingCross);
+                chkLeftRightConnected.setSelected(leftRight);
                 chkAllowOwnBaseLine.setEnabled(pawnProm);
                 chkAllowInsideRetreat.setEnabled(chkPawnBack.isSelected());
                 chkAllowElephantCrossRiver.setEnabled(noRiver);
                 chkAllowAdvisorCrossRiver.setEnabled(noRiver);
                 chkAllowKingCrossRiver.setEnabled(noRiver);
+                chkUnblockPiece.setSelected(unblockPiece);
+                chkUnblockHorseLeg.setSelected(unblockHorseLeg);
+                chkUnblockElephantEye.setSelected(unblockElephantEye);
                 SettingsBinder b = (SettingsBinder) getClientProperty("binder");
                 if (b != null) {
                     b.setAllowFlyingGeneral(allowFG);
@@ -363,6 +477,10 @@ public class RuleSettingsPanel extends JPanel {
                     b.setAllowElephantCrossRiver(elephantCross);
                     b.setAllowAdvisorCrossRiver(advisorCross);
                     b.setAllowKingCrossRiver(kingCross);
+                    b.setLeftRightConnected(leftRight);
+                    b.setUnblockPiece(unblockPiece);
+                    b.setUnblockHorseLeg(unblockHorseLeg);
+                    b.setUnblockElephantEye(unblockElephantEye);
                 }
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "解析失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
@@ -373,24 +491,9 @@ public class RuleSettingsPanel extends JPanel {
         putClientProperty("applyState", (Runnable) () -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) {
-                chkAllowUndo.setSelected(b.isAllowUndo());
-                chkFlyingGeneral.setSelected(b.isAllowFlyingGeneral());
-                chkPawnBack.setSelected(b.isPawnCanRetreat());
                 chkNoRiverLimit.setSelected(b.isNoRiverLimit());
-                chkAdvisorCanLeave.setSelected(b.isAdvisorCanLeave());
-                chkInternationalKing.setSelected(b.isInternationalKing());
+                chkPawnBack.setSelected(b.isPawnCanRetreat());
                 chkPawnPromotion.setSelected(b.isPawnPromotion());
-                chkAllowOwnBaseLine.setSelected(b.isAllowOwnBaseLine());
-                chkAllowInsideRetreat.setSelected(b.isAllowInsideRetreat());
-                chkInternationalAdvisor.setSelected(b.isInternationalAdvisor());
-                chkAllowElephantCrossRiver.setSelected(b.isAllowElephantCrossRiver());
-                chkAllowAdvisorCrossRiver.setSelected(b.isAllowAdvisorCrossRiver());
-                chkAllowKingCrossRiver.setSelected(b.isAllowKingCrossRiver());
-                chkAllowOwnBaseLine.setEnabled(b.isPawnPromotion());
-                chkAllowInsideRetreat.setEnabled(chkPawnBack.isSelected());
-                chkAllowElephantCrossRiver.setEnabled(b.isNoRiverLimit());
-                chkAllowAdvisorCrossRiver.setEnabled(b.isNoRiverLimit());
-                chkAllowKingCrossRiver.setEnabled(b.isNoRiverLimit());
             }
         });
     }

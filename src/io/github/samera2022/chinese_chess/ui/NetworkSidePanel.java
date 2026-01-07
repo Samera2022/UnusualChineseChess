@@ -26,7 +26,8 @@ public class NetworkSidePanel extends JPanel {
     private final JButton hostBtn = new JButton("创建联机");
     private final JButton joinBtn = new JButton("加入联机");
     private final JButton disconnectBtn = new JButton("断开联机");
-    private final JButton copyAddrBtn = new JButton("复制地址");
+    private final JCheckBox allowLocalFlipCheck = new JCheckBox();
+    private final JToggleButton localRedBtn = new JToggleButton("本地红方", true);
     private final JButton exportBtn = new JButton("导出残局");
     private final JButton importBtn = new JButton("导入残局");
 
@@ -65,32 +66,61 @@ public class NetworkSidePanel extends JPanel {
         JPanel controls = new JPanel(new GridLayout(0, 1, 4, 4));
         controls.add(hostBtn);
         controls.add(joinBtn);
+        JPanel localSidePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        allowLocalFlipCheck.setSelected(false);
+        allowLocalFlipCheck.setToolTipText("勾选以强制翻转棋盘来切换红/黑下棋");
+        allowLocalFlipCheck.setMargin(new Insets(0, 0, 0, 0));
+        allowLocalFlipCheck.addActionListener(e -> applyLocalSide(localRedBtn.isSelected()));
+        localSidePanel.add(allowLocalFlipCheck);
+        localSidePanel.add(localRedBtn);
+        controls.add(localSidePanel);
         controls.add(disconnectBtn);
-        controls.add(copyAddrBtn);
         controls.add(exportBtn);
         controls.add(importBtn);
         add(controls, BorderLayout.NORTH);
 
-        // 中部信息列表 + 顶部“玩法”按钮 + 连接状态
+        // 设置"本地红方"按钮的提示文字
+        localRedBtn.setToolTipText("切换本地控制的方：红方在下 / 黑方在下");
+
+        // 设置"本地红方"按钮的监听器
+        localRedBtn.addActionListener(e -> applyLocalSide(localRedBtn.isSelected()));
+        applyLocalSide(true);
+
+        // 中部信息列表 + 顶部"玩法"按钮 + 连接状态
         JPanel centerPanel = new JPanel(new BorderLayout(4, 4));
-        // 改为可拉伸布局，使按钮可与上方按钮同宽
-        JPanel settingsBar = new JPanel(new BorderLayout());
+
+        // 顶部按钮区域（包含显示玩法、更新日志、关于作者）
+        JPanel topButtonsPanel = new JPanel(new GridLayout(0, 1, 4, 4));
+
         JToggleButton settingsBtn = new JToggleButton();
         settingsBtn.setFont(new Font("SimHei", Font.PLAIN, 12));
-        // 让按钮与“复制地址”同高度，宽度由布局撑满
-        Dimension copySize = copyAddrBtn.getPreferredSize();
-        settingsBtn.setPreferredSize(new Dimension(copySize.width, copySize.height));
+        // 让按钮与上方按钮同高度，宽度由布局撑满
+        Dimension btnSize = hostBtn.getPreferredSize();
+        settingsBtn.setPreferredSize(new Dimension(btnSize.width, btnSize.height));
         settingsBtn.addActionListener(e -> {
             onToggleSettings.run();
             boolean visible = isSettingsVisible.getAsBoolean();
             settingsBtn.setSelected(visible);
-            settingsBtn.setText(visible ? "隐藏玩法" : "显示玩法");
+            settingsBtn.setText(visible ? "收起玩法" : "自定义玩法");
         });
-        // 初始强制显示“显示玩法”并取消选中
-        settingsBtn.setSelected(false);
-        // 放到可拉伸容器的中间，获得与上方按钮一致的可视宽度
-        settingsBar.add(settingsBtn, BorderLayout.CENTER);
-        centerPanel.add(settingsBar, BorderLayout.NORTH);
+        boolean initialSettingsVisible = isSettingsVisible.getAsBoolean();
+        settingsBtn.setSelected(initialSettingsVisible);
+        settingsBtn.setText(initialSettingsVisible ? "收起玩法" : "自定义玩法");
+        topButtonsPanel.add(settingsBtn);
+
+        // 新增：更新日志按钮
+        JButton changelogBtn = new JButton("更新日志");
+        changelogBtn.setFont(new Font("SimHei", Font.PLAIN, 12));
+        changelogBtn.addActionListener(e -> new UpdateInfoDialog().setVisible(true));
+        topButtonsPanel.add(changelogBtn);
+
+        // 新增：关于作者按钮
+        JButton aboutBtn = new JButton("关于作者");
+        aboutBtn.setFont(new Font("SimHei", Font.PLAIN, 12));
+        aboutBtn.addActionListener(e -> new AboutDialog().setVisible(true));
+        topButtonsPanel.add(aboutBtn);
+
+        centerPanel.add(topButtonsPanel, BorderLayout.NORTH);
 
         // 信息列表与状态
         infoList.setFont(new Font("Microsoft YaHei", Font.PLAIN, 12));
@@ -111,7 +141,6 @@ public class NetworkSidePanel extends JPanel {
 
         // 初始按钮状态
         disconnectBtn.setEnabled(false);
-        copyAddrBtn.setEnabled(false);
 
         // 绑定事件（监听由外部总控设置，避免覆盖）
         bindActions();
@@ -123,9 +152,6 @@ public class NetworkSidePanel extends JPanel {
 
         // 安装鼠标提示窗口（仅在“未连接”标签上）
         installQualityTooltip();
-
-        // 初始化按钮文字
-        settingsBtn.setText(isSettingsVisible.getAsBoolean() ? "隐藏玩法" : "显示玩法");
     }
 
     private void installQualityTooltip() {
@@ -204,7 +230,6 @@ public class NetworkSidePanel extends JPanel {
         hostBtn.addActionListener(e -> onHost());
         joinBtn.addActionListener(e -> onJoin());
         disconnectBtn.addActionListener(e -> onDisconnect());
-        copyAddrBtn.addActionListener(e -> copyAddress());
         exportBtn.addActionListener(e -> onExportGame.run());
         importBtn.addActionListener(e -> onImportGame.run());
     }
@@ -214,12 +239,17 @@ public class NetworkSidePanel extends JPanel {
         if (portStr == null || portStr.trim().isEmpty()) return;
         try {
             int port = Integer.parseInt(portStr.trim());
+            // 新增：弹出选方对话框
+            String[] options = {"红方", "黑方"};
+            int side = JOptionPane.showOptionDialog(this, "请选择本地执子方", "选择执子方",
+                    JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+            boolean preferredRed = (side == 0); // 0为红方，1为黑方
             netController.host(port);
-            // 主机执红
-            boardPanel.setLocalControlsRed(true);
+            // 按选择设置本地执子方
+            applyLocalSide(preferredRed);
+            localRedBtn.setSelected(preferredRed);
             undoButton.setEnabled(false);
             disconnectBtn.setEnabled(true);
-            copyAddrBtn.setEnabled(true);
 
             infoModel.clear();
             addInfo("本机地址: " + netController.getLocalIPv4());
@@ -245,10 +275,9 @@ public class NetworkSidePanel extends JPanel {
             String host = hostField.getText().trim();
             netController.join(host, port);
             // 客户端执黑
-            boardPanel.setLocalControlsRed(false);
+            applyLocalSide(false);
             undoButton.setEnabled(false);
             disconnectBtn.setEnabled(true);
-            copyAddrBtn.setEnabled(true);
 
             infoModel.clear();
             addInfo("连接到: " + host);
@@ -275,13 +304,6 @@ public class NetworkSidePanel extends JPanel {
         }
     }
 
-    private void copyAddress() {
-        String addr = netController.displayAddress();
-        StringSelection sel = new StringSelection(addr);
-        Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
-        cb.setContents(sel, sel);
-        log("地址已复制: " + addr);
-    }
 
     // 监听由外部设置（ChineseChessFrame 内）以统一联机逻辑
 
@@ -318,5 +340,15 @@ public class NetworkSidePanel extends JPanel {
         if (rttHistory.size() > 20) {
             rttHistory.remove(0);
         }
+    }
+
+    private void applyLocalSide(boolean preferredRed) {
+        boolean allowFlip = allowLocalFlipCheck.isSelected();
+        boolean effectiveRed = allowFlip ? preferredRed : true;
+        localRedBtn.setEnabled(allowFlip);
+        localRedBtn.setSelected(effectiveRed);
+        localRedBtn.setText(effectiveRed ? "本地红方" : "本地黑方");
+        boardPanel.setBoardFlipped(allowFlip && !effectiveRed);
+        boardPanel.setLocalControlsRed(allowFlip ? Boolean.valueOf(effectiveRed) : null);
     }
 }

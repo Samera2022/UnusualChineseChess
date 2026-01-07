@@ -23,6 +23,9 @@ public class BoardPanel extends JPanel {
     // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
     private Boolean localControlsRed = null;
 
+    // 棋盘翻转：true表示黑方在下（翻转180度）
+    private boolean boardFlipped = false;
+
     // 新增：本地走子事件监听
     public interface LocalMoveListener {
         void onLocalMove(int fromRow, int fromCol, int toRow, int toCol);
@@ -58,13 +61,48 @@ public class BoardPanel extends JPanel {
         this.localControlsRed = localControlsRed;
     }
 
+    // 设置棋盘是否翻转（黑方在下）
+    public void setBoardFlipped(boolean flipped) {
+        this.boardFlipped = flipped;
+        repaint();
+    }
+
+    public boolean isBoardFlipped() {
+        return boardFlipped;
+    }
+
+    /**
+     * 将显示坐标转换为逻辑坐标（考虑翻转）
+     */
+    private int[] displayToLogic(int displayRow, int displayCol) {
+        if (boardFlipped) {
+            return new int[]{9 - displayRow, 8 - displayCol};
+        }
+        return new int[]{displayRow, displayCol};
+    }
+
+    /**
+     * 将逻辑坐标转换为显示坐标（考虑翻转）
+     */
+    private int[] logicToDisplay(int logicRow, int logicCol) {
+        if (boardFlipped) {
+            return new int[]{9 - logicRow, 8 - logicCol};
+        }
+        return new int[]{logicRow, logicCol};
+    }
+
     /**
      * 处理鼠标点击 - 点击交点附近时选中棋子
      */
     private void handleMouseClick(MouseEvent e) {
-        // 将鼠标点击位置转换回棋盘坐标（考虑偏移量）
-        int col = Math.round((float) (e.getX() - offsetX) / cellSize);
-        int row = Math.round((float) (e.getY() - offsetY) / cellSize);
+        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
+        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
+        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
+
+        // 转换为逻辑坐标
+        int[] logical = displayToLogic(displayRow, displayCol);
+        int row = logical[0];
+        int col = logical[1];
 
         Board board = gameEngine.getBoard();
         if (!board.isValid(row, col)) {
@@ -217,6 +255,13 @@ public class BoardPanel extends JPanel {
         validator.setAllowElephantCrossRiver(gameEngine.isSpecialRuleEnabled("allowElephantCrossRiver"));
         validator.setAllowAdvisorCrossRiver(gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"));
         validator.setAllowKingCrossRiver(gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"));
+        validator.setLeftRightConnected(gameEngine.isSpecialRuleEnabled("leftRightConnected"));
+        validator.setNoRiverLimitPawn(gameEngine.isSpecialRuleEnabled("noRiverLimitPawn"));
+
+        // 新增：调试输出，确保同步到validator
+        validator.setUnblockPiece(gameEngine.isUnblockPiece());
+        validator.setUnblockHorseLeg(gameEngine.isUnblockHorseLeg());
+        validator.setUnblockElephantEye(gameEngine.isUnblockElephantEye());
 
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {
@@ -305,10 +350,10 @@ public class BoardPanel extends JPanel {
             }
         }
 
-        // 绘制“楚河      汉界”文字
+        // 绘制"楚河      汉界"文字（翻转时显示"汉界      楚河"）
         g2d.setColor(GRID_COLOR);
         g2d.setFont(new Font("LiSu", Font.BOLD, (int) Math.max(16, cellSize / 1.5)));
-        String riverText = "楚河      汉界";
+        String riverText = boardFlipped ? "汉界      楚河" : "楚河      汉界";
         FontMetrics riverFm = g2d.getFontMetrics();
         int riverTextX = (boardWidth - riverFm.stringWidth(riverText)) / 2;
         int riverTextY = 4 * cellSize + (cellSize / 2) + (riverFm.getAscent() - riverFm.getDescent()) / 2;
@@ -327,8 +372,9 @@ public class BoardPanel extends JPanel {
     private void drawMoveIndicators(Graphics2D g2d, Board board) {
         // 绘制所选棋子的高亮 - 显示在交点周围
         if (selectedRow != -1 && selectedCol != -1) {
-            int highlightX = selectedCol * cellSize;
-            int highlightY = selectedRow * cellSize;
+            int[] display = logicToDisplay(selectedRow, selectedCol);
+            int highlightX = display[1] * cellSize;
+            int highlightY = display[0] * cellSize;
             int highlightRadius = cellSize / 2;
             g2d.setColor(new Color(255, 255, 0, 100)); // 半透明黄色
             g2d.fillOval(highlightX - highlightRadius, highlightY - highlightRadius,
@@ -338,8 +384,9 @@ public class BoardPanel extends JPanel {
         // 绘制可能的移动 - 在交点上显示
         g2d.setColor(VALID_MOVE_COLOR);
         for (Point p : validMoves) {
-            int moveX = p.y * cellSize;
-            int moveY = p.x * cellSize;
+            int[] display = logicToDisplay(p.x, p.y);
+            int moveX = display[1] * cellSize;
+            int moveY = display[0] * cellSize;
             g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
         }
     }
@@ -388,19 +435,17 @@ public class BoardPanel extends JPanel {
             for (int col = 0; col < board.getCols(); col++) {
                 Piece piece = board.getPiece(row, col);
                 if (piece != null) {
-                    drawPiece(g2d, row, col, piece);
+                    int[] display = logicToDisplay(row, col);
+                    drawPiece(g2d, display[0], display[1], piece);
                 }
             }
         }
     }
 
-    /**
-     * 绘制单个棋子 - 棋子位于棋盘线的交点上
-     */
-    private void drawPiece(Graphics2D g2d, int row, int col, Piece piece) {
+    private void drawPiece(Graphics2D g2d, int displayRow, int displayCol, Piece piece) {
         // 棋子放在棋盘线的交点上（不是格子中心）
-        int x = col * cellSize;
-        int y = row * cellSize;
+        int x = displayCol * cellSize;
+        int y = displayRow * cellSize;
         int radius = cellSize / 2 - 2;
 
         // 绘制棋子背景

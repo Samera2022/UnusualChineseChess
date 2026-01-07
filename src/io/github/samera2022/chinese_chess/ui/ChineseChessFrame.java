@@ -12,6 +12,7 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.io.File;
+import java.util.Objects;
 
 /**
  * 主窗口 - 中国象棋游戏的GUI
@@ -36,7 +37,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     private JLabel statusLabel;
 
     public ChineseChessFrame() {
-        setTitle("中国象棋 - Offline Mode");
+        setTitle("不同寻常的中国象棋 - Unusual Chinese Chess");
+        setIconImage(new ImageIcon(Objects.requireNonNull(getClass().getResource("/UnusualChineseChess.png"))).getImage());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
 
@@ -72,7 +74,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
         // 左侧停靠：最左是设置，右边是“面板”
         ruleSettingsPanel = new RuleSettingsPanel();
-        ruleSettingsPanel.setVisible(false);
+        ruleSettingsPanel.setVisible(true);
         ruleSettingsPanel.bindSettings(new RuleSettingsPanel.SettingsBinder() {
             @Override public void setAllowUndo(boolean allowUndo) {
                 if (ruleSettingsLocked) return;
@@ -92,6 +94,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowElephantCrossRiver", allow); boardPanel.repaint(); }
             @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowAdvisorCrossRiver", allow); boardPanel.repaint(); }
             @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowKingCrossRiver", allow); boardPanel.repaint(); }
+            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("leftRightConnected", allow); boardPanel.repaint(); }
+            @Override public void setNoRiverLimitPawn(boolean allow) { if (!ruleSettingsLocked) gameEngine.setNoRiverLimitPawn(allow); boardPanel.repaint(); }
             @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled("allowFlyingGeneral"); }
             @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled("pawnCanRetreat"); }
             @Override public boolean isNoRiverLimit() { return gameEngine.isSpecialRuleEnabled("noRiverLimit"); }
@@ -104,6 +108,14 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isAllowElephantCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowElephantCrossRiver"); }
             @Override public boolean isAllowAdvisorCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"); }
             @Override public boolean isAllowKingCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"); }
+            @Override public boolean isLeftRightConnected() { return gameEngine.isSpecialRuleEnabled("leftRightConnected"); }
+            @Override public boolean isNoRiverLimitPawn() { return gameEngine.isNoRiverLimitPawn(); }
+            @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockPiece(allow); boardPanel.repaint(); }
+            @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockHorseLeg(allow); boardPanel.repaint(); }
+            @Override public void setUnblockElephantEye(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockElephantEye(allow); boardPanel.repaint(); }
+            @Override public boolean isUnblockPiece() { return gameEngine.isUnblockPiece(); }
+            @Override public boolean isUnblockHorseLeg() { return gameEngine.isUnblockHorseLeg(); }
+            @Override public boolean isUnblockElephantEye() { return gameEngine.isUnblockElephantEye(); }
         });
 
         // 面板，带"玩法设置"按钮，点击后切换左侧设置组件
@@ -122,7 +134,11 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 () -> exportGameState(),
                 () -> importGameState()
         );
-        networkSidePanel.setVisible(false);
+        networkSidePanel.setVisible(true);
+        if (togglePanelButton != null) {
+            togglePanelButton.setSelected(true);
+            togglePanelButton.setText("隐藏面板");
+        }
 
         westDock = new JPanel(new BorderLayout());
         westDock.add(ruleSettingsPanel, BorderLayout.WEST);
