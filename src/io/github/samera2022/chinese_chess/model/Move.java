@@ -48,7 +48,7 @@ public class Move {
     public String toString() {
         String notation = piece.getDisplayName() + " (" + fromRow + "," + fromCol + ") -> (" + toRow + "," + toCol + ")";
         if (capturedPiece != null) {
-            notation += " [captures " + capturedPiece.getDisplayName() + "]";
+            notation += " [吃了 " + capturedPiece.getDisplayName() + "]";
         }
         return notation;
     }

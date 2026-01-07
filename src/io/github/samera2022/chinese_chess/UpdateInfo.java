@@ -4,9 +4,12 @@ import java.util.stream.Stream;
 
 public enum UpdateInfo {
     // 定义条目：版本号 + 发布日期 + 描述
-    VERSION_0_0_1("0.1.0", "2026-01-06 23:54",
+    VERSION_0_1_0("0.1.0", "2026-01-06 23:54",
             "## [Added]\n" +
-                    " - 支持进行基本的象棋游玩。");
+                    " - 支持进行基本的象棋游玩。"),
+    VERSION_0_2_0("0.2.0", "2026-01-07 00:18",
+            "## [Added]\n" +
+                    " - 美化了象棋棋盘和整体UI布局。");
     private final String version;
     private final String releaseDate;
     private final String description;
@@ -46,6 +49,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_0_0_1.getFormattedLog());
+        System.out.println(VERSION_0_2_0.getFormattedLog());
     }
 }
