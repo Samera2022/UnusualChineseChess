@@ -197,14 +197,13 @@ public class GameStateImporter {
             gameEngine.setShowHints(settings.get("showHints").getAsBoolean());
         }
 
-        // 特殊规则
+        // 特殊规则 - 直接通过JSON加载到rulesConfig
         if (settings.has("specialRules")) {
             JsonObject specialRules = settings.getAsJsonObject("specialRules");
-            for (String key : specialRules.keySet()) {
-                boolean value = specialRules.get(key).getAsBoolean();
-                gameEngine.setSpecialRule(key, value);
-            }
+            gameEngine.getRulesConfig().loadFromJson(specialRules);
         }
+
+        // 注意：不需要手动同步到MoveValidator，因为它们共享同一个rulesConfig实例
     }
 
     /**

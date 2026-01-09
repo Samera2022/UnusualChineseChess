@@ -7,6 +7,7 @@ import io.github.samera2022.chinese_chess.io.GameStateImporter;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
+import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -82,33 +83,37 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 undoButton.setEnabled(allowUndo && !netController.isActive());
             }
             @Override public boolean isAllowUndo() { return gameEngine.isAllowUndo(); }
-            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowFlyingGeneral", allow); boardPanel.repaint(); }
-            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("pawnCanRetreat", allow); boardPanel.repaint(); }
-            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("noRiverLimit", noLimit); boardPanel.repaint(); }
-            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("advisorCanLeave", allow); boardPanel.repaint(); }
-            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("internationalKing", allow); boardPanel.repaint(); }
-            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("pawnPromotion", allow); boardPanel.repaint(); }
-            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowOwnBaseLine", allow); boardPanel.repaint(); }
-            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowInsideRetreat", allow); boardPanel.repaint(); }
-            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("internationalAdvisor", allow); boardPanel.repaint(); }
-            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowElephantCrossRiver", allow); boardPanel.repaint(); }
-            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowAdvisorCrossRiver", allow); boardPanel.repaint(); }
-            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("allowKingCrossRiver", allow); boardPanel.repaint(); }
-            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) gameEngine.setSpecialRule("leftRightConnected", allow); boardPanel.repaint(); }
+            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_FLYING_GENERAL, allow); boardPanel.repaint(); } }
+            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_CAN_RETREAT, allow); boardPanel.repaint(); } }
+            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.NO_RIVER_LIMIT, noLimit); boardPanel.repaint(); } }
+            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ADVISOR_CAN_LEAVE, allow); boardPanel.repaint(); } }
+            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_KING, allow); boardPanel.repaint(); } }
+            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_PROMOTION, allow); boardPanel.repaint(); } }
+            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_OWN_BASE_LINE, allow); boardPanel.repaint(); } }
+            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_INSIDE_RETREAT, allow); boardPanel.repaint(); } }
+            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_ADVISOR, allow); boardPanel.repaint(); } }
+            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow); boardPanel.repaint(); } }
+            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow); boardPanel.repaint(); } }
+            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow); boardPanel.repaint(); } }
+            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED, allow); boardPanel.repaint(); } }
+            @Override public void setLeftRightConnectedHorse(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow); boardPanel.repaint(); } }
+            @Override public void setLeftRightConnectedElephant(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow); boardPanel.repaint(); } }
             @Override public void setNoRiverLimitPawn(boolean allow) { if (!ruleSettingsLocked) gameEngine.setNoRiverLimitPawn(allow); boardPanel.repaint(); }
-            @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled("allowFlyingGeneral"); }
-            @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled("pawnCanRetreat"); }
-            @Override public boolean isNoRiverLimit() { return gameEngine.isSpecialRuleEnabled("noRiverLimit"); }
-            @Override public boolean isAdvisorCanLeave() { return gameEngine.isSpecialRuleEnabled("advisorCanLeave"); }
-            @Override public boolean isInternationalKing() { return gameEngine.isSpecialRuleEnabled("internationalKing"); }
-            @Override public boolean isPawnPromotion() { return gameEngine.isSpecialRuleEnabled("pawnPromotion"); }
-            @Override public boolean isAllowOwnBaseLine() { return gameEngine.isSpecialRuleEnabled("allowOwnBaseLine"); }
-            @Override public boolean isAllowInsideRetreat() { return gameEngine.isSpecialRuleEnabled("allowInsideRetreat"); }
-            @Override public boolean isInternationalAdvisor() { return gameEngine.isSpecialRuleEnabled("internationalAdvisor"); }
-            @Override public boolean isAllowElephantCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowElephantCrossRiver"); }
-            @Override public boolean isAllowAdvisorCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"); }
-            @Override public boolean isAllowKingCrossRiver() { return gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"); }
-            @Override public boolean isLeftRightConnected() { return gameEngine.isSpecialRuleEnabled("leftRightConnected"); }
+            @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_FLYING_GENERAL); }
+            @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled(RuleConstants.PAWN_CAN_RETREAT); }
+            @Override public boolean isNoRiverLimit() { return gameEngine.isSpecialRuleEnabled(RuleConstants.NO_RIVER_LIMIT); }
+            @Override public boolean isAdvisorCanLeave() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ADVISOR_CAN_LEAVE); }
+            @Override public boolean isInternationalKing() { return gameEngine.isSpecialRuleEnabled(RuleConstants.INTERNATIONAL_KING); }
+            @Override public boolean isPawnPromotion() { return gameEngine.isSpecialRuleEnabled(RuleConstants.PAWN_PROMOTION); }
+            @Override public boolean isAllowOwnBaseLine() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_OWN_BASE_LINE); }
+            @Override public boolean isAllowInsideRetreat() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_INSIDE_RETREAT); }
+            @Override public boolean isInternationalAdvisor() { return gameEngine.isSpecialRuleEnabled(RuleConstants.INTERNATIONAL_ADVISOR); }
+            @Override public boolean isAllowElephantCrossRiver() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER); }
+            @Override public boolean isAllowAdvisorCrossRiver() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER); }
+            @Override public boolean isAllowKingCrossRiver() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_KING_CROSS_RIVER); }
+            @Override public boolean isLeftRightConnected() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED); }
+            @Override public boolean isLeftRightConnectedHorse() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE); }
+            @Override public boolean isLeftRightConnectedElephant() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT); }
             @Override public boolean isNoRiverLimitPawn() { return gameEngine.isNoRiverLimitPawn(); }
             @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockPiece(allow); boardPanel.repaint(); }
             @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockHorseLeg(allow); boardPanel.repaint(); }
@@ -116,6 +121,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isUnblockPiece() { return gameEngine.isUnblockPiece(); }
             @Override public boolean isUnblockHorseLeg() { return gameEngine.isUnblockHorseLeg(); }
             @Override public boolean isUnblockElephantEye() { return gameEngine.isUnblockElephantEye(); }
+            @Override public void setAllowCaptureOwnPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureOwnPiece(allow); boardPanel.repaint(); }
+            @Override public boolean isAllowCaptureOwnPiece() { return gameEngine.isAllowCaptureOwnPiece(); }
+            @Override public void setAllowPieceStacking(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowPieceStacking(allow); boardPanel.repaint(); }
+            @Override public boolean isAllowPieceStacking() { return gameEngine.isAllowPieceStacking(); }
+            @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) gameEngine.setMaxStackingCount(count); boardPanel.repaint(); }
+            @Override public int getMaxStackingCount() { return gameEngine.getMaxStackingCount(); }
         });
 
         // 面板，带"玩法设置"按钮，点击后切换左侧设置组件
@@ -269,10 +280,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 status = "轮到：" + currentPlayer;
                 break;
             case RED_CHECKMATE:
-                status = "红方胜利！";
+                status = "黑方胜利！";  // 红方被将死 = 黑方胜利
                 break;
             case BLACK_CHECKMATE:
-                status = "黑方胜利！";
+                status = "红方胜利！";  // 黑方被将死 = 红方胜利
                 break;
             case DRAW:
                 status = "游戏平局";

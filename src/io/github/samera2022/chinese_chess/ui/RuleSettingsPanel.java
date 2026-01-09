@@ -2,6 +2,8 @@ package io.github.samera2022.chinese_chess.ui;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.github.samera2022.chinese_chess.filter.DocumentInputFilter;
+
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
@@ -29,10 +31,13 @@ public class RuleSettingsPanel extends JPanel {
         void setAllowAdvisorCrossRiver(boolean allow);
         void setAllowKingCrossRiver(boolean allow);
         void setLeftRightConnected(boolean allow);
+        void setLeftRightConnectedHorse(boolean allow);
+        void setLeftRightConnectedElephant(boolean allow);
         void setUnblockPiece(boolean allow);
         void setUnblockHorseLeg(boolean allow);
         void setUnblockElephantEye(boolean allow);
         void setNoRiverLimitPawn(boolean allow);
+        void setAllowCaptureOwnPiece(boolean allow);
         boolean isAllowFlyingGeneral();
         boolean isPawnCanRetreat();
         boolean isNoRiverLimit();
@@ -46,10 +51,17 @@ public class RuleSettingsPanel extends JPanel {
         boolean isAllowAdvisorCrossRiver();
         boolean isAllowKingCrossRiver();
         boolean isLeftRightConnected();
+        boolean isLeftRightConnectedHorse();
+        boolean isLeftRightConnectedElephant();
         boolean isUnblockPiece();
         boolean isUnblockHorseLeg();
         boolean isUnblockElephantEye();
         boolean isNoRiverLimitPawn();
+        boolean isAllowCaptureOwnPiece();
+        void setAllowPieceStacking(boolean allow);
+        boolean isAllowPieceStacking();
+        void setMaxStackingCount(int count);
+        int getMaxStackingCount();
     }
 
     public void refreshFromBinder() {
@@ -122,6 +134,8 @@ public class RuleSettingsPanel extends JPanel {
         JCheckBox chkAllowAdvisorCrossRiver = new JCheckBox("仕");
         JCheckBox chkAllowKingCrossRiver = new JCheckBox("帥");
         JCheckBox chkLeftRightConnected = new JCheckBox("左右连通");
+        JCheckBox chkAllowCaptureOwnPiece = new JCheckBox("允许自己吃自己");
+        JCheckBox chkAllowPieceStacking = new JCheckBox("允许棋子堆叠数:");
 
         // 在 Y 轴 BoxLayout 中，逐项左对齐
         chkFlyingGeneral.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -187,6 +201,10 @@ public class RuleSettingsPanel extends JPanel {
         // 初始化禁用
         chkUnblockHorseLeg.setEnabled(false);
         chkUnblockElephantEye.setEnabled(false);
+
+        specialContent.add(Box.createVerticalStrut(6));
+        chkAllowCaptureOwnPiece.setAlignmentX(Component.LEFT_ALIGNMENT);
+        specialContent.add(chkAllowCaptureOwnPiece);
 
         // 新增：取消河界下的“兵”勾选框，和引擎联动
         // JCheckBox chkNoRiverLimitPawn = new JCheckBox("兵");
@@ -278,6 +296,101 @@ public class RuleSettingsPanel extends JPanel {
         chkLeftRightConnected.setToolTipText("仍在开发中，存在bug。");
         special2Content.add(chkLeftRightConnected);
 
+        // 在"左右连通"下添加缩进的子选项
+        JPanel indentedLeftRightPanel = new JPanel();
+        indentedLeftRightPanel.setLayout(new BoxLayout(indentedLeftRightPanel, BoxLayout.X_AXIS));
+        indentedLeftRightPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        indentedLeftRightPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        JCheckBox chkLeftRightConnectedHorse = new JCheckBox("额外允许马");
+        JCheckBox chkLeftRightConnectedElephant = new JCheckBox("额外允许相");
+
+        indentedLeftRightPanel.add(Box.createHorizontalStrut(32));
+        indentedLeftRightPanel.add(chkLeftRightConnectedHorse);
+        indentedLeftRightPanel.add(Box.createHorizontalStrut(12));
+        indentedLeftRightPanel.add(chkLeftRightConnectedElephant);
+        indentedLeftRightPanel.add(Box.createHorizontalGlue());
+
+        special2Content.add(indentedLeftRightPanel);
+
+        // 依赖关系：主选项未勾选时，子选项禁用且为false
+        chkLeftRightConnected.addActionListener(e -> {
+            boolean enabled = chkLeftRightConnected.isSelected();
+            chkLeftRightConnectedHorse.setEnabled(enabled);
+            chkLeftRightConnectedElephant.setEnabled(enabled);
+            if (!enabled) {
+                chkLeftRightConnectedHorse.setSelected(false);
+                chkLeftRightConnectedElephant.setSelected(false);
+            }
+        });
+        // 初始化禁用
+        chkLeftRightConnectedHorse.setEnabled(false);
+        chkLeftRightConnectedElephant.setEnabled(false);
+
+        // 添加"允许棋子堆叠"行
+        special2Content.add(Box.createVerticalStrut(6));
+        JPanel stackingPanel = new JPanel();
+        stackingPanel.setLayout(new BoxLayout(stackingPanel, BoxLayout.X_AXIS));
+        stackingPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        stackingPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        chkAllowPieceStacking.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JTextField txtStackingCount = new JTextField("2", 4);
+        txtStackingCount.setMaximumSize(new Dimension(60, 25));
+        txtStackingCount.setEnabled(false);
+
+        // 应用 DocumentInputFilter 限制输入为 1-16 的整数
+        ((javax.swing.text.AbstractDocument) txtStackingCount.getDocument()).setDocumentFilter(new DocumentInputFilter() {
+            @Override
+            public boolean isValidContent(String text) {
+                // 允许空或 1-16 之间的整数
+                if (text.isEmpty()) return true;
+                try {
+                    int value = Integer.parseInt(text);
+                    return value >= 2 && value <= 16;
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+            }
+        });
+
+        stackingPanel.add(chkAllowPieceStacking);
+        stackingPanel.add(Box.createHorizontalStrut(6));
+        stackingPanel.add(txtStackingCount);
+        stackingPanel.add(Box.createHorizontalGlue());
+
+        special2Content.add(stackingPanel);
+
+        // 依赖关系：主选项未勾选时，输入框禁用
+        chkAllowPieceStacking.addActionListener(e -> {
+            boolean enabled = chkAllowPieceStacking.isSelected();
+            txtStackingCount.setEnabled(enabled);
+            // 互斥逻辑：允许棋子堆叠数被选中时，禁止允许自己吃自己
+            if (enabled) {
+                chkAllowCaptureOwnPiece.setSelected(false);
+                chkAllowCaptureOwnPiece.setEnabled(false);
+            } else {
+                // 只有当对方未选中时才恢复可用
+                if (!chkAllowCaptureOwnPiece.isSelected()) {
+                    chkAllowCaptureOwnPiece.setEnabled(true);
+                }
+            }
+        });
+        chkAllowCaptureOwnPiece.addActionListener(e -> {
+            boolean enabled = chkAllowCaptureOwnPiece.isSelected();
+            // 互斥逻辑：允许自己吃自己被选中时，禁止允许棋子堆叠数
+            if (enabled) {
+                chkAllowPieceStacking.setSelected(false);
+                chkAllowPieceStacking.setEnabled(false);
+                txtStackingCount.setEnabled(false);
+            } else {
+                // 只有当对方未选中时才恢复可用
+                if (!chkAllowPieceStacking.isSelected()) {
+                    chkAllowPieceStacking.setEnabled(true);
+                }
+            }
+        });
+
         // 增加特殊玩法和操作按钮之间的间距
         form.add(Box.createVerticalStrut(12));
 
@@ -356,6 +469,14 @@ public class RuleSettingsPanel extends JPanel {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setLeftRightConnected(chkLeftRightConnected.isSelected());
         });
+        chkLeftRightConnectedHorse.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setLeftRightConnectedHorse(chkLeftRightConnectedHorse.isSelected());
+        });
+        chkLeftRightConnectedElephant.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setLeftRightConnectedElephant(chkLeftRightConnectedElephant.isSelected());
+        });
         chkUnblockPiece.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setUnblockPiece(chkUnblockPiece.isSelected());
@@ -367,6 +488,32 @@ public class RuleSettingsPanel extends JPanel {
         chkUnblockElephantEye.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setUnblockElephantEye(chkUnblockElephantEye.isSelected());
+        });
+        chkAllowCaptureOwnPiece.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setAllowCaptureOwnPiece(chkAllowCaptureOwnPiece.isSelected());
+        });
+        chkAllowPieceStacking.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setAllowPieceStacking(chkAllowPieceStacking.isSelected());
+        });
+        txtStackingCount.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStackingCount(); }
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateStackingCount(); }
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateStackingCount(); }
+            private void updateStackingCount() {
+                try {
+                    String text = txtStackingCount.getText();
+                    if (!text.isEmpty()) {
+                        int count = Integer.parseInt(text);
+                        SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+                        if (b != null) b.setMaxStackingCount(count);
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
         });
 
         // 复制配置：构造 JSON 并写入剪贴板
@@ -381,6 +528,8 @@ public class RuleSettingsPanel extends JPanel {
             obj.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             obj.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
             obj.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
+            obj.addProperty("leftRightConnectedHorse", chkLeftRightConnectedHorse.isSelected());
+            obj.addProperty("leftRightConnectedElephant", chkLeftRightConnectedElephant.isSelected());
             obj.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
             obj.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             obj.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
@@ -388,6 +537,15 @@ public class RuleSettingsPanel extends JPanel {
             obj.addProperty("unblockPiece", chkUnblockPiece.isSelected());
             obj.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
             obj.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
+            obj.addProperty("allowCaptureOwnPiece", chkAllowCaptureOwnPiece.isSelected());
+            obj.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
+            try {
+                String stackText = txtStackingCount.getText();
+                int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);
+                obj.addProperty("maxStackingCount", count);
+            } catch (NumberFormatException e2) {
+                obj.addProperty("maxStackingCount", 2);
+            }
             StringSelection sel = new StringSelection(obj.toString());
             Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
             cb.setContents(sel, sel);
@@ -409,6 +567,8 @@ public class RuleSettingsPanel extends JPanel {
             current.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
             current.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
             current.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
+            current.addProperty("leftRightConnectedHorse", chkLeftRightConnectedHorse.isSelected());
+            current.addProperty("leftRightConnectedElephant", chkLeftRightConnectedElephant.isSelected());
             current.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
             current.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
             current.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
@@ -416,6 +576,15 @@ public class RuleSettingsPanel extends JPanel {
             current.addProperty("unblockPiece", chkUnblockPiece.isSelected());
             current.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
             current.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
+            current.addProperty("allowCaptureOwnPiece", chkAllowCaptureOwnPiece.isSelected());
+            current.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
+            try {
+                String stackText = txtStackingCount.getText();
+                int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);
+                current.addProperty("maxStackingCount", count);
+            } catch (NumberFormatException e2) {
+                current.addProperty("maxStackingCount", 2);
+            }
             // current.addProperty("noRiverLimitPawn",chkNoRiverLimitPawn.isSelected());
             area.setText(current.toString());
 
@@ -438,9 +607,16 @@ public class RuleSettingsPanel extends JPanel {
                 boolean advisorCross = obj.has("allowAdvisorCrossRiver") && obj.get("allowAdvisorCrossRiver").getAsBoolean();
                 boolean kingCross = obj.has("allowKingCrossRiver") && obj.get("allowKingCrossRiver").getAsBoolean();
                 boolean leftRight = obj.has("leftRightConnected") && obj.get("leftRightConnected").getAsBoolean();
+                boolean leftRightHorse = obj.has("leftRightConnectedHorse") && obj.get("leftRightConnectedHorse").getAsBoolean();
+                boolean leftRightElephant = obj.has("leftRightConnectedElephant") && obj.get("leftRightConnectedElephant").getAsBoolean();
                 boolean unblockPiece = obj.has("unblockPiece") && obj.get("unblockPiece").getAsBoolean();
                 boolean unblockHorseLeg = obj.has("unblockHorseLeg") && obj.get("unblockHorseLeg").getAsBoolean();
                 boolean unblockElephantEye = obj.has("unblockElephantEye") && obj.get("unblockElephantEye").getAsBoolean();
+                boolean allowCaptureOwnPiece = obj.has("allowCaptureOwnPiece") && obj.get("allowCaptureOwnPiece").getAsBoolean();
+                boolean allowPieceStacking = obj.has("allowPieceStacking") && obj.get("allowPieceStacking").getAsBoolean();
+                int maxStackingCount = obj.has("maxStackingCount") ? obj.get("maxStackingCount").getAsInt() : 2;
+                // 验证范围：只允许 1-16 之间的正整数
+                maxStackingCount = Math.max(1, Math.min(16, maxStackingCount));
 
                 chkFlyingGeneral.setSelected(allowFG);
                 chkPawnBack.setSelected(pawnBack);
@@ -455,6 +631,8 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowAdvisorCrossRiver.setSelected(advisorCross);
                 chkAllowKingCrossRiver.setSelected(kingCross);
                 chkLeftRightConnected.setSelected(leftRight);
+                chkLeftRightConnectedHorse.setSelected(leftRightHorse && leftRight);
+                chkLeftRightConnectedElephant.setSelected(leftRightElephant && leftRight);
                 chkAllowOwnBaseLine.setEnabled(pawnProm);
                 chkAllowInsideRetreat.setEnabled(chkPawnBack.isSelected());
                 chkAllowElephantCrossRiver.setEnabled(noRiver);
@@ -463,6 +641,28 @@ public class RuleSettingsPanel extends JPanel {
                 chkUnblockPiece.setSelected(unblockPiece);
                 chkUnblockHorseLeg.setSelected(unblockHorseLeg);
                 chkUnblockElephantEye.setSelected(unblockElephantEye);
+                chkAllowCaptureOwnPiece.setSelected(allowCaptureOwnPiece);
+                chkAllowPieceStacking.setSelected(allowPieceStacking);
+                txtStackingCount.setText(String.valueOf(maxStackingCount));
+                // 在JSON导入后和applyState后同步互斥禁用状态
+                Runnable updateMutualExclusion = () -> {
+                    if (chkAllowCaptureOwnPiece.isSelected()) {
+                        chkAllowPieceStacking.setSelected(false);
+                        chkAllowPieceStacking.setEnabled(false);
+                        txtStackingCount.setEnabled(false);
+                        chkAllowCaptureOwnPiece.setEnabled(true);
+                    } else if (chkAllowPieceStacking.isSelected()) {
+                        chkAllowCaptureOwnPiece.setSelected(false);
+                        chkAllowCaptureOwnPiece.setEnabled(false);
+                        chkAllowPieceStacking.setEnabled(true);
+                        txtStackingCount.setEnabled(true);
+                    } else {
+                        chkAllowCaptureOwnPiece.setEnabled(true);
+                        chkAllowPieceStacking.setEnabled(true);
+                        txtStackingCount.setEnabled(false);
+                    }
+                };
+                updateMutualExclusion.run();
                 SettingsBinder b = (SettingsBinder) getClientProperty("binder");
                 if (b != null) {
                     b.setAllowFlyingGeneral(allowFG);
@@ -478,9 +678,14 @@ public class RuleSettingsPanel extends JPanel {
                     b.setAllowAdvisorCrossRiver(advisorCross);
                     b.setAllowKingCrossRiver(kingCross);
                     b.setLeftRightConnected(leftRight);
+                    b.setLeftRightConnectedHorse(leftRightHorse && leftRight);
+                    b.setLeftRightConnectedElephant(leftRightElephant && leftRight);
                     b.setUnblockPiece(unblockPiece);
                     b.setUnblockHorseLeg(unblockHorseLeg);
                     b.setUnblockElephantEye(unblockElephantEye);
+                    b.setAllowCaptureOwnPiece(allowCaptureOwnPiece);
+                    b.setAllowPieceStacking(allowPieceStacking);
+                    b.setMaxStackingCount(maxStackingCount);
                 }
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "解析失败: " + ex.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
@@ -491,9 +696,47 @@ public class RuleSettingsPanel extends JPanel {
         putClientProperty("applyState", (Runnable) () -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) {
-                chkNoRiverLimit.setSelected(b.isNoRiverLimit());
+                chkAllowUndo.setSelected(b.isAllowUndo());
+                chkFlyingGeneral.setSelected(b.isAllowFlyingGeneral());
                 chkPawnBack.setSelected(b.isPawnCanRetreat());
+                chkNoRiverLimit.setSelected(b.isNoRiverLimit());
+                chkAdvisorCanLeave.setSelected(b.isAdvisorCanLeave());
+                chkInternationalKing.setSelected(b.isInternationalKing());
                 chkPawnPromotion.setSelected(b.isPawnPromotion());
+                chkAllowOwnBaseLine.setSelected(b.isAllowOwnBaseLine());
+                chkAllowInsideRetreat.setSelected(b.isAllowInsideRetreat());
+                chkInternationalAdvisor.setSelected(b.isInternationalAdvisor());
+                boolean noRiver = b.isNoRiverLimit();
+                chkAllowElephantCrossRiver.setSelected(noRiver && b.isAllowElephantCrossRiver());
+                chkAllowAdvisorCrossRiver.setSelected(noRiver && b.isAllowAdvisorCrossRiver());
+                chkAllowKingCrossRiver.setSelected(noRiver && b.isAllowKingCrossRiver());
+                boolean lr = b.isLeftRightConnected();
+                chkLeftRightConnected.setSelected(lr);
+                chkLeftRightConnectedHorse.setSelected(lr && b.isLeftRightConnectedHorse());
+                chkLeftRightConnectedElephant.setSelected(lr && b.isLeftRightConnectedElephant());
+                chkUnblockPiece.setSelected(b.isUnblockPiece());
+                chkUnblockHorseLeg.setSelected(b.isUnblockPiece() && b.isUnblockHorseLeg());
+                chkUnblockElephantEye.setSelected(b.isUnblockPiece() && b.isUnblockElephantEye());
+                chkAllowCaptureOwnPiece.setSelected(b.isAllowCaptureOwnPiece());
+                chkAllowPieceStacking.setSelected(b.isAllowPieceStacking());
+                txtStackingCount.setText(String.valueOf(b.getMaxStackingCount()));
+
+                // 同步依赖的控件状态
+                chkAllowOwnBaseLine.setEnabled(chkPawnPromotion.isSelected());
+                chkAllowInsideRetreat.setEnabled(chkPawnBack.isSelected());
+                chkAllowElephantCrossRiver.setEnabled(noRiver);
+                chkAllowAdvisorCrossRiver.setEnabled(noRiver);
+                chkAllowKingCrossRiver.setEnabled(noRiver);
+                chkLeftRightConnectedHorse.setEnabled(lr);
+                chkLeftRightConnectedElephant.setEnabled(lr);
+                boolean unblock = chkUnblockPiece.isSelected();
+                chkUnblockHorseLeg.setEnabled(unblock);
+                chkUnblockElephantEye.setEnabled(unblock);
+                if (!unblock) {
+                    chkUnblockHorseLeg.setSelected(false);
+                    chkUnblockElephantEye.setSelected(false);
+                }
+                txtStackingCount.setEnabled(chkAllowPieceStacking.isSelected());
             }
         });
     }

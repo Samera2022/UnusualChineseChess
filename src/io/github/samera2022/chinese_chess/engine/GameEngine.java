@@ -6,6 +6,8 @@ import io.github.samera2022.chinese_chess.model.Piece;
 
 import io.github.samera2022.chinese_chess.rules.CheckDetector;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
+import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
+import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 import java.util.*;
 
@@ -16,28 +18,18 @@ public class GameEngine {
     private Board board;
     private MoveValidator validator;
     private CheckDetector checkDetector;
+    private GameRulesConfig rulesConfig;
     private List<Move> moveHistory;
     private boolean isRedTurn;
     private GameState gameState;
     private List<GameStateListener> listeners;
 
     // 回放功能支持
-    private Board savedInitialBoard = null; // 保存的初始棋盘状态（用于回放）
+    private Board savedInitialBoard = null;
     private boolean savedInitialIsRedTurn = true;
+    private boolean isInReplayMode = false;
+    private int currentReplayStep = -1;
 
-    // 新增：配置项
-    private boolean allowUndo = true;
-    private boolean showHints = true;
-    // 特殊玩法
-    private final JsonObject specialRules = new JsonObject();
-
-    // 新增：取消卡子相关规则
-    private boolean unblockPiece = false;
-    private boolean unblockHorseLeg = false;
-    private boolean unblockElephantEye = false;
-
-    // 兵过河特殊规则
-    private boolean noRiverLimitPawn = false;
 
     public enum GameState {
         RUNNING,
@@ -52,27 +44,15 @@ public class GameEngine {
     }
 
     public GameEngine() {
+        this.rulesConfig = new GameRulesConfig();
         this.board = new Board();
         this.validator = new MoveValidator(board);
+        this.validator.setRulesConfig(rulesConfig);
         this.checkDetector = new CheckDetector(board, validator);
         this.moveHistory = new ArrayList<>();
-        this.isRedTurn = true; // 红方先行
+        this.isRedTurn = true;
         this.gameState = GameState.RUNNING;
         this.listeners = new ArrayList<>();
-        // 默认特殊玩法开关
-        specialRules.addProperty("allowFlyingGeneral", false);
-        specialRules.addProperty("pawnCanRetreat", false);
-        specialRules.addProperty("noRiverLimit", false);
-        specialRules.addProperty("advisorCanLeave", false);
-        specialRules.addProperty("internationalKing", false);
-        specialRules.addProperty("pawnPromotion", false);
-        specialRules.addProperty("allowOwnBaseLine", false);
-        specialRules.addProperty("allowInsideRetreat", false);
-        specialRules.addProperty("internationalAdvisor", false);
-        specialRules.addProperty("allowElephantCrossRiver", false);
-        specialRules.addProperty("allowAdvisorCrossRiver", false);
-        specialRules.addProperty("allowKingCrossRiver", false);
-        specialRules.addProperty("leftRightConnected", false);
     }
 
     /**
@@ -89,6 +69,15 @@ public class GameEngine {
     public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType) {
         if (gameState != GameState.RUNNING) {
             return false;
+        }
+
+        // 如果处于回放模式，需要截断后续的着法记录
+        if (isInReplayMode && currentReplayStep >= 0 && currentReplayStep < moveHistory.size()) {
+            // 保留前 currentReplayStep 步，删除后面的
+            moveHistory = new ArrayList<>(moveHistory.subList(0, currentReplayStep));
+            // 退出回放模式
+            isInReplayMode = false;
+            currentReplayStep = -1;
         }
 
         Piece piece = board.getPiece(fromRow, fromCol);
@@ -108,16 +97,32 @@ public class GameEngine {
 
         // 执行移动
         Piece capturedPiece = board.getPiece(toRow, toCol);
-        if (capturedPiece != null) {
+
+        // 判断是否为堆叠移动
+        boolean isStackingMove = false;
+        if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && capturedPiece != null &&
+            capturedPiece.isRed() == piece.isRed()) {
+            int stackSize = board.getStackSize(toRow, toCol);
+            if (stackSize < rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
+                isStackingMove = true;
+                capturedPiece = null; // 堆叠时不吃子，只堆叠
+            }
+        }
+
+        if (capturedPiece != null && !isStackingMove) {
             board.removePiece(toRow, toCol);
         }
 
         piece.move(toRow, toCol);
-        board.setPiece(toRow, toCol, piece);
+        if (isStackingMove) {
+            board.pushToStack(toRow, toCol, piece);
+        } else {
+            board.setPiece(toRow, toCol, piece);
+        }
         board.setPiece(fromRow, fromCol, null);
 
         // 检查兵卒晋升
-        if (isSpecialRuleEnabled("pawnPromotion") &&
+        if (rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
             (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) {
@@ -128,6 +133,10 @@ public class GameEngine {
 
         // 记录着法
         Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+        if (isStackingMove) {
+            move.setStacking(true);
+            move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
+        }
         moveHistory.add(move);
 
         // 切换回合
@@ -149,7 +158,7 @@ public class GameEngine {
      * 检查兵卒是否需要晋升
      */
     public boolean needsPromotion(int row, int col) {
-        if (!isSpecialRuleEnabled("pawnPromotion")) {
+        if (!rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
             return false;
         }
         Piece piece = board.getPiece(row, col);
@@ -172,27 +181,27 @@ public class GameEngine {
         Piece blackKing = board.getBlackKing();
 
         if (redKing == null) {
-            gameState = GameState.BLACK_CHECKMATE;
+            gameState = GameState.RED_CHECKMATE;  // 红王被吃 → 红方败 → RED_CHECKMATE
             notifyGameStateChanged();
             return;
         }
 
         if (blackKing == null) {
-            gameState = GameState.RED_CHECKMATE;
+            gameState = GameState.BLACK_CHECKMATE;  // 黑王被吃 → 黑方败 → BLACK_CHECKMATE
             notifyGameStateChanged();
             return;
         }
 
         // 检查黑方是否被将死
         if (checkDetector.isCheckmate(false)) {
-            gameState = GameState.RED_CHECKMATE;
+            gameState = GameState.BLACK_CHECKMATE;  // 黑方被将死 → 黑方败
             notifyGameStateChanged();
             return;
         }
 
         // 检查红方是否被将死
         if (checkDetector.isCheckmate(true)) {
-            gameState = GameState.BLACK_CHECKMATE;
+            gameState = GameState.RED_CHECKMATE;  // 红方被将死 → 红方败
             notifyGameStateChanged();
             return;
         }
@@ -208,7 +217,7 @@ public class GameEngine {
      * 撤销上一步棋
      */
     public boolean undoLastMove() {
-        if (!allowUndo) {
+        if (!rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO)) {
             return false;
         }
         if (moveHistory.isEmpty()) {
@@ -217,16 +226,26 @@ public class GameEngine {
 
         Move lastMove = moveHistory.remove(moveHistory.size() - 1);
 
-        // 移动棋子回原位置
-        Piece piece = lastMove.getPiece();
-        piece.move(lastMove.getFromRow(), lastMove.getFromCol());
-        board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
-        board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
+        // 处理堆叠撤销
+        if (lastMove.isStacking()) {
+            // 从目标位置弹出该棋子
+            board.popTop(lastMove.getToRow(), lastMove.getToCol());
+            // 将棋子放回原位置
+            Piece piece = lastMove.getPiece();
+            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
+            board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
+        } else {
+            // 普通撤销逻辑
+            Piece piece = lastMove.getPiece();
+            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
+            board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
+            board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
 
-        // 恢复被吃的棋子（如果有）
-        if (lastMove.getCapturedPiece() != null) {
-            Piece captured = lastMove.getCapturedPiece();
-            board.setPiece(lastMove.getToRow(), lastMove.getToCol(), captured);
+            // 恢复被吃的棋子（如果有）
+            if (lastMove.getCapturedPiece() != null) {
+                Piece captured = lastMove.getCapturedPiece();
+                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), captured);
+            }
         }
 
         // 切换回合
@@ -247,6 +266,11 @@ public class GameEngine {
         moveHistory.clear();
         isRedTurn = true;
         gameState = GameState.RUNNING;
+        // 清理回放相关缓存，避免回放残留影响新对局
+        savedInitialBoard = null;
+        savedInitialIsRedTurn = true;
+        isInReplayMode = false;
+        currentReplayStep = -1;
         notifyGameStateChanged();
     }
 
@@ -292,7 +316,7 @@ public class GameEngine {
                 Piece piece = savedInitialBoard.getPiece(row, col);
                 if (piece != null) {
                     Piece pieceCopy = new Piece(piece.getType(), row, col);
-                    board.setPiece(row, col, pieceCopy);
+                    board.putPieceFresh(row, col, pieceCopy); // 同步棋子列表
                 }
             }
         }
@@ -327,6 +351,28 @@ public class GameEngine {
         gameState = GameState.RUNNING;
     }
 
+    /**
+     * 设置回放模式状态
+     */
+    public void setReplayMode(boolean inReplayMode, int step) {
+        this.isInReplayMode = inReplayMode;
+        this.currentReplayStep = step;
+    }
+
+    /**
+     * 获取是否处于回放模式
+     */
+    public boolean isInReplayMode() {
+        return isInReplayMode;
+    }
+
+    /**
+     * 获取当前回放步数
+     */
+    public int getCurrentReplayStep() {
+        return currentReplayStep;
+    }
+
     public boolean isRedTurn() {
         return isRedTurn;
     }
@@ -347,96 +393,58 @@ public class GameEngine {
         listeners.remove(listener);
     }
 
-    // 配置项访问器
-    public boolean isAllowUndo() { return allowUndo; }
-    public void setAllowUndo(boolean allowUndo) { this.allowUndo = allowUndo; }
+    // 配置项访问器 - 委托给rulesConfig
+    public boolean isAllowUndo() { return rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO); }
+    public void setAllowUndo(boolean allowUndo) { rulesConfig.set(RuleConstants.ALLOW_UNDO, allowUndo); }
 
-    public boolean isShowHints() { return showHints; }
-    public void setShowHints(boolean showHints) { this.showHints = showHints; }
+    public boolean isShowHints() { return rulesConfig.getBoolean(RuleConstants.SHOW_HINTS); }
+    public void setShowHints(boolean showHints) { rulesConfig.set(RuleConstants.SHOW_HINTS, showHints); }
 
-    // 特殊玩法访问器（逻辑接入可在 MoveValidator 等处后续实现）
-    public JsonObject getSpecialRules() { return specialRules.deepCopy(); }
-    public void setSpecialRule(String key, boolean value) { specialRules.addProperty(key, value); applySpecialRuleToValidator(key, value); }
+    // 特殊玩法访问器 - 统一委托给rulesConfig
+    public JsonObject getSpecialRules() { return rulesConfig.toJson(); }
     public boolean isSpecialRuleEnabled(String key) {
-        return specialRules.has(key) && specialRules.get(key).getAsBoolean();
+        return rulesConfig.getBoolean(key);
     }
 
-    private void applySpecialRuleToValidator(String key, boolean value) {
-        if (validator == null) return;
-        switch (key) {
-            case "allowFlyingGeneral":
-                validator.setAllowFlyingGeneral(value);
-                break;
-            case "pawnCanRetreat":
-                validator.setPawnCanRetreat(value);
-                break;
-            case "noRiverLimit":
-                validator.setNoRiverLimit(value);
-                break;
-            case "advisorCanLeave":
-                validator.setAdvisorCanLeave(value);
-                break;
-            case "internationalKing":
-                validator.setInternationalKing(value);
-                break;
-            case "pawnPromotion":
-                validator.setPawnPromotion(value);
-                break;
-            case "allowOwnBaseLine":
-                validator.setAllowOwnBaseLine(value);
-                break;
-            case "allowInsideRetreat":
-                validator.setAllowInsideRetreat(value);
-                break;
-            case "internationalAdvisor":
-                validator.setInternationalAdvisor(value);
-                break;
-            case "allowElephantCrossRiver":
-                validator.setAllowElephantCrossRiver(value);
-                break;
-            case "allowAdvisorCrossRiver":
-                validator.setAllowAdvisorCrossRiver(value);
-                break;
-            case "allowKingCrossRiver":
-                validator.setAllowKingCrossRiver(value);
-                break;
-            case "leftRightConnected":
-                validator.setLeftRightConnected(value);
-                break;
-            default:
-                break;
-        }
-    }
+    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_PIECE, allow); }
+    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_HORSE_LEG, allow); }
+    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_ELEPHANT_EYE, allow); }
+    public boolean isUnblockPiece() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_PIECE); }
+    public boolean isUnblockHorseLeg() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_HORSE_LEG); }
+    public boolean isUnblockElephantEye() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_ELEPHANT_EYE); }
 
-    // 设置快照（供联机同步）
+    public void setNoRiverLimitPawn(boolean allow) { rulesConfig.set(RuleConstants.NO_RIVER_LIMIT_PAWN, allow); }
+    public boolean isNoRiverLimitPawn() { return rulesConfig.getBoolean(RuleConstants.NO_RIVER_LIMIT_PAWN); }
+
+    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow); }
+    public boolean isAllowCaptureOwnPiece() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_OWN_PIECE); }
+
+    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_PIECE_STACKING, allow); }
+    public boolean isAllowPieceStacking() { return rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING); }
+    public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, count); }
+    public int getMaxStackingCount() { return rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT); }
+
+    /**
+     * 获取设置快照（供联机同步）
+     */
     public JsonObject getSettingsSnapshot() {
-        JsonObject root = new JsonObject();
-        root.addProperty("allowUndo", allowUndo);
-        root.add("specialRules", getSpecialRules());
-        return root;
+        return rulesConfig.toJson();
     }
 
+    /**
+     * 应用设置快照（供联机同步）
+     */
     public void applySettingsSnapshot(JsonObject snapshot) {
-        if (snapshot == null) return;
-        if (snapshot.has("allowUndo")) {
-            setAllowUndo(snapshot.get("allowUndo").getAsBoolean());
-        }
-        if (snapshot.has("specialRules") && snapshot.get("specialRules").isJsonObject()) {
-            JsonObject sr = snapshot.getAsJsonObject("specialRules");
-            for (String key : sr.keySet()) {
-                boolean val = sr.get(key).getAsBoolean();
-                setSpecialRule(key, val);
-            }
+        if (snapshot != null) {
+            rulesConfig.loadFromJson(snapshot);
+            validator.setRulesConfig(rulesConfig);
         }
     }
 
-    public void setUnblockPiece(boolean allow) { this.unblockPiece = allow; validator.setUnblockPiece(allow); }
-    public void setUnblockHorseLeg(boolean allow) { this.unblockHorseLeg = allow; validator.setUnblockHorseLeg(allow); }
-    public void setUnblockElephantEye(boolean allow) { this.unblockElephantEye = allow; validator.setUnblockElephantEye(allow); }
-    public boolean isUnblockPiece() { return unblockPiece; }
-    public boolean isUnblockHorseLeg() { return unblockHorseLeg; }
-    public boolean isUnblockElephantEye() { return unblockElephantEye; }
-    // 兵过河特殊规则
-    public void setNoRiverLimitPawn(boolean allow) { this.noRiverLimitPawn = allow; validator.setNoRiverLimitPawn(allow); }
-    public boolean isNoRiverLimitPawn() { return noRiverLimitPawn; }
+    /**
+     * 获取规则配置对象
+     */
+    public GameRulesConfig getRulesConfig() {
+        return rulesConfig;
+    }
 }

@@ -2,6 +2,7 @@ package io.github.samera2022.chinese_chess.rules;
 
 import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 /**
  * 移动规则检查器 - 验证棋子的合法移动
@@ -9,66 +10,76 @@ import io.github.samera2022.chinese_chess.model.Piece;
  */
 public class MoveValidator {
     private Board board;
-    // 特殊规则开关
-    private boolean allowFlyingGeneral = false;
-    private boolean pawnCanRetreat = false;
-    private boolean noRiverLimit = false;
-    private boolean advisorCanLeave = false;
-    private boolean internationalKing = false;
-    private boolean pawnPromotion = false;
-    private boolean allowOwnBaseLine = false;
-    private boolean allowInsideRetreat = false;
-    private boolean internationalAdvisor = false;
-    private boolean allowElephantCrossRiver = false;
-    private boolean allowAdvisorCrossRiver = false;
-    private boolean allowKingCrossRiver = false;
-    private boolean leftRightConnected = false;
-
-    // 新增：取消卡子相关规则
-    private boolean unblockPiece = false;
-    private boolean unblockHorseLeg = false;
-    private boolean unblockElephantEye = false;
-
-    // 新增：兵过河特殊规则
-    private boolean noRiverLimitPawn = false;
+    private GameRulesConfig rulesConfig;
 
     public MoveValidator(Board board) {
         this.board = board;
+        // 默认创建一个配置，避免未注入时导致无法移动；GameEngine会用共享实例覆盖
+        this.rulesConfig = new GameRulesConfig();
     }
 
-    // 供引擎注入特殊玩法开关
-    public void setAllowFlyingGeneral(boolean allow) { this.allowFlyingGeneral = allow; }
-    public void setPawnCanRetreat(boolean allow) { this.pawnCanRetreat = allow; }
-    public void setNoRiverLimit(boolean allow) { this.noRiverLimit = allow; }
-    public void setAdvisorCanLeave(boolean allow) { this.advisorCanLeave = allow; }
-    public void setInternationalKing(boolean allow) { this.internationalKing = allow; }
-    public void setPawnPromotion(boolean allow) { this.pawnPromotion = allow; }
-    public void setAllowOwnBaseLine(boolean allow) { this.allowOwnBaseLine = allow; }
-    public void setAllowInsideRetreat(boolean allow) { this.allowInsideRetreat = allow; }
-    public void setInternationalAdvisor(boolean allow) { this.internationalAdvisor = allow; }
-    public void setAllowElephantCrossRiver(boolean allow) { this.allowElephantCrossRiver = allow; }
-    public void setAllowAdvisorCrossRiver(boolean allow) { this.allowAdvisorCrossRiver = allow; }
-    public void setAllowKingCrossRiver(boolean allow) { this.allowKingCrossRiver = allow; }
-    public void setLeftRightConnected(boolean allow) { this.leftRightConnected = allow; }
+    /**
+     * 注入规则配置对象
+     */
+    public void setRulesConfig(GameRulesConfig rulesConfig) {
+        if (rulesConfig != null) {
+            this.rulesConfig = rulesConfig;
+        }
+    }
 
-    public void setUnblockPiece(boolean allow) { this.unblockPiece = allow; }
-    public void setUnblockHorseLeg(boolean allow) { this.unblockHorseLeg = allow; }
-    public void setUnblockElephantEye(boolean allow) { this.unblockElephantEye = allow; }
-    public boolean isUnblockPiece() { return unblockPiece; }
-    public boolean isUnblockHorseLeg() { return unblockHorseLeg; }
-    public boolean isUnblockElephantEye() { return unblockElephantEye; }
+    // ========== Setter方法（直接修改rulesConfig） ==========
 
-    public boolean isPawnPromotion() { return pawnPromotion; }
-    public boolean isAllowOwnBaseLine() { return allowOwnBaseLine; }
-    public boolean isAllowInsideRetreat() { return allowInsideRetreat; }
-    public boolean isInternationalAdvisor() { return internationalAdvisor; }
-    public void setNoRiverLimitPawn(boolean allow) { this.noRiverLimitPawn = allow; }
-    public boolean isNoRiverLimitPawn() { return noRiverLimitPawn; }
+    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.setAllowFlyingGeneral(allow); }
+    public void setPawnCanRetreat(boolean allow) { rulesConfig.setPawnCanRetreat(allow); }
+    public void setNoRiverLimit(boolean allow) { rulesConfig.setNoRiverLimit(allow); }
+    public void setAdvisorCanLeave(boolean allow) { rulesConfig.setAdvisorCanLeave(allow); }
+    public void setInternationalKing(boolean allow) { rulesConfig.setInternationalKing(allow); }
+    public void setPawnPromotion(boolean allow) { rulesConfig.setPawnPromotion(allow); }
+    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.setAllowOwnBaseLine(allow); }
+    public void setAllowInsideRetreat(boolean allow) { rulesConfig.setAllowInsideRetreat(allow); }
+    public void setInternationalAdvisor(boolean allow) { rulesConfig.setInternationalAdvisor(allow); }
+    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.setAllowElephantCrossRiver(allow); }
+    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.setAllowAdvisorCrossRiver(allow); }
+    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.setAllowKingCrossRiver(allow); }
+    public void setLeftRightConnected(boolean allow) { rulesConfig.setLeftRightConnected(allow); }
+    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.setLeftRightConnectedHorse(allow); }
+    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.setLeftRightConnectedElephant(allow); }
+
+    public void setUnblockPiece(boolean allow) { rulesConfig.setUnblockPiece(allow); }
+    public void setUnblockHorseLeg(boolean allow) { rulesConfig.setUnblockHorseLeg(allow); }
+    public void setUnblockElephantEye(boolean allow) { rulesConfig.setUnblockElephantEye(allow); }
+    public boolean isUnblockPiece() { return rulesConfig.isUnblockPiece(); }
+    public boolean isUnblockHorseLeg() { return rulesConfig.isUnblockHorseLeg(); }
+    public boolean isUnblockElephantEye() { return rulesConfig.isUnblockElephantEye(); }
+
+    public boolean isPawnPromotion() { return rulesConfig.isPawnPromotion(); }
+    public boolean isAllowOwnBaseLine() { return rulesConfig.isAllowOwnBaseLine(); }
+    public boolean isAllowInsideRetreat() { return rulesConfig.isAllowInsideRetreat(); }
+    public boolean isInternationalAdvisor() { return rulesConfig.isInternationalAdvisor(); }
+    public void setNoRiverLimitPawn(boolean allow) { rulesConfig.setNoRiverLimitPawn(allow); }
+    public boolean isNoRiverLimitPawn() { return rulesConfig.isNoRiverLimitPawn(); }
+
+    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.setAllowCaptureOwnPiece(allow); }
+    public boolean isAllowCaptureOwnPiece() { return rulesConfig.isAllowCaptureOwnPiece(); }
+
+    public void setAllowPieceStacking(boolean allow) { rulesConfig.setAllowPieceStacking(allow); }
+    public boolean isAllowPieceStacking() { return rulesConfig.isAllowPieceStacking(); }
+    public void setMaxStackingCount(int count) { rulesConfig.setMaxStackingCount(count); }
+    public int getMaxStackingCount() { return rulesConfig.getMaxStackingCount(); }
+
+    // 动态访问帮助方法，统一使用通用Getter
+    private boolean r(String key) { return rulesConfig != null && rulesConfig.getBoolean(key); }
+    private int ri(String key) { return rulesConfig != null ? rulesConfig.getInt(key) : 0; }
 
     /**
      * 验证着法是否合法
      */
     public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol) {
+        if (rulesConfig == null) {
+            // 未注入规则配置，使用默认规则配置继续判定（防御性分支）
+            rulesConfig = new GameRulesConfig();
+        }
+
         // 检查坐标有效性
         if (!board.isValid(fromRow, fromCol) || !board.isValid(toRow, toCol)) {
             return false;
@@ -83,7 +94,15 @@ public class MoveValidator {
         // 检查目标位置是否是己方棋子
         Piece targetPiece = board.getPiece(toRow, toCol);
         if (targetPiece != null && targetPiece.isRed() == piece.isRed()) {
-            return false;
+            if (r(RuleConstants.ALLOW_PIECE_STACKING) && ri(RuleConstants.MAX_STACKING_COUNT) > 1) {
+                int stackSize = board.getStackSize(toRow, toCol);
+                if (stackSize >= ri(RuleConstants.MAX_STACKING_COUNT)) {
+                    return false;
+                }
+                // 堆栈未满，允许堆叠
+            } else if (!r(RuleConstants.ALLOW_CAPTURE_OWN_PIECE)) {
+                return false;
+            }
         }
 
         // 检查源和目的地相同
@@ -123,11 +142,25 @@ public class MoveValidator {
 
     /**
      * 计算两点之间水平路径上的障碍物数量。
+     * 在左右联通模式下，使用扩展棋盘来处理边界穿越逻辑。
      * 返回数组 int[2]：
      * index 0: 直接路径（Direct Path）中间的棋子数
      * index 1: 环绕路径（Wrap Path）中间的棋子数
      */
     private int[] countHorizontalObstacles(int row, int col1, int col2) {
+        if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+            // 在左右联通模式下使用扩展棋盘逻辑
+            return countHorizontalObstaclesWithWrap(row, col1, col2);
+        } else {
+            // 原有逻辑：仅计算直接路径
+            return countHorizontalObstaclesNormal(row, col1, col2);
+        }
+    }
+
+    /**
+     * 标准的水平障碍计算（不考虑左右联通）
+     */
+    private int[] countHorizontalObstaclesNormal(int row, int col1, int col2) {
         // 1. 统计该行总共有多少棋子
         int totalPiecesInRow = 0;
         for (int c = 0; c < 9; c++) {
@@ -148,25 +181,75 @@ public class MoveValidator {
         }
 
         // 3. 计算环绕路径的障碍数
-        // 环绕路径障碍 = 总数 - 起点占用(1) - 终点占用(如果有) - 直接路径障碍
-        // 注意：MoveValidator 调用此方法时，起点一定有子。终点可能有子也可能没子。
-        // 但我们这里计算的是"路径中间"的障碍，不包含起点和终点本身。
-        // 所以，我们需要从 totalPiecesInRow 中减去起点和终点（如果它们被算进去了）。
-
         int occupiedEndPoints = 0;
         if (board.getPiece(row, col1) != null) occupiedEndPoints++;
         if (board.getPiece(row, col2) != null) occupiedEndPoints++;
 
-        // 剩余的棋子就是分布在两条路径中间的
         int allIntermediatePieces = totalPiecesInRow - occupiedEndPoints;
-
-        // 环绕路径障碍 = 所有中间棋子 - 直接路径障障碍
         int wrapPathObstacles = allIntermediatePieces - directPathObstacles;
 
-        // 防御性修正（虽然逻辑上不会小于0）
         if (wrapPathObstacles < 0) wrapPathObstacles = 0;
 
         return new int[]{directPathObstacles, wrapPathObstacles};
+    }
+
+    /**
+     * 在左右联通模式下计算水平障碍
+     * 使用扩展棋盘（三倍宽度）来处理边界穿越逻辑
+     */
+    private int[] countHorizontalObstaclesWithWrap(int row, int col1, int col2) {
+        final int BOARD_WIDTH = 9;
+
+        // 在扩展棋盘上的坐标（中间部分）
+        int expandedCol1 = col1 + BOARD_WIDTH;
+        int expandedCol2 = col2 + BOARD_WIDTH;
+
+        // 统计直接路径（扩展棋盘上的两点间，最短路径）的棋子数
+        int minCol = Math.min(expandedCol1, expandedCol2);
+        int maxCol = Math.max(expandedCol1, expandedCol2);
+        int directPathObstacles = 0;
+
+        for (int expandedC = minCol + 1; expandedC < maxCol; expandedC++) {
+            // 将扩展棋盘上的坐标映射回原棋盘
+            int originalCol = mapExpandedColToOriginal(expandedC);
+            if (board.getPiece(row, originalCol) != null) {
+                directPathObstacles++;
+            }
+        }
+
+        // 统计环绕路径的棋子数
+        // 环绕路径是绕过棋盘另一端的路径
+        // 总的中间棋子数 - 直接路径的棋子数 = 环绕路径的棋子数
+        int totalMiddlePieces = 0;
+        for (int c = 0; c < BOARD_WIDTH; c++) {
+            if (board.getPiece(row, c) != null && c != col1 && c != col2) {
+                totalMiddlePieces++;
+            }
+        }
+
+        int wrapPathObstacles = totalMiddlePieces - directPathObstacles;
+        if (wrapPathObstacles < 0) wrapPathObstacles = 0;
+
+        return new int[]{directPathObstacles, wrapPathObstacles};
+    }
+
+    /**
+     * 将扩展棋盘上的列坐标映射回原棋盘
+     * 扩展棋盘：[0-8]左镜像, [9-17]原始, [18-26]右镜像
+     */
+    private int mapExpandedColToOriginal(int expandedCol) {
+        final int BOARD_WIDTH = 9;
+
+        if (expandedCol < BOARD_WIDTH) {
+            // 左镜像部分：映射到原棋盘
+            return expandedCol;
+        } else if (expandedCol < 2 * BOARD_WIDTH) {
+            // 中间原始部分
+            return expandedCol - BOARD_WIDTH;
+        } else {
+            // 右镜像部分：映射到原棋盘
+            return expandedCol - 2 * BOARD_WIDTH;
+        }
     }
 
     /**
@@ -189,7 +272,7 @@ public class MoveValidator {
             boolean directPathValid = (directObs == 0);
             boolean wrapPathValid = (wrapObs == 0);
 
-            if (leftRightConnected) {
+            if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
                 // 如果开启左右联通，任一路径通畅即可
                 return directPathValid || wrapPathValid;
             } else {
@@ -243,7 +326,7 @@ public class MoveValidator {
                 wrapPathValid = (wrapObs == 0);
             }
 
-            if (leftRightConnected) {
+            if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
                 // 左右联通：任一路径满足条件即可
                 return directPathValid || wrapPathValid;
             } else {
@@ -269,27 +352,24 @@ public class MoveValidator {
         }
     }
 
-    // --- 象（相）---
+    // --- 象（相）- 修正版 ---
     private boolean isValidElephantMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        // 只判断取消河界
-        if (!noRiverLimit) {
-            if (piece.isRed() && toRow < 5) {
-                return false;
-            }
-            if (!piece.isRed() && toRow > 4) {
-                return false;
-            }
+        if (!r(RuleConstants.NO_RIVER_LIMIT)) {
+            if (piece.isRed() && toRow < 5) return false;
+            if (!piece.isRed() && toRow > 4) return false;
         }
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
-        if (rowDiff != 2 || colDiff != 2) {
-            return false;
+        boolean isStandardMove = rowDiff == 2 && colDiff == 2;
+        boolean isWrapMove = false;
+        if (r(RuleConstants.LEFT_RIGHT_CONNECTED) && r(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT) && colDiff > 4) {
+            int wrappedColDiff = 9 - colDiff;
+            isWrapMove = rowDiff == 2 && wrappedColDiff == 2;
         }
+        if (!isStandardMove && !isWrapMove) return false;
         int midRow = (fromRow + toRow) / 2;
-        int midCol = (fromCol + toCol) / 2;
-        if (unblockPiece && unblockElephantEye) {
-            return true;
-        }
+        int midCol = isWrapMove ? ((fromCol + toCol + 9) / 2) % 9 : (fromCol + toCol) / 2;
+        if (r(RuleConstants.UNBLOCK_PIECE) && r(RuleConstants.UNBLOCK_ELEPHANT_EYE)) return true;
         return board.getPiece(midRow, midCol) == null;
     }
 
@@ -297,25 +377,17 @@ public class MoveValidator {
     private boolean isValidHorseMove(int fromRow, int fromCol, int toRow, int toCol) {
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
-
-        if (!((rowDiff == 1 && colDiff == 2) || (rowDiff == 2 && colDiff == 1))) {
-            return false;
+        boolean isStandardMove = (rowDiff == 1 && colDiff == 2) || (rowDiff == 2 && colDiff == 1);
+        boolean isWrapMove = false;
+        if (r(RuleConstants.LEFT_RIGHT_CONNECTED) && r(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE) && colDiff > 4) {
+            int wrappedColDiff = 9 - colDiff;
+            isWrapMove = (rowDiff == 1 && wrappedColDiff == 2) || (rowDiff == 2 && wrappedColDiff == 1);
         }
-
+        if (!isStandardMove && !isWrapMove) return false;
         int midRow, midCol;
-        if (rowDiff == 1) {
-            midRow = fromRow;
-            midCol = (fromCol + toCol) / 2;
-        } else {
-            midRow = (fromRow + toRow) / 2;
-            midCol = fromCol;
-        }
-
-        // 取消卡马脚
-        if (unblockPiece && unblockHorseLeg) {
-            return true;
-        }
-
+        if (rowDiff == 1) { midRow = fromRow; midCol = (fromCol + toCol) / 2; }
+        else { midRow = (fromRow + toRow) / 2; midCol = fromCol; }
+        if (r(RuleConstants.UNBLOCK_PIECE) && r(RuleConstants.UNBLOCK_HORSE_LEG)) return true;
         return board.getPiece(midRow, midCol) == null;
     }
 
@@ -323,19 +395,15 @@ public class MoveValidator {
      * 王（帥）：在宫内活动
      */
     private boolean isValidKingMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        // 只判断取消河界
-        if (!noRiverLimit && !allowFlyingGeneral && !allowKingCrossRiver) {
-            int minCol = 3;
-            int maxCol = 5;
+        if (!r(RuleConstants.NO_RIVER_LIMIT) && !r(RuleConstants.ALLOW_FLYING_GENERAL) && !r(RuleConstants.ALLOW_KING_CROSS_RIVER)) {
+            int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;
-            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
-                return false;
-            }
+            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) return false;
         }
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
-        if (internationalKing) {
+        if (r(RuleConstants.INTERNATIONAL_KING)) {
             return rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0;
         } else {
             return (rowDiff + colDiff) == 1;
@@ -343,49 +411,81 @@ public class MoveValidator {
     }
 
     /**
-     * 士（仕）
+     * 士（仕）- 修正版
+     * 采用了"三倍宽棋盘"的逻辑思路来处理左右联通的斜线移动
      */
     private boolean isValidAdvisorMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        // 只判断取消河界
-        if (!noRiverLimit) {
-            int minCol = 3;
-            int maxCol = 5;
+        if (!r(RuleConstants.ADVISOR_CAN_LEAVE)) {
+            int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;
-            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) {
-                return false;
-            }
+            if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) return false;
         }
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
-        if (internationalAdvisor) {
-            if (rowDiff == 0 && colDiff > 0) {
-                int step = toCol > fromCol ? 1 : -1;
-                for (int c = fromCol + step; c != toCol; c += step) {
-                    if (board.getPiece(fromRow, c) != null) return false;
-                }
-                return true;
-            }
-            if (colDiff == 0 && rowDiff > 0) {
-                int step = toRow > fromRow ? 1 : -1;
-                for (int r = fromRow + step; r != toRow; r += step) {
-                    if (board.getPiece(r, fromCol) != null) return false;
-                }
-                return true;
-            }
-            if (rowDiff == colDiff && rowDiff > 0) {
-                int rowStep = toRow > fromRow ? 1 : -1;
-                int colStep = toCol > fromCol ? 1 : -1;
-                int r = fromRow + rowStep, c = fromCol + colStep;
-                while (r != toRow && c != toCol) {
-                    if (board.getPiece(r, c) != null) return false;
-                    r += rowStep; c += colStep;
-                }
-                return true;
-            }
-            return false;
+        if (!r(RuleConstants.INTERNATIONAL_ADVISOR)) {
+            return rowDiff == 1 && colDiff == 1;
         }
-        return rowDiff == 1 && colDiff == 1;
+        if (rowDiff == 0 && colDiff > 0) {
+            int[] obstacles = countHorizontalObstacles(fromRow, fromCol, toCol);
+            return r(RuleConstants.LEFT_RIGHT_CONNECTED) ? (obstacles[0] == 0 || obstacles[1] == 0) : obstacles[0] == 0;
+        }
+        if (colDiff == 0 && rowDiff > 0) {
+            int step = toRow > fromRow ? 1 : -1;
+            for (int r = fromRow + step; r != toRow; r += step) {
+                if (board.getPiece(r, fromCol) != null) return false;
+            }
+            return true;
+        }
+        int[] potentialTargetCols = r(RuleConstants.LEFT_RIGHT_CONNECTED)
+            ? new int[]{toCol, toCol - 9, toCol + 9}
+            : new int[]{toCol};
+        for (int virtualToCol : potentialTargetCols) {
+            int virtualColDiff = Math.abs(virtualToCol - fromCol);
+            if (rowDiff == virtualColDiff && rowDiff > 0) {
+                if (checkDiagonalPathWithWrap(fromRow, fromCol, toRow, virtualToCol)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 辅助方法：检查斜线路径是否有障碍（支持虚拟坐标）
+     * 逻辑：在虚拟的宽棋盘上行走，但在检查棋子时映射回 0-8 范围
+     * * @param r1 起点行
+     * @param c1 起点列
+     * @param r2 终点行
+     * @param virtualC2 终点虚拟列（可能是负数，也可能 > 8）
+     */
+    private boolean checkDiagonalPathWithWrap(int r1, int c1, int r2, int virtualC2) {
+        int rowStep = r2 > r1 ? 1 : -1;
+        int colStep = virtualC2 > c1 ? 1 : -1;
+
+        // 步数等于行差（因为是斜线，行差等于列差）
+        int steps = Math.abs(r2 - r1);
+
+        int currentR = r1;
+        int currentVirtualC = c1;
+
+        // 从起点走向终点（不包含起点，不包含终点）
+        for (int i = 0; i < steps - 1; i++) {
+            currentR += rowStep;
+            currentVirtualC += colStep;
+
+            // 核心：将虚拟坐标映射回真实棋盘坐标 [0, 8]
+            // Java的 % 运算符对负数会保留负号，所以用 (a % n + n) % n 公式
+            int realC = (currentVirtualC % 9 + 9) % 9;
+
+            // 如果路径上有子，则此路不通
+            if (board.getPiece(currentR, realC) != null) {
+                return false;
+            }
+        }
+
+        // 路径畅通（终点是否有己方棋子的判断在 isValidMove 开头已经做过了）
+        return true;
     }
 
     /**
@@ -398,25 +498,25 @@ public class MoveValidator {
         boolean hasCrossedRiver;
         if (isRed) {
             hasCrossedRiver = fromRow < 5;
-            if (!hasCrossedRiver && !noRiverLimit) {
+            if (!hasCrossedRiver && !r(RuleConstants.NO_RIVER_LIMIT)) {
                 if (rowDiff == -1 && colDiff == 0) return true;
-                if (allowInsideRetreat && pawnCanRetreat && rowDiff == 1 && colDiff == 0) return true;
+                if (r(RuleConstants.ALLOW_INSIDE_RETREAT) && r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == 1 && colDiff == 0) return true;
                 return false;
             } else {
                 if (rowDiff == -1 && colDiff == 0) return true;
                 if (rowDiff == 0 && colDiff == 1) return true;
-                if (pawnCanRetreat && rowDiff == 1 && colDiff == 0) return true;
+                if (r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == 1 && colDiff == 0) return true;
             }
         } else {
             hasCrossedRiver = fromRow > 4;
-            if (!hasCrossedRiver && !noRiverLimit) {
+            if (!hasCrossedRiver && !r(RuleConstants.NO_RIVER_LIMIT)) {
                 if (rowDiff == 1 && colDiff == 0) return true;
-                if (allowInsideRetreat && pawnCanRetreat && rowDiff == -1 && colDiff == 0) return true;
+                if (r(RuleConstants.ALLOW_INSIDE_RETREAT) && r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == -1 && colDiff == 0) return true;
                 return false;
             } else {
                 if (rowDiff == 1 && colDiff == 0) return true;
                 if (rowDiff == 0 && colDiff == 1) return true;
-                if (pawnCanRetreat && rowDiff == -1 && colDiff == 0) return true;
+                if (r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == -1 && colDiff == 0) return true;
             }
         }
         return false;

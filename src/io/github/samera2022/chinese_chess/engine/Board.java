@@ -14,6 +14,7 @@ public class Board {
     private Piece[][] board;
     private List<Piece> redPieces;
     private List<Piece> blackPieces;
+    private final Map<String, Deque<Piece>> stacks = new HashMap<>();
 
     public Board() {
         this.board = new Piece[ROWS][COLS];
@@ -34,6 +35,7 @@ public class Board {
         }
         redPieces.clear();
         blackPieces.clear();
+        stacks.clear();
 
         // 初始化黑方（顶部，行 0-4）
         // 黑方王（将）
@@ -86,45 +88,79 @@ public class Board {
         addPiece(6, 8, Piece.Type.RED_SOLDIER);
     }
 
+    private String key(int r, int c) {
+        return r + "," + c;
+    }
+
+    private Deque<Piece> stackOf(int r, int c) {
+        return stacks.computeIfAbsent(key(r, c), k -> new ArrayDeque<>());
+    }
+
+    public List<Piece> getStack(int row, int col) {
+        if (!isValid(row, col)) return Collections.emptyList();
+        Deque<Piece> dq = stacks.get(key(row, col));
+        return dq == null ? Collections.emptyList() : new ArrayList<>(dq);
+    }
+
+    public int getStackSize(int row, int col) {
+        if (!isValid(row, col)) return 0;
+        Deque<Piece> dq = stacks.get(key(row, col));
+        return dq == null ? 0 : dq.size();
+    }
+
     private void addPiece(int row, int col, Piece.Type type) {
         Piece piece = new Piece(type, row, col);
-        board[row][col] = piece;
-        if (type.isRed()) {
-            redPieces.add(piece);
-        } else {
-            blackPieces.add(piece);
-        }
+        pushToStack(row, col, piece);
     }
 
     public Piece getPiece(int row, int col) {
-        if (isValid(row, col)) {
-            return board[row][col];
-        }
-        return null;
+        if (!isValid(row, col)) return null;
+        Deque<Piece> dq = stacks.get(key(row, col));
+        return dq == null || dq.isEmpty() ? null : dq.peekLast();
     }
 
     public void setPiece(int row, int col, Piece piece) {
-        if (isValid(row, col)) {
-            board[row][col] = piece;
-        }
+        if (!isValid(row, col)) return;
+        clearStack(row, col);
+        if (piece != null) pushToStack(row, col, piece);
     }
 
     public void removePiece(int row, int col) {
-        if (isValid(row, col)) {
-            Piece piece = board[row][col];
-            if (piece != null) {
-                if (piece.isRed()) {
-                    redPieces.remove(piece);
-                } else {
-                    blackPieces.remove(piece);
-                }
-            }
-            board[row][col] = null;
-        }
+        if (!isValid(row, col)) return;
+        popTop(row, col);
     }
 
-    public boolean isValid(int row, int col) {
-        return row >= 0 && row < ROWS && col >= 0 && col < COLS;
+    public void pushToStack(int row, int col, Piece piece) {
+        if (!isValid(row, col)) return;
+        Deque<Piece> dq = stackOf(row, col);
+        dq.addLast(piece);
+        board[row][col] = dq.peekLast();
+        if (piece.isRed()) redPieces.add(piece);
+        else blackPieces.add(piece);
+    }
+
+    public Piece popTop(int row, int col) {
+        if (!isValid(row, col)) return null;
+        Deque<Piece> dq = stacks.get(key(row, col));
+        if (dq == null || dq.isEmpty()) return null;
+        Piece p = dq.removeLast();
+        if (p.isRed()) redPieces.remove(p);
+        else blackPieces.remove(p);
+        board[row][col] = dq.peekLast();
+        if (dq.isEmpty()) stacks.remove(key(row, col));
+        return p;
+    }
+
+    public void clearStack(int row, int col) {
+        if (!isValid(row, col)) return;
+        Deque<Piece> dq = stacks.remove(key(row, col));
+        if (dq != null) {
+            for (Piece p : dq) {
+                if (p.isRed()) redPieces.remove(p);
+                else blackPieces.remove(p);
+            }
+        }
+        board[row][col] = null;
     }
 
     public int getRows() {
@@ -169,6 +205,7 @@ public class Board {
         }
         redPieces.clear();
         blackPieces.clear();
+        stacks.clear();
     }
 
     /**
@@ -176,20 +213,22 @@ public class Board {
      */
     public Board deepCopy() {
         Board copy = new Board();
-        copy.clearBoard(); // 先清空默认初始化的棋盘
-
-        // 复制所有棋子
-        for (int row = 0; row < ROWS; row++) {
-            for (int col = 0; col < COLS; col++) {
-                Piece piece = this.board[row][col];
-                if (piece != null) {
-                    Piece pieceCopy = new Piece(piece.getType(), row, col);
-                    copy.setPiece(row, col, pieceCopy);
+        copy.clearBoard();
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                for (Piece p : getStack(r, c)) {
+                    Piece cp = new Piece(p.getType(), r, c);
+                    copy.pushToStack(r, c, cp);
                 }
             }
         }
-
         return copy;
+    }
+
+    public void putPieceFresh(int row, int col, Piece piece) {
+        if (!isValid(row, col)) return;
+        popTop(row, col);
+        pushToStack(row, col, piece);
     }
 
     @Override
@@ -207,5 +246,9 @@ public class Board {
             sb.append("\n");
         }
         return sb.toString();
+    }
+
+    public boolean isValid(int row, int col) {
+        return row >= 0 && row < ROWS && col >= 0 && col < COLS;
     }
 }

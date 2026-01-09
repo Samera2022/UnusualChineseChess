@@ -51,7 +51,13 @@ public class BoardPanel extends JPanel {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                handleMouseClick(e);
+                if (e.getButton() == MouseEvent.BUTTON1) {
+                    // 左键：选择棋子
+                    handleLeftClick(e);
+                } else if (e.getButton() == MouseEvent.BUTTON3) {
+                    // 右键：尝试移动到该位置
+                    handleRightClick(e);
+                }
             }
         });
     }
@@ -92,9 +98,9 @@ public class BoardPanel extends JPanel {
     }
 
     /**
-     * 处理鼠标点击 - 点击交点附近时选中棋子
+     * 处理左键点击 - 点击交点附近时选中棋子
      */
-    private void handleMouseClick(MouseEvent e) {
+    private void handleLeftClick(MouseEvent e) {
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
@@ -131,56 +137,96 @@ public class BoardPanel extends JPanel {
             return;
         }
 
-        // 已有选择的棋子，尝试移动
-        int fromR = selectedRow; int fromC = selectedCol; int toR = row; int toC = col; // 记录坐标
+        // 已有选择的棋子，左键点击其他棋子时：重新选择
+        selectedRow = row;
+        selectedCol = col;
+        Piece piece = board.getPiece(row, col);
+        if (piece == null || piece.isRed() != gameEngine.isRedTurn()
+                || (localControlsRed != null && piece.isRed() != localControlsRed)) {
+            selectedRow = -1;
+            selectedCol = -1;
+            validMoves.clear();
+        } else {
+            calculateValidMoves();
+        }
+        repaint();
+    }
 
-        // 检查是否是兵卒移动到底线需要晋升
+    /**
+     * 处理右键点击 - 在选中棋子后，右键尝试移动到该位置（会触发堆叠检查）
+     */
+    private void handleRightClick(MouseEvent e) {
+        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
+        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
+        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
+
+        // 转换为逻辑坐标
+        int[] logical = displayToLogic(displayRow, displayCol);
+        int toRow = logical[0];
+        int toCol = logical[1];
+
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(toRow, toCol)) {
+            return;
+        }
+
+        // 如果没有选择棋子，不处理右键
+        if (selectedRow == -1 || selectedCol == -1) {
+            return;
+        }
+
+        int fromR = selectedRow;
+        int fromC = selectedCol;
+
+        // 检查目标位置是否是己方棋子（堆叠情况）
+        Piece targetPiece = board.getPiece(toRow, toCol);
+        if (targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
+            targetPiece.isRed() == board.getPiece(fromR, fromC).isRed()) {
+            // 目标是己方棋子，检查是否启用堆叠
+            if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1) {
+                // 直接执行堆叠移动
+                if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null)) {
+                    if (localMoveListener != null) {
+                        localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
+                    }
+                    selectedRow = -1;
+                    selectedCol = -1;
+                    validMoves.clear();
+                }
+                repaint();
+                return;
+            }
+        }
+
+        // 不是堆叠情况，执行正常移动
         Piece movingPiece = board.getPiece(fromR, fromC);
         Piece.Type promotionType = null;
 
         if (movingPiece != null && gameEngine.isSpecialRuleEnabled("pawnPromotion")) {
             boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
                                movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
-            // 对方底线晋升（总是允许）
-            boolean isAtOpponentBaseLine = (movingPiece.isRed() && toR == 0) ||
-                                          (!movingPiece.isRed() && toR == 9);
-            // 己方底线晋升（仅在启用时允许）
-            boolean isAtOwnBaseLine = (movingPiece.isRed() && toR == 9) ||
-                                     (!movingPiece.isRed() && toR == 0);
+            boolean isAtOpponentBaseLine = (movingPiece.isRed() && toRow == 0) ||
+                                          (!movingPiece.isRed() && toRow == 9);
+            boolean isAtOwnBaseLine = (movingPiece.isRed() && toRow == 9) ||
+                                     (!movingPiece.isRed() && toRow == 0);
             boolean allowOwnBaseLine = gameEngine.isSpecialRuleEnabled("allowOwnBaseLine");
 
             if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
-                // 弹出晋升选择对话框
                 promotionType = showPromotionDialog(movingPiece.isRed());
                 if (promotionType == null) {
-                    // 用户取消了晋升选择
                     repaint();
                     return;
                 }
             }
         }
 
-        if (gameEngine.makeMove(fromR, fromC, toR, toC, promotionType)) {
-            // 通知本地走子（供联机发送）
+        if (gameEngine.makeMove(fromR, fromC, toRow, toCol, promotionType)) {
             if (localMoveListener != null) {
-                localMoveListener.onLocalMove(fromR, fromC, toR, toC);
+                localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
             }
             selectedRow = -1;
             selectedCol = -1;
             validMoves.clear();
-        } else {
-            // 移动失败，重新选择
-            selectedRow = row;
-            selectedCol = col;
-            Piece piece = board.getPiece(row, col);
-            if (piece == null || piece.isRed() != gameEngine.isRedTurn()
-                    || (localControlsRed != null && piece.isRed() != localControlsRed)) {
-                selectedRow = -1;
-                selectedCol = -1;
-                validMoves.clear();
-            } else {
-                calculateValidMoves();
-            }
         }
 
         repaint();
@@ -236,6 +282,68 @@ public class BoardPanel extends JPanel {
     }
 
     /**
+     * 显示堆叠棋子选择对话框（己方点击堆叠）
+     */
+    private void showStackSelectionDialog(int toRow, int toCol) {
+        Board board = gameEngine.getBoard();
+        java.util.List<Piece> stack = board.getStack(toRow, toCol);
+
+        if (stack.isEmpty()) return;
+
+        String[] options = new String[stack.size()];
+        for (int i = 0; i < stack.size(); i++) {
+            Piece p = stack.get(i);
+            options[i] = p.getDisplayName() + " (" + (i + 1) + ")";
+        }
+
+        int choice = JOptionPane.showOptionDialog(
+            this,
+            "选择堆叠棋子中的某一个进行移动：",
+            "选择堆叠棋子",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[stack.size() - 1]
+        );
+
+        if (choice >= 0 && choice < stack.size()) {
+            // 执行移动
+            if (gameEngine.makeMove(selectedRow, selectedCol, toRow, toCol, null)) {
+                if (localMoveListener != null) {
+                    localMoveListener.onLocalMove(selectedRow, selectedCol, toRow, toCol);
+                }
+            }
+            selectedRow = -1;
+            selectedCol = -1;
+            validMoves.clear();
+        }
+    }
+
+    /**
+     * 显示堆叠棋子信息对话框（对方点击堆叠）
+     */
+    private void showStackInfoDialog(int row, int col) {
+        Board board = gameEngine.getBoard();
+        java.util.List<Piece> stack = board.getStack(row, col);
+
+        if (stack.isEmpty()) return;
+
+        StringBuilder message = new StringBuilder("目前对方堆叠在此处的棋子有：\n\n");
+        for (int i = 0; i < stack.size(); i++) {
+            Piece p = stack.get(i);
+            message.append((i + 1)).append(". ").append(p.getDisplayName()).append("\n");
+        }
+
+        JOptionPane.showMessageDialog(
+            this,
+            message.toString(),
+            "堆叠信息",
+            JOptionPane.INFORMATION_MESSAGE
+        );
+    }
+
+    /**
      * 计算所有可能的移动
      */
     private void calculateValidMoves() {
@@ -256,7 +364,15 @@ public class BoardPanel extends JPanel {
         validator.setAllowAdvisorCrossRiver(gameEngine.isSpecialRuleEnabled("allowAdvisorCrossRiver"));
         validator.setAllowKingCrossRiver(gameEngine.isSpecialRuleEnabled("allowKingCrossRiver"));
         validator.setLeftRightConnected(gameEngine.isSpecialRuleEnabled("leftRightConnected"));
+        validator.setLeftRightConnectedHorse(gameEngine.isSpecialRuleEnabled("leftRightConnectedHorse"));
+        validator.setLeftRightConnectedElephant(gameEngine.isSpecialRuleEnabled("leftRightConnectedElephant"));
         validator.setNoRiverLimitPawn(gameEngine.isSpecialRuleEnabled("noRiverLimitPawn"));
+
+        // 如果启用了堆叠，则需要启用自己吃自己来显示堆叠目标
+        boolean stackingEnabled = gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1;
+        validator.setAllowCaptureOwnPiece(gameEngine.isAllowCaptureOwnPiece() || stackingEnabled);
+        validator.setAllowPieceStacking(gameEngine.isAllowPieceStacking());
+        validator.setMaxStackingCount(gameEngine.getMaxStackingCount());
 
         // 新增：调试输出，确保同步到validator
         validator.setUnblockPiece(gameEngine.isUnblockPiece());
@@ -428,27 +544,73 @@ public class BoardPanel extends JPanel {
     }
 
     /**
+     * 绘制炮的位置标记（空心圆点）
+     */
+    private void drawCannonMarks(Graphics2D g2d) {
+        g2d.setColor(GRID_COLOR);
+        g2d.setStroke(new BasicStroke(1));
+
+        // 黑方炮位置标记：(2,1) 和 (2,7)
+        drawCannonMark(g2d, 2, 1);
+        drawCannonMark(g2d, 2, 7);
+
+        // 红方炮位置标记：(7,1) 和 (7,7)
+        drawCannonMark(g2d, 7, 1);
+        drawCannonMark(g2d, 7, 7);
+    }
+
+    /**
+     * 绘制单个炮的位置标记
+     */
+    private void drawCannonMark(Graphics2D g2d, int row, int col) {
+        int[] display = logicToDisplay(row, col);
+        int x = display[1] * cellSize;
+        int y = display[0] * cellSize;
+        int markRadius = 3;
+
+        g2d.drawOval(x - markRadius, y - markRadius, markRadius * 2, markRadius * 2);
+    }
+
+    /**
      * 绘制棋子
      */
     private void drawPieces(Graphics2D g2d, Board board) {
+        int pieceRadius = cellSize / 2 - 2;
+
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {
-                Piece piece = board.getPiece(row, col);
-                if (piece != null) {
-                    int[] display = logicToDisplay(row, col);
-                    drawPiece(g2d, display[0], display[1], piece);
+                int stackSize = board.getStackSize(row, col);
+                if (stackSize == 0) continue;
+
+                java.util.List<Piece> stack = board.getStack(row, col);
+                int[] display = logicToDisplay(row, col);
+                int x = display[1] * cellSize;
+                int y = display[0] * cellSize;
+
+                if (stackSize == 1) {
+                    // 单个棋子：正常绘制
+                    Piece piece = stack.get(0);
+                    drawSinglePiece(g2d, piece, x, y, pieceRadius);
+                } else {
+                    // 堆叠棋子：绘制错开的效果
+                    for (int i = 0; i < stackSize; i++) {
+                        Piece piece = stack.get(i);
+                        int offsetX = (i % 2 == 0 ? -4 : 4);
+                        int offsetY = (i % 2 == 0 ? -4 : 4);
+                        drawSinglePiece(g2d, piece, x + offsetX, y + offsetY, pieceRadius);
+                    }
+                    // 显示堆叠数量徽章
+                    drawStackBadge(g2d, stackSize, x, y, pieceRadius);
                 }
             }
         }
     }
 
-    private void drawPiece(Graphics2D g2d, int displayRow, int displayCol, Piece piece) {
-        // 棋子放在棋盘线的交点上（不是格子中心）
-        int x = displayCol * cellSize;
-        int y = displayRow * cellSize;
-        int radius = cellSize / 2 - 2;
-
-        // 绘制棋子背景
+    /**
+     * 绘制单个棋子
+     */
+    private void drawSinglePiece(Graphics2D g2d, Piece piece, int x, int y, int radius) {
+        // 绘制圆形背景
         if (piece.isRed()) {
             g2d.setColor(RED_PIECE_COLOR);
         } else {
@@ -456,7 +618,7 @@ public class BoardPanel extends JPanel {
         }
         g2d.fillOval(x - radius, y - radius, radius * 2, radius * 2);
 
-        // 绘制棋子边框
+        // 绘制边框
         g2d.setColor(Color.WHITE);
         g2d.setStroke(new BasicStroke(2));
         g2d.drawOval(x - radius, y - radius, radius * 2, radius * 2);
@@ -464,31 +626,36 @@ public class BoardPanel extends JPanel {
         // 绘制棋子文字
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("SimHei", Font.BOLD, cellSize / 2));
-        FontMetrics fm = g2d.getFontMetrics();
         String text = piece.getDisplayName();
+        FontMetrics fm = g2d.getFontMetrics();
         int textX = x - fm.stringWidth(text) / 2;
         int textY = y + fm.getAscent() / 2 - fm.getDescent();
         g2d.drawString(text, textX, textY);
     }
 
     /**
-     * 绘制炮的位置标记（空心圆点）
+     * 绘制堆叠数量徽章
      */
-    private void drawCannonMarks(Graphics2D g2d) {
+    private void drawStackBadge(Graphics2D g2d, int count, int x, int y, int radius) {
+        // 在右下角绘制小圆形显示堆叠数量
+        int badgeRadius = radius / 3;
+        int badgeX = x + radius - badgeRadius;
+        int badgeY = y + radius - badgeRadius;
+
+        g2d.setColor(new Color(255, 200, 0)); // 金黄色
+        g2d.fillOval(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
         g2d.setColor(Color.BLACK);
-        g2d.setStroke(new BasicStroke(2));
+        g2d.setStroke(new BasicStroke(1));
+        g2d.drawOval(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
 
-        int cannonMarkRadius = 5; // 圆的半径（直径10）
-
-        // 红方炮的位置（初始位置：行7，列1和列7）
-        int redCannonY = 7 * cellSize;
-        g2d.drawOval(1 * cellSize - cannonMarkRadius, redCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
-        g2d.drawOval(7 * cellSize - cannonMarkRadius, redCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
-
-        // 黑方炮的位置（初始位置：行2，列1和列7）
-        int blackCannonY = 2 * cellSize;
-        g2d.drawOval(1 * cellSize - cannonMarkRadius, blackCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
-        g2d.drawOval(7 * cellSize - cannonMarkRadius, blackCannonY - cannonMarkRadius, cannonMarkRadius * 2, cannonMarkRadius * 2);
+        // 绘制数字
+        g2d.setColor(Color.BLACK);
+        g2d.setFont(new Font("Dialog", Font.BOLD, (int) (badgeRadius * 1.2)));
+        String text = String.valueOf(count);
+        FontMetrics fm = g2d.getFontMetrics();
+        int textX = badgeX - fm.stringWidth(text) / 2;
+        int textY = badgeY + (fm.getAscent() - fm.getDescent()) / 2;
+        g2d.drawString(text, textX, textY);
     }
 
     @Override

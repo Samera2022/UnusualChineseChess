@@ -94,4 +94,8 @@ public class Piece {
     public String toString() {
         return type.getSymbol();
     }
+
+    public Piece copyAt(int row,int col){
+        return new Piece(this.type,row,col);
+    }
 }

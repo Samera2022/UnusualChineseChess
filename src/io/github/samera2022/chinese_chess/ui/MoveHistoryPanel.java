@@ -82,6 +82,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
         if (moves.size() > 0) {
             isInReplayMode = true;
             currentStep = moves.size(); // 初始显示最后一步
+            gameEngine.setReplayMode(true, currentStep);
             navigationPanel.setVisible(true);
             updateNavigationButtons();
         }
@@ -93,6 +94,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
     public void hideNavigation() {
         isInReplayMode = false;
         currentStep = -1;
+        gameEngine.setReplayMode(false, -1);
         navigationPanel.setVisible(false);
     }
 
@@ -116,6 +118,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
     private void previousStep() {
         if (currentStep > 0) {
             currentStep--;
+            gameEngine.setReplayMode(true, currentStep);
             updateBoardToStep(currentStep);
             updateNavigationButtons();
         }
@@ -128,6 +131,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
         List<Move> moves = gameEngine.getMoveHistory();
         if (currentStep < moves.size()) {
             currentStep++;
+            gameEngine.setReplayMode(true, currentStep);
             updateBoardToStep(currentStep);
             updateNavigationButtons();
         }
@@ -182,6 +186,20 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
 
     @Override
     public void onMoveExecuted(Move move) {
+        // 如果在回放模式中走子，退出回放模式并更新显示
+        if (isInReplayMode) {
+            isInReplayMode = false;
+            currentStep = -1;
+            // 检查是否还需要显示导航面板
+            List<Move> moves = gameEngine.getMoveHistory();
+            if (moves.size() == 0) {
+                navigationPanel.setVisible(false);
+            } else {
+                // 更新到最新状态
+                currentStep = moves.size();
+                updateNavigationButtons();
+            }
+        }
         updateMoveHistory();
     }
 }
