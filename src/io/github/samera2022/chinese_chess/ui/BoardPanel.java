@@ -65,6 +65,7 @@ public class BoardPanel extends JPanel {
     // 供外部设置：本地操控一方（true=红；false=黑；null=不限制）
     public void setLocalControlsRed(Boolean localControlsRed) {
         this.localControlsRed = localControlsRed;
+        repaint();
     }
 
     // 设置棋盘是否翻转（黑方在下）

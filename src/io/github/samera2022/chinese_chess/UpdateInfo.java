@@ -33,6 +33,20 @@ public enum UpdateInfo {
                     " - 修复“左右连通”的逻辑，它现在应该能够兼容其他模式了。\n\n" +
                     "## [Warn]\n" +
                     " - 局域网的持方功能目前仍然存在一些问题，不建议本地主机选择持黑方。\n" +
+                    " - “堆叠棋子”目前仍然存在一些bug，并未完成。"),
+    VERSION_1_1_0("1.1.0","2026-01-09 21:26",
+            "## [Added]\n" +
+                    " - 添加了更多的神奇玩法！\n" +
+                    " - 添加“更新日志”和“关于作者”的按钮。\n" +
+                    " - 添加本地翻转棋盘的功能。\n" +
+                    " - 新增: “堆叠棋子”玩法(实验性玩法)，你现在可以将己方棋子堆叠到集中的某个位置了！\n\n" +
+                    "## [Changed]\n" +
+                    " - 大幅修改项目逻辑以降低项目的耦合度，改为采用GameEngine<-GameRulesConfig->MoveValidator进行各项配置的维护。\n" +
+                    " - 由于“堆叠棋子”玩法，你现在可能需要使用左键来选择棋子，右键来进行棋子移动了。\n\n" +
+                    "## [Fixed]\n" +
+                    " - 修复“左右连通”的逻辑，它现在应该能够兼容其他模式了。\n" +
+                    " - 修复局域网持方的问题，现在局域网能够正常进行对局了！\n\n" +
+                    "## [Warn]\n" +
                     " - “堆叠棋子”目前仍然存在一些bug，并未完成。");
     private final String version;
     private final String releaseDate;
@@ -73,6 +87,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_1_1_0_26m01b.getFormattedLog());
+        System.out.println(VERSION_1_1_0.getFormattedLog());
     }
 }

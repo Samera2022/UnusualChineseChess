@@ -382,6 +382,7 @@ public class NetworkSidePanel extends JPanel {
             }
         }
     }
+
     private JsonObject makeSideAuthJson(boolean auth) {
         JsonObject obj = new JsonObject();
         obj.addProperty("cmd", SYNC_SIDE_AUTH_CMD);
@@ -411,40 +412,73 @@ public class NetworkSidePanel extends JPanel {
             // 对方的持方，本地切换为相反持方（互斥）
             boolean localIsRed = !peerIsRed;
             localRedBtn.setSelected(localIsRed);
-            applyLocalSide(localIsRed);
+            applyLocalSide(localIsRed, true); // 标记为网络同步
+            boardPanel.repaint();
         } else if (SYNC_SIDE_AUTH_CMD.equals(cmd)) {
             // 客户端收到切换权指令
             boolean clientAuth = settings.get("auth").getAsBoolean();
             hasSideAuth = clientAuth;
             localRedBtn.setEnabled(hasSideAuth);
-            // 同步勾选框显示状态（但客户端勾选框保持禁用）
-            // 主机未勾选 -> 客户端有权 -> 客户端勾选框应显示为未勾选
-            // 主机勾选 -> 客户端无权 -> 客户端勾选框应显示为勾选
-            boolean hostAllowFlip = !clientAuth;
-            allowLocalFlipCheck.setSelected(hostAllowFlip);
+            // 客户端勾选框启用/禁用逻辑：
+            // 主机未勾选 -> 客户端有权 -> 客户端勾选框启用且显示为勾选
+            // 主机勾选 -> 客户端无权 -> 客户端勾选框禁用且强制为false
+            allowLocalFlipCheck.setEnabled(clientAuth);
+            allowLocalFlipCheck.setSelected(clientAuth);
         }
     }
 
     private void applyLocalSide(boolean preferredRed) {
-        // 只用当前hasSideAuth控制按钮可用性
+        applyLocalSide(preferredRed, false);
+    }
+
+    private void applyLocalSide(boolean preferredRed, boolean isNetworkSync) {
+        // 获取本地复选框状态
         boolean allowFlip = allowLocalFlipCheck.isSelected();
-        boolean effectiveRed = allowFlip ? preferredRed : true;
+
+        // 1. 计算实际的执方 (红/黑)
+        // 网络同步时直接使用 preferredRed；
+        // 本地操作时，如果没勾选"允许翻转"，则强制复位为红方
+        boolean effectiveRed = isNetworkSync ? preferredRed : (allowFlip ? preferredRed : true);
+
+        // 2. 更新按钮 UI
         localRedBtn.setEnabled(hasSideAuth);
         localRedBtn.setSelected(effectiveRed);
         localRedBtn.setText(effectiveRed ? "本地红方" : "本地黑方");
-        boardPanel.setBoardFlipped(allowFlip && !effectiveRed);
-        boardPanel.setLocalControlsRed(allowFlip ? Boolean.valueOf(effectiveRed) : null);
+
+        // 3. 修正核心逻辑：确定是否启用翻转/控制逻辑
+        // 如果是网络同步过来的指令，无论本地复选框是否勾选，都必须生效
+        boolean shouldApplyFlipLogic = allowFlip || isNetworkSync;
+
+        // 4. 应用到棋盘
+        // 只有在 (启用翻转逻辑 且 当前是黑方) 时才翻转棋盘
+        boardPanel.setBoardFlipped(shouldApplyFlipLogic && !effectiveRed);
+
+        // 5. 设置本地控制权
+        // 如果启用了逻辑，则绑定红/黑控制权；否则设为 null (默认状态)
+        boardPanel.setLocalControlsRed(shouldApplyFlipLogic ? Boolean.valueOf(effectiveRed) : null);
     }
 
-    // 监听“本地X方”切换
+    // 监听"本地X方"切换
     private void setupSideSync() {
-        // 主机端：勾选框变化时，主动同步切换权和当前持方状态
+        // 勾选框变化时的处理
         allowLocalFlipCheck.addActionListener(e -> {
-            updateAndSyncSideAuth();
-            applyLocalSide(localRedBtn.isSelected());
-            // 主机端同步当前持方状态
-            if (netController.isHost() && netController.isActive()) {
-                syncSide(localRedBtn.isSelected());
+            boolean isHost = netController.isHost();
+            if (isHost) {
+                // 主机端：同步切换权和当前持方状态
+                updateAndSyncSideAuth();
+                applyLocalSide(localRedBtn.isSelected());
+                // 主机端同步当前持方状态
+                if (netController.isActive()) {
+                    syncSide(localRedBtn.isSelected());
+                }
+            } else {
+                // 客户端：更新自己的 hasSideAuth 并刷新 UI
+                hasSideAuth = allowLocalFlipCheck.isSelected();
+                applyLocalSide(localRedBtn.isSelected());
+                // 客户端勾选/取消勾选后，同步当前持方状态给主机
+                if (netController.isActive()) {
+                    syncSide(localRedBtn.isSelected());
+                }
             }
         });
         // 持方按钮变化时，只有有权的一方才同步
