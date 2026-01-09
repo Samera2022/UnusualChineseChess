@@ -73,6 +73,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_1_1_0_26m01a.getFormattedLog());
+        System.out.println(VERSION_1_1_0_26m01b.getFormattedLog());
     }
 }

@@ -1,5 +1,6 @@
 package io.github.samera2022.chinese_chess.ui;
 
+import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
@@ -45,6 +46,13 @@ public class NetworkSidePanel extends JPanel {
     private final BooleanSupplier isSettingsVisible;
     private final Runnable onExportGame;
     private final Runnable onImportGame;
+
+    // 持方同步指令常量
+    private static final String SYNC_SIDE_CMD = "SYNC_SIDE";
+    private static final String SYNC_SIDE_AUTH_CMD = "SYNC_SIDE_AUTH";
+
+    // 持方切换权：true=本地有权，false=对方有权
+    private boolean hasSideAuth = false;
 
     public NetworkSidePanel(NetModeController netController, BoardPanel boardPanel, GameEngine gameEngine, JButton undoButton,
                             Runnable onToggleSettings, BooleanSupplier isSettingsVisible,
@@ -152,6 +160,8 @@ public class NetworkSidePanel extends JPanel {
 
         // 安装鼠标提示窗口（仅在“未连接”标签上）
         installQualityTooltip();
+
+        setupSideSync();
     }
 
     private void installQualityTooltip() {
@@ -239,15 +249,11 @@ public class NetworkSidePanel extends JPanel {
         if (portStr == null || portStr.trim().isEmpty()) return;
         try {
             int port = Integer.parseInt(portStr.trim());
-            // 新增：弹出选方对话框
-            String[] options = {"红方", "黑方"};
-            int side = JOptionPane.showOptionDialog(this, "请选择本地执子方", "选择执子方",
-                    JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-            boolean preferredRed = (side == 0); // 0为红方，1为黑方
+            // 删除“请选择本地执子方”的弹窗，主机默认可切换
             netController.host(port);
-            // 按选择设置本地执子方
-            applyLocalSide(preferredRed);
-            localRedBtn.setSelected(preferredRed);
+            // 默认红方，可根据主机操作切换
+            applyLocalSide(true);
+            localRedBtn.setSelected(true);
             undoButton.setEnabled(false);
             disconnectBtn.setEnabled(true);
 
@@ -342,13 +348,80 @@ public class NetworkSidePanel extends JPanel {
         }
     }
 
+    // 同步持方切换权
+    private void syncSideAuth() {
+        if (netController.isActive()) {
+            boolean allowFlip = allowLocalFlipCheck.isSelected();
+            boolean isHost = netController.isHost();
+            boolean auth = (isHost && allowFlip) || (!isHost && !allowFlip);
+            // 主机发送切换权
+            if (isHost) {
+                netController.getSession().sendSettings(makeSideAuthJson(auth));
+            }
+        }
+    }
+    private JsonObject makeSideAuthJson(boolean auth) {
+        JsonObject obj = new JsonObject();
+        obj.addProperty("cmd", SYNC_SIDE_AUTH_CMD);
+        obj.addProperty("auth", auth);
+        return obj;
+    }
+
+    // 同步持方状态
+    private void syncSide(boolean isRed) {
+        if (netController.isActive()) {
+            boolean isHost = netController.isHost();
+            // 有权的一方发送持方状态
+            JsonObject obj = new JsonObject();
+            obj.addProperty("cmd", SYNC_SIDE_CMD);
+            obj.addProperty("side", isRed ? "red" : "black");
+            netController.getSession().sendSettings(obj);
+        }
+    }
+
+    // 处理收到的持方同步指令
+    public void onSettingsReceived(JsonObject settings) {
+        if (!settings.has("cmd")) return;
+        String cmd = settings.get("cmd").getAsString();
+        if (SYNC_SIDE_CMD.equals(cmd)) {
+            String side = settings.get("side").getAsString();
+            boolean isRed = "red".equals(side);
+            // 没有切换权时强制切换本地持方
+            if (!hasSideAuth) {
+                applyLocalSide(!isRed); // 互斥
+            }
+        } else if (SYNC_SIDE_AUTH_CMD.equals(cmd)) {
+            boolean auth = settings.get("auth").getAsBoolean();
+            hasSideAuth = auth;
+            localRedBtn.setEnabled(hasSideAuth);
+        }
+    }
+
     private void applyLocalSide(boolean preferredRed) {
         boolean allowFlip = allowLocalFlipCheck.isSelected();
+        boolean isHost = netController.isHost();
+        // 切换权逻辑：主机勾选时主机有权，未勾选时客户端有权
+        hasSideAuth = (isHost && allowFlip) || (!isHost && !allowFlip);
         boolean effectiveRed = allowFlip ? preferredRed : true;
-        localRedBtn.setEnabled(allowFlip);
+        localRedBtn.setEnabled(hasSideAuth);
         localRedBtn.setSelected(effectiveRed);
         localRedBtn.setText(effectiveRed ? "本地红方" : "本地黑方");
         boardPanel.setBoardFlipped(allowFlip && !effectiveRed);
         boardPanel.setLocalControlsRed(allowFlip ? Boolean.valueOf(effectiveRed) : null);
+    }
+
+    // 监听“本地X方”切换
+    private void setupSideSync() {
+        // 勾选框变化时，通知对方切换权
+        allowLocalFlipCheck.addActionListener(e -> {
+            applyLocalSide(localRedBtn.isSelected());
+            syncSideAuth();
+        });
+        // 持方按钮变化时，只有有权的一方才同步
+        localRedBtn.addActionListener(e -> {
+            if (hasSideAuth && netController.isActive()) {
+                syncSide(localRedBtn.isSelected());
+            }
+        });
     }
 }
