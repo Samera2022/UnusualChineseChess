@@ -53,6 +53,15 @@ public class NetworkSidePanel extends JPanel {
 
     // 持方切换权：true=本地有权，false=对方有权
     private boolean hasSideAuth = false;
+    // 仅主机端调用：根据当前状态计算并同步切换权
+    private void updateAndSyncSideAuth() {
+        boolean allowFlip = allowLocalFlipCheck.isSelected();
+        boolean isHost = netController.isHost();
+        if (isHost) {
+            hasSideAuth = allowFlip;
+            syncSideAuth();
+        }
+    }
 
     public NetworkSidePanel(NetModeController netController, BoardPanel boardPanel, GameEngine gameEngine, JButton undoButton,
                             Runnable onToggleSettings, BooleanSupplier isSettingsVisible,
@@ -328,6 +337,16 @@ public class NetworkSidePanel extends JPanel {
         addInfo("已连接: " + peerInfo);
         connStatusLabel.setText("已连接");
         log("Connected: " + peerInfo);
+        // 客户端禁用勾选框，只有主机能操作
+        boolean isHost = netController.isHost();
+        allowLocalFlipCheck.setEnabled(isHost);
+        // 主机连接时同步切换权和持方状态
+        if (isHost) {
+            updateAndSyncSideAuth();
+            if (netController.isActive()) {
+                syncSide(localRedBtn.isSelected());
+            }
+        }
     }
 
     public void onDisconnected(String reason) {
@@ -338,6 +357,9 @@ public class NetworkSidePanel extends JPanel {
         connStatusLabel.setText("未连接");
         tooltipWindow.setVisible(false);
         log("Disconnected: " + reason);
+        // 恢复 allowLocalFlipCheck 可用性
+        allowLocalFlipCheck.setEnabled(true);
+        hasSideAuth = false;
     }
 
     public void onPong(long sentMillis, long rttMillis) {
@@ -353,10 +375,10 @@ public class NetworkSidePanel extends JPanel {
         if (netController.isActive()) {
             boolean allowFlip = allowLocalFlipCheck.isSelected();
             boolean isHost = netController.isHost();
-            boolean auth = (isHost && allowFlip) || (!isHost && !allowFlip);
-            // 主机发送切换权
+            // 主机发送切换权：主机勾选时主机有权（客户端收到false），未勾选时客户端有权（客户端收到true）
             if (isHost) {
-                netController.getSession().sendSettings(makeSideAuthJson(auth));
+                boolean clientAuth = !allowFlip; // 客户端切换权：主机未勾选时为true
+                netController.getSession().sendSettings(makeSideAuthJson(clientAuth));
             }
         }
     }
@@ -385,23 +407,27 @@ public class NetworkSidePanel extends JPanel {
         String cmd = settings.get("cmd").getAsString();
         if (SYNC_SIDE_CMD.equals(cmd)) {
             String side = settings.get("side").getAsString();
-            boolean isRed = "red".equals(side);
-            // 没有切换权时强制切换本地持方
-            if (!hasSideAuth) {
-                applyLocalSide(!isRed); // 互斥
-            }
+            boolean peerIsRed = "red".equals(side);
+            // 对方的持方，本地切换为相反持方（互斥）
+            boolean localIsRed = !peerIsRed;
+            localRedBtn.setSelected(localIsRed);
+            applyLocalSide(localIsRed);
         } else if (SYNC_SIDE_AUTH_CMD.equals(cmd)) {
-            boolean auth = settings.get("auth").getAsBoolean();
-            hasSideAuth = auth;
+            // 客户端收到切换权指令
+            boolean clientAuth = settings.get("auth").getAsBoolean();
+            hasSideAuth = clientAuth;
             localRedBtn.setEnabled(hasSideAuth);
+            // 同步勾选框显示状态（但客户端勾选框保持禁用）
+            // 主机未勾选 -> 客户端有权 -> 客户端勾选框应显示为未勾选
+            // 主机勾选 -> 客户端无权 -> 客户端勾选框应显示为勾选
+            boolean hostAllowFlip = !clientAuth;
+            allowLocalFlipCheck.setSelected(hostAllowFlip);
         }
     }
 
     private void applyLocalSide(boolean preferredRed) {
+        // 只用当前hasSideAuth控制按钮可用性
         boolean allowFlip = allowLocalFlipCheck.isSelected();
-        boolean isHost = netController.isHost();
-        // 切换权逻辑：主机勾选时主机有权，未勾选时客户端有权
-        hasSideAuth = (isHost && allowFlip) || (!isHost && !allowFlip);
         boolean effectiveRed = allowFlip ? preferredRed : true;
         localRedBtn.setEnabled(hasSideAuth);
         localRedBtn.setSelected(effectiveRed);
@@ -412,10 +438,14 @@ public class NetworkSidePanel extends JPanel {
 
     // 监听“本地X方”切换
     private void setupSideSync() {
-        // 勾选框变化时，通知对方切换权
+        // 主机端：勾选框变化时，主动同步切换权和当前持方状态
         allowLocalFlipCheck.addActionListener(e -> {
+            updateAndSyncSideAuth();
             applyLocalSide(localRedBtn.isSelected());
-            syncSideAuth();
+            // 主机端同步当前持方状态
+            if (netController.isHost() && netController.isActive()) {
+                syncSide(localRedBtn.isSelected());
+            }
         });
         // 持方按钮变化时，只有有权的一方才同步
         localRedBtn.addActionListener(e -> {

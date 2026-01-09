@@ -192,6 +192,9 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> networkSidePanel.onPong(sentMillis, rttMillis)); }
             @Override public void onSettingsReceived(JsonObject settings) {
                 SwingUtilities.invokeLater(() -> {
+                    // 转发给 NetworkSidePanel 处理持方同步
+                    networkSidePanel.onSettingsReceived(settings);
+                    // 处理游戏规则设置同步
                     if (!netController.isHost() && settings != null) {
                         gameEngine.applySettingsSnapshot(settings);
                         undoButton.setEnabled(gameEngine.isAllowUndo() && !netController.isActive());
