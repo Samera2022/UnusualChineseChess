@@ -74,6 +74,19 @@ public class MoveValidator {
      * 验证着法是否合法
      */
     public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return isValidMove(fromRow, fromCol, toRow, toCol, -1);
+    }
+
+    /**
+     * 验证着法是否合法（支持堆栈索引）
+     * @param fromRow 源行
+     * @param fromCol 源列
+     * @param toRow 目标行
+     * @param toCol 目标列
+     * @param selectedStackIndex 选择的堆栈索引（-1表示使用顶部棋子）
+     * @return 是否合法
+     */
+    public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex) {
         if (rulesConfig == null) {
             // 未注入规则配置，使用默认规则配置继续判定（防御性分支）
             rulesConfig = new GameRulesConfig();
@@ -85,7 +98,19 @@ public class MoveValidator {
         }
 
         // 检查源位置是否有棋子
-        Piece piece = board.getPiece(fromRow, fromCol);
+        Piece piece;
+        if (selectedStackIndex >= 0) {
+            // 从堆栈中获取指定索引的棋子
+            java.util.List<Piece> stack = board.getStack(fromRow, fromCol);
+            if (selectedStackIndex >= stack.size()) {
+                return false;
+            }
+            piece = stack.get(selectedStackIndex);
+        } else {
+            // 使用顶部棋子
+            piece = board.getPiece(fromRow, fromCol);
+        }
+
         if (piece == null) {
             return false;
         }

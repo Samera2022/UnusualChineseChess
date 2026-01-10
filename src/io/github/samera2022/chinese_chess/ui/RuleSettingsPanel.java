@@ -221,28 +221,11 @@ public class RuleSettingsPanel extends JPanel {
         chkAllowCaptureConversion.setAlignmentX(Component.LEFT_ALIGNMENT);
         specialContent.add(chkAllowCaptureConversion);
 
-        // 新增：取消河界下的“兵”勾选框，和引擎联动
-        // JCheckBox chkNoRiverLimitPawn = new JCheckBox("兵");
-        // chkNoRiverLimitPawn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        // JPanel indentedRiverOptions2 = new JPanel();
-        // indentedRiverOptions2.setLayout(new BoxLayout(indentedRiverOptions2, BoxLayout.X_AXIS));
-        // indentedRiverOptions2.add(Box.createHorizontalStrut(20));
-        // indentedRiverOptions2.add(chkNoRiverLimitPawn);
-        // indentedRiverOptions2.add(Box.createHorizontalGlue());
-        // indentedRiverOptions2.setAlignmentX(Component.LEFT_ALIGNMENT);
-        // indentedRiverOptions2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        // specialContent.add(Box.createVerticalStrut(6));
-        // specialContent.add(indentedRiverOptions2);
         // 联动逻辑：只有“取消河界”勾选时“兵”可编辑，否则禁用且为false
         chkNoRiverLimit.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setNoRiverLimit(chkNoRiverLimit.isSelected());
         });
-        // ActionListener：同步到引擎
-        // chkNoRiverLimitPawn.addActionListener(e -> {
-        //     SettingsBinder b = (SettingsBinder) getClientProperty("binder");
-        //     if (b != null) b.setNoRiverLimitPawn(chkNoRiverLimitPawn.isSelected());
-        // });
 
         special.add(specialContent);
         form.add(special);
@@ -575,6 +558,12 @@ public class RuleSettingsPanel extends JPanel {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setAllowPieceStacking(chkAllowPieceStacking.isSelected());
         });
+        // 修复：添加 chkAllowCarryPiecesAbove 的监听器，使其能实时生效
+        chkAllowCarryPiecesAbove.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setAllowCarryPiecesAbove(chkAllowCarryPiecesAbove.isSelected());
+        });
+
         txtStackingCount.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override
             public void insertUpdate(javax.swing.event.DocumentEvent e) { updateStackingCount(); }
@@ -620,6 +609,8 @@ public class RuleSettingsPanel extends JPanel {
             obj.addProperty("allowCaptureConversion", chkAllowCaptureConversion.isSelected());
             obj.addProperty("deathMatchUntilVictory", chkDeathMatchUntilVictory.isSelected());
             obj.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
+            // 确保允许背负也被导出
+            obj.addProperty("allowCarryPiecesAbove", chkAllowCarryPiecesAbove.isSelected());
             try {
                 String stackText = txtStackingCount.getText();
                 int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);

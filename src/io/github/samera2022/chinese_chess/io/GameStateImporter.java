@@ -124,14 +124,14 @@ public class GameStateImporter {
                 gameEngine.addMoveToHistory(move);
             }
 
-            // 恢复到最终状态
+            // 恢复到最终状态（包括堆栈）
             board.clearBoard();
             for (int row = 0; row < board.getRows(); row++) {
                 for (int col = 0; col < board.getCols(); col++) {
-                    Piece piece = finalBoard.getPiece(row, col);
-                    if (piece != null) {
+                    List<Piece> stack = finalBoard.getStack(row, col);
+                    for (Piece piece : stack) {
                         Piece pieceCopy = new Piece(piece.getType(), row, col);
-                        board.setPiece(row, col, pieceCopy);
+                        board.pushToStack(row, col, pieceCopy);
                     }
                 }
             }
@@ -151,22 +151,44 @@ public class GameStateImporter {
         // 清空棋盘
         board.clearBoard();
 
-        // 导入棋子
+        // 导入棋子 - 先按位置分组，然后按stackIndex排序
         if (boardState.has("pieces")) {
             JsonArray pieces = boardState.getAsJsonArray("pieces");
+
+            // 使用Map来按位置分组棋子
+            java.util.Map<String, List<JsonObject>> positionMap = new java.util.HashMap<>();
+
             for (JsonElement element : pieces) {
                 JsonObject pieceObj = element.getAsJsonObject();
-
-                String typeName = pieceObj.get("type").getAsString();
                 int row = pieceObj.get("row").getAsInt();
                 int col = pieceObj.get("col").getAsInt();
+                String key = row + "," + col;
 
-                try {
-                    Piece.Type type = Piece.Type.valueOf(typeName);
-                    Piece piece = new Piece(type, row, col);
-                    board.setPiece(row, col, piece);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("未知的棋子类型: " + typeName);
+                positionMap.computeIfAbsent(key, k -> new ArrayList<>()).add(pieceObj);
+            }
+
+            // 对每个位置的棋子按stackIndex排序并添加到棋盘
+            for (List<JsonObject> positionPieces : positionMap.values()) {
+                // 按stackIndex排序（如果没有stackIndex，则视为0）
+                positionPieces.sort((p1, p2) -> {
+                    int idx1 = p1.has("stackIndex") ? p1.get("stackIndex").getAsInt() : 0;
+                    int idx2 = p2.has("stackIndex") ? p2.get("stackIndex").getAsInt() : 0;
+                    return Integer.compare(idx1, idx2);
+                });
+
+                // 按顺序添加棋子到堆栈（先添加的在底部）
+                for (JsonObject pieceObj : positionPieces) {
+                    String typeName = pieceObj.get("type").getAsString();
+                    int row = pieceObj.get("row").getAsInt();
+                    int col = pieceObj.get("col").getAsInt();
+
+                    try {
+                        Piece.Type type = Piece.Type.valueOf(typeName);
+                        Piece piece = new Piece(type, row, col);
+                        board.pushToStack(row, col, piece);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("未知的棋子类型: " + typeName);
+                    }
                 }
             }
         }

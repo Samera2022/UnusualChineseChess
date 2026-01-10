@@ -66,17 +66,25 @@ public class GameStateExporter {
         boardState.addProperty("rows", board.getRows());
         boardState.addProperty("cols", board.getCols());
 
-        // 导出所有棋子位置
+        // 导出所有棋子位置（包括堆栈信息）
         JsonArray pieces = new JsonArray();
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {
-                Piece piece = board.getPiece(row, col);
-                if (piece != null) {
-                    JsonObject pieceObj = new JsonObject();
-                    pieceObj.addProperty("type", piece.getType().name());
-                    pieceObj.addProperty("row", row);
-                    pieceObj.addProperty("col", col);
-                    pieces.add(pieceObj);
+                List<Piece> stack = board.getStack(row, col);
+                if (!stack.isEmpty()) {
+                    // 导出该位置的堆栈
+                    for (int i = 0; i < stack.size(); i++) {
+                        Piece piece = stack.get(i);
+                        JsonObject pieceObj = new JsonObject();
+                        pieceObj.addProperty("type", piece.getType().name());
+                        pieceObj.addProperty("row", row);
+                        pieceObj.addProperty("col", col);
+                        // 添加堆栈索引（0为底部，依次递增）
+                        if (stack.size() > 1) {
+                            pieceObj.addProperty("stackIndex", i);
+                        }
+                        pieces.add(pieceObj);
+                    }
                 }
             }
         }

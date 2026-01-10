@@ -160,6 +160,13 @@ public class BoardPanel extends JPanel {
                     selectedStackIndex = -1;
                     calculateValidMoves();
                 }
+            } else if (piece != null && piece.isRed() != gameEngine.isRedTurn()) {
+                // 点击的是对方的棋子，检查是否有堆栈
+                java.util.List<Piece> stack = board.getStack(row, col);
+                if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1 && stack.size() > 1) {
+                    // 显示对方堆栈信息对话框
+                    showStackInfoDialog(row, col);
+                }
             }
             repaint();
             return;
@@ -171,6 +178,16 @@ public class BoardPanel extends JPanel {
         Piece piece = board.getPiece(row, col);
         if (piece == null || piece.isRed() != gameEngine.isRedTurn()
                 || (localControlsRed != null && piece.isRed() != localControlsRed)) {
+            // 点击的不是己方棋子（空位或对方棋子）
+            // 如果点击的是对方的堆叠棋子，显示堆叠信息
+            if (piece != null && piece.isRed() != gameEngine.isRedTurn()) {
+                java.util.List<Piece> stack = board.getStack(row, col);
+                if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1 && stack.size() > 1) {
+                    // 显示对方堆栈信息对话框
+                    showStackInfoDialog(row, col);
+                }
+            }
+            // 清除选择
             selectedRow = -1;
             selectedCol = -1;
             selectedStackIndex = -1;
@@ -343,9 +360,17 @@ public class BoardPanel extends JPanel {
             options[i] = p.getDisplayName() + " (" + (i + 1) + ")";
         }
 
+        // 根据组合条件动态调整提示文案：启用堆叠 + 最大堆叠数>1 + 允许背负
+        boolean carryEnabled = gameEngine.isAllowPieceStacking()
+                && gameEngine.getMaxStackingCount() > 1
+                && gameEngine.isAllowCarryPiecesAbove();
+        String message = carryEnabled
+                ? "选择要移动的棋子（选择某个棋子后，该棋子及其上方的所有棋子都会一起移动）："
+                : "选择要移动的棋子（选择某个棋子后，仅该棋子会移动；其上方的棋子将留在原位置）：";
+
         int choice = JOptionPane.showOptionDialog(
             this,
-            "选择要移动的棋子（选择某个棋子后，该棋子及其上方的所有棋子都会一起移动）：",
+            message,
             "选择要移动的棋子",
             JOptionPane.DEFAULT_OPTION,
             JOptionPane.QUESTION_MESSAGE,
@@ -464,7 +489,7 @@ public class BoardPanel extends JPanel {
 
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {
-                if (validator.isValidMove(selectedRow, selectedCol, row, col)) {
+                if (validator.isValidMove(selectedRow, selectedCol, row, col, selectedStackIndex)) {
                     validMoves.add(new Point(row, col));
                 }
             }

@@ -98,12 +98,16 @@ public class GameEngine {
         // 确定要移动的棋子
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
+        // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
+        boolean carryEnabled = rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
+                && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
             piece = fromStack.get(selectedStackIndex);
-            // 只有在允许背负上方棋子时，该棋子上方的所有棋子才会跟随移动
-            if (rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)) {
+            // 只有在启用背负时，该棋子上方的所有棋子才会跟随移动
+            if (carryEnabled) {
                 for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
                     movedStack.add(fromStack.get(i));
                 }
@@ -125,8 +129,8 @@ public class GameEngine {
             return false;
         }
 
-        // 验证着法合法性
-        if (!validator.isValidMove(fromRow, fromCol, toRow, toCol)) {
+        // 验证着法合法性（使用选定的棋子进行验证）
+        if (!validator.isValidMove(fromRow, fromCol, toRow, toCol, selectedStackIndex)) {
             return false;
         }
 
@@ -137,7 +141,7 @@ public class GameEngine {
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
         if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && capturedPiece != null &&
-            capturedPiece.isRed() == piece.isRed()) {
+                capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
             if (stackSize < rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
                 isStackingMove = true;
@@ -160,20 +164,36 @@ public class GameEngine {
         if (movedPiece) {
             // 如果从堆栈中选择了棋子，需要先移除源位置的该棋子及其上方的棋子
             if (selectedStackIndex >= 0) {
-                // 如果允许背负上方棋子，移除选定的棋子及其上方的所有棋子
-                // 否则，只移除选定的棋子
-                if (rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)) {
-                    // 移除选定的棋子及其上方的所有棋子
-                    List<Piece> toMove = new ArrayList<>();
-                    for (int i = selectedStackIndex; i < fromStack.size(); i++) {
-                        toMove.add(fromStack.get(i));
-                    }
-                    for (Piece p : toMove) {
+                // 如果启用背负，移除选定的棋子及其上方的所有棋子
+                if (carryEnabled) {
+                    // 计算需要移除的棋子数量（选中的 + 上方的所有）
+                    int countToRemove = fromStack.size() - selectedStackIndex;
+                    for (int i = 0; i < countToRemove; i++) {
                         board.popTop(fromRow, fromCol);
                     }
                 } else {
-                    // 只移除选定的棋子
-                    board.removeFromStack(fromRow, fromCol, selectedStackIndex);
+                    // 模式二：只移除选定的棋子，保留上方的棋子，且不能颠倒顺序
+                    // 策略：手动暂存上方的棋子 -> 弹出到底 -> 还原上方的棋子
+
+                    // 1. 暂存上方的棋子（保持顺序）
+                    List<Piece> piecesAbove = new ArrayList<>();
+                    for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
+                        piecesAbove.add(fromStack.get(i));
+                    }
+
+                    // 2. 连续弹出，直到把选中的那个棋子也弹出来
+                    // 比如 Stack [A, B, C, D]，选中 B(index 1)。Size 4.
+                    // piecesAbove = [C, D].
+                    // 需要弹出 D, C, B。共 4 - 1 = 3 次。
+                    int countToPop = fromStack.size() - selectedStackIndex;
+                    for (int k = 0; k < countToPop; k++) {
+                        board.popTop(fromRow, fromCol);
+                    }
+
+                    // 3. 将暂存的上方棋子原样放回去
+                    for (Piece p : piecesAbove) {
+                        board.pushToStack(fromRow, fromCol, p);
+                    }
                 }
             } else {
                 // 默认移除顶部棋子
@@ -187,16 +207,18 @@ public class GameEngine {
                 board.setPiece(toRow, toCol, piece);
             }
 
-            // 将随之移动的棋子堆栈也移动到目标位置
-            for (Piece p : movedStack) {
-                p.move(toRow, toCol);
-                board.pushToStack(toRow, toCol, p);
+            // 将随之移动的棋子堆栈也移动到目标位置（仅在启用背负时）
+            if (carryEnabled) {
+                for (Piece p : movedStack) {
+                    p.move(toRow, toCol);
+                    board.pushToStack(toRow, toCol, p);
+                }
             }
         }
 
         // 检查兵卒晋升（仅在棋子实际移动时处理）
         if (movedPiece && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
-            (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
+                (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) {
                 board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
@@ -320,16 +342,49 @@ public class GameEngine {
             // 移除主棋子
             board.popTop(lastMove.getToRow(), lastMove.getToCol());
 
+            // 必须考虑源位置可能已经有其他棋子（虽然在当前规则下，源位置被抽走后，剩下的棋子会落下）
+            // 但是我们要插回到正确的位置
+
+            // 获取当前源位置的堆栈
+            // Stack: [A, C]. Removed B (Index 1).
+            // undo needs to put B back at Index 1.
+            // Result: [A, B, C].
+
+            // 策略：弹出所有 index >= selectedStackIndex 的棋子，放入 B，再放回。
+            int targetIndex = lastMove.getSelectedStackIndex();
+            List<Piece> currentStack = board.getStack(lastMove.getFromRow(), lastMove.getFromCol());
+            List<Piece> piecesAbove = new ArrayList<>();
+
+            // 弹出目前在该位置之上的所有棋子
+            int countToPop = currentStack.size() - targetIndex;
+            for(int k=0; k<countToPop; k++) {
+                // popTop 返回的是被移除的棋子，我们假设 Board 没有返回它，所以要先 get
+                // 但是 popTop 逻辑依赖 board 实现。
+                // 既然我们在 move 时手动管理了顺序，undo 时如果仅仅是 push 回去可能变成 [A, C, B]。
+                // 所以这里也需要手动重组。
+                Piece p = currentStack.get(currentStack.size() - 1 - k);
+                piecesAbove.add(0, p); // 保持顺序插入头部
+            }
+            // 执行真正的 pop
+            for(int k=0; k<countToPop; k++) {
+                board.popTop(lastMove.getFromRow(), lastMove.getFromCol());
+            }
+
             // 将主棋子移回原位置
             piece.move(lastMove.getFromRow(), lastMove.getFromCol());
             board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), piece);
 
-            // 将跟随的棋子也移回原位置
+            // 将跟随的棋子也移回原位置 (如果是 Carry Mode)
             if (movedStack != null) {
                 for (Piece p : movedStack) {
                     p.move(lastMove.getFromRow(), lastMove.getFromCol());
                     board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), p);
                 }
+            }
+
+            // 将原来在上面的棋子放回去 (如果是 Extract Mode，上面可能有 C)
+            for(Piece p : piecesAbove) {
+                board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), p);
             }
         }
         // 处理堆叠撤销
@@ -566,20 +621,27 @@ public class GameEngine {
 
     private Piece.Type convertPieceTypeToSide(Piece.Type type, boolean toRed) {
         switch (type) {
-            case RED_KING: return toRed ? Piece.Type.RED_KING : Piece.Type.BLACK_KING;
-            case RED_ADVISOR: return toRed ? Piece.Type.RED_ADVISOR : Piece.Type.BLACK_ADVISOR;
-            case RED_ELEPHANT: return toRed ? Piece.Type.RED_ELEPHANT : Piece.Type.BLACK_ELEPHANT;
-            case RED_HORSE: return toRed ? Piece.Type.RED_HORSE : Piece.Type.BLACK_HORSE;
-            case RED_CHARIOT: return toRed ? Piece.Type.RED_CHARIOT : Piece.Type.BLACK_CHARIOT;
-            case RED_CANNON: return toRed ? Piece.Type.RED_CANNON : Piece.Type.BLACK_CANNON;
-            case RED_SOLDIER: return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
-            case BLACK_KING: return toRed ? Piece.Type.RED_KING : Piece.Type.BLACK_KING;
-            case BLACK_ADVISOR: return toRed ? Piece.Type.RED_ADVISOR : Piece.Type.BLACK_ADVISOR;
-            case BLACK_ELEPHANT: return toRed ? Piece.Type.RED_ELEPHANT : Piece.Type.BLACK_ELEPHANT;
-            case BLACK_HORSE: return toRed ? Piece.Type.RED_HORSE : Piece.Type.BLACK_HORSE;
-            case BLACK_CHARIOT: return toRed ? Piece.Type.RED_CHARIOT : Piece.Type.BLACK_CHARIOT;
-            case BLACK_CANNON: return toRed ? Piece.Type.RED_CANNON : Piece.Type.BLACK_CANNON;
-            case BLACK_SOLDIER: return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
+            case RED_KING:
+            case BLACK_KING:
+                return toRed ? Piece.Type.RED_KING : Piece.Type.BLACK_KING;
+            case RED_ADVISOR:
+            case BLACK_ADVISOR:
+                return toRed ? Piece.Type.RED_ADVISOR : Piece.Type.BLACK_ADVISOR;
+            case RED_ELEPHANT:
+            case BLACK_ELEPHANT:
+                return toRed ? Piece.Type.RED_ELEPHANT : Piece.Type.BLACK_ELEPHANT;
+            case RED_HORSE:
+            case BLACK_HORSE:
+                return toRed ? Piece.Type.RED_HORSE : Piece.Type.BLACK_HORSE;
+            case RED_CHARIOT:
+            case BLACK_CHARIOT:
+                return toRed ? Piece.Type.RED_CHARIOT : Piece.Type.BLACK_CHARIOT;
+            case RED_CANNON:
+            case BLACK_CANNON:
+                return toRed ? Piece.Type.RED_CANNON : Piece.Type.BLACK_CANNON;
+            case RED_SOLDIER:
+            case BLACK_SOLDIER:
+                return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
             default: return type;
         }
     }
