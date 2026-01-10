@@ -579,21 +579,21 @@ public class GameEngine {
             String key = e.getKey();
             com.google.gson.JsonElement el = e.getValue();
             if (el == null || el.isJsonNull()) {
-                rulesConfig.set(key, null, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                rulesConfig.set(key, null, GameRulesConfig.ChangeSource.NETWORK);
             } else if (el.isJsonPrimitive()) {
                 com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
                 if (p.isBoolean()) {
-                    rulesConfig.set(key, p.getAsBoolean(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                    rulesConfig.set(key, p.getAsBoolean(), GameRulesConfig.ChangeSource.NETWORK);
                 } else if (p.isNumber()) {
                     // most rule numbers are ints
                     try {
                         int iv = p.getAsInt();
-                        rulesConfig.set(key, iv, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                        rulesConfig.set(key, iv, GameRulesConfig.ChangeSource.NETWORK);
                     } catch (NumberFormatException ex) {
-                        rulesConfig.set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                        rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
                     }
                 } else if (p.isString()) {
-                    rulesConfig.set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                    rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
                 }
             } else {
                 // ignore complex types for now

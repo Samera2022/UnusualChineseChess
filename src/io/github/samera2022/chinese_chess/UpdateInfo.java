@@ -59,7 +59,22 @@ public enum UpdateInfo {
                     " - 修复堆叠棋子的移动验证逻辑，现在选择不同堆栈层的棋子会正确使用对应棋子的移动规则。\n" +
                     " - 修复“允许背负上方棋子”选项，现在未勾选时选择下方棋子移动不会带走上方棋子。\n" +
                     " - 修复残局导入导出功能，现在可以正确保存和恢复堆叠棋子的状态。\n" +
-                    " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n\n");
+                    " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n\n"),
+    VERSION_1_3_0("1.3.0","2026-01-10 16:58",
+            "## [Added]\n" +
+                    " - 统一并强化玩法配置管理：全面使用 GameRulesConfig 作为规则单一数据源，减少了模块间耦合。\n" +
+                    " - 运行时差分同步：主机修改玩法设置时仅发送发生改动的字段（diff），并在客户端合并应用。\n" +
+                    " - 在 UI 端对设置变更做 200ms 去抖合并，减少网络抖动。\n" +
+                    " - 增加规则变更监听（支持变更来源），通知执行带超时（500ms）与错误日志，提升稳定性与可调试性。\n\n" +
+                    "## [Changed]\n" +
+                    " - 移除了大量对 GameEngine 的冗余包装 getter，调用方改为直接访问 GameRulesConfig 的 getBoolean/getInt/toJson 接口。\n" +
+                    " - RuleSettingsPanel 的绑定逻辑改为直接读写 GameRulesConfig，并在本地 UI 变更时标记变更来源为 UI。\n" +
+                    " - GameEngine.shutdown() 集成了规则通知器的关闭（集中化资源清理）。\n\n" +
+                    "## [Fixed]\n" +
+                    " - 修复/缓解了规则通知过程中异常被吞掉或阻塞的问题（现在会记录关键错误并对超时 listener 进行取消）。\n" +
+                    " - 修复联机设置同步与撤销相关的问题，主机端现在会发送设置快照/差分并避免回环。\n\n" +
+                    "## [Warn]\n" +
+                    " - 当前在 UI 中缓存 GameRulesConfig 的引用是基于现有实现（GameEngine 不会在运行期替换该对象）；若将来支持替换整个规则对象，需要额外的引用同步逻辑。");
     private final String version;
     private final String releaseDate;
     private final String description;
