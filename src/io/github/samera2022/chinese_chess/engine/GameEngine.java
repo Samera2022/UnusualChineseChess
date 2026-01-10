@@ -561,40 +561,7 @@ public class GameEngine {
         listeners.remove(listener);
     }
 
-    // 配置项访问器 - 委托给rulesConfig
-    public boolean isAllowUndo() { return rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO); }
-    public void setAllowUndo(boolean allowUndo) { rulesConfig.set(RuleConstants.ALLOW_UNDO, allowUndo); }
-
-    public boolean isShowHints() { return rulesConfig.getBoolean(RuleConstants.SHOW_HINTS); }
-    public void setShowHints(boolean showHints) { rulesConfig.set(RuleConstants.SHOW_HINTS, showHints); }
-
-    // 特殊玩法访问器 - 统一委托给rulesConfig
-    public JsonObject getSpecialRules() { return rulesConfig.toJson(); }
-    public boolean isSpecialRuleEnabled(String key) {
-        return rulesConfig.getBoolean(key);
-    }
-
-    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_PIECE, allow); }
-    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_HORSE_LEG, allow); }
-    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_ELEPHANT_EYE, allow); }
-    public boolean isUnblockPiece() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_PIECE); }
-    public boolean isUnblockHorseLeg() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_HORSE_LEG); }
-    public boolean isUnblockElephantEye() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_ELEPHANT_EYE); }
-
-
-    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow); }
-    public boolean isAllowCaptureOwnPiece() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_OWN_PIECE); }
-
-    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_PIECE_STACKING, allow); }
-    public boolean isAllowPieceStacking() { return rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING); }
-    public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, count); }
-    public int getMaxStackingCount() { return rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT); }
-    public void setAllowCarryPiecesAbove(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, allow); }
-    public boolean isAllowCarryPiecesAbove() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE); }
-
-    public void setAllowCaptureConversion(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_CONVERSION, allow); }
-    public boolean isAllowCaptureConversion() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION); }
-
+    // NOTE: direct access to rulesConfig should be used by callers (getBoolean/getInt/toJson).
     /**
      * 获取设置快照（供联机同步）
      */
@@ -606,10 +573,34 @@ public class GameEngine {
      * 应用设置快照（供联机同步）
      */
     public void applySettingsSnapshot(JsonObject snapshot) {
-        if (snapshot != null) {
-            rulesConfig.loadFromJson(snapshot);
-            validator.setRulesConfig(rulesConfig);
+        if (snapshot == null) return;
+        // apply per-key so listeners receive NETWORK as the change source
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : snapshot.entrySet()) {
+            String key = e.getKey();
+            com.google.gson.JsonElement el = e.getValue();
+            if (el == null || el.isJsonNull()) {
+                rulesConfig.set(key, null, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+            } else if (el.isJsonPrimitive()) {
+                com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
+                if (p.isBoolean()) {
+                    rulesConfig.set(key, p.getAsBoolean(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                } else if (p.isNumber()) {
+                    // most rule numbers are ints
+                    try {
+                        int iv = p.getAsInt();
+                        rulesConfig.set(key, iv, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                    } catch (NumberFormatException ex) {
+                        rulesConfig.set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                    }
+                } else if (p.isString()) {
+                    rulesConfig.set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.NETWORK);
+                }
+            } else {
+                // ignore complex types for now
+            }
         }
+        // refresh validator reference
+        validator.setRulesConfig(rulesConfig);
     }
 
     /**
@@ -617,6 +608,19 @@ public class GameEngine {
      */
     public GameRulesConfig getRulesConfig() {
         return rulesConfig;
+    }
+
+    /**
+     * Graceful shutdown for engine-managed resources. Currently it will shutdown the rules change notifier.
+     * This centralizes resource cleanup so callers (UI, JVM shutdown hooks) can call a single method.
+     */
+    public void shutdown() {
+        try {
+            if (rulesConfig != null) {
+                rulesConfig.shutdownNotifier();
+            }
+        } catch (Throwable ignored) {}
+        // future: close other engine-managed resources here
     }
 
     private Piece.Type convertPieceTypeToSide(Piece.Type type, boolean toRed) {
@@ -646,3 +650,6 @@ public class GameEngine {
         }
     }
 }
+
+
+

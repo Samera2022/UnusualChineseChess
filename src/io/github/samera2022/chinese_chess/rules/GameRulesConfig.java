@@ -6,6 +6,15 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 游戏规则配置 - 统一管理所有游戏规则
@@ -14,65 +23,65 @@ import java.util.Map;
 public class GameRulesConfig {
     // 基础玩法规则
     @RuleKey(RuleConstants.ALLOW_FLYING_GENERAL)
-    public boolean allowFlyingGeneral = false;      // 允许飞将
+    private boolean allowFlyingGeneral = false;      // 允许飞将
     @RuleKey(RuleConstants.DISABLE_FACING_GENERALS)
-    public boolean disableFacingGenerals = false;   // 取消对将（允许王见王）
+    private boolean disableFacingGenerals = false;   // 取消对将（允许王见王）
     @RuleKey(RuleConstants.PAWN_CAN_RETREAT)
-    public boolean pawnCanRetreat = false;          // 兵卒可以后退
+    private boolean pawnCanRetreat = false;          // 兵卒可以后退
     @RuleKey(RuleConstants.NO_RIVER_LIMIT)
-    public boolean noRiverLimit = false;            // 取消过河限制（所有棋子）
+    private boolean noRiverLimit = false;            // 取消过河限制（所有棋子）
     @RuleKey(RuleConstants.ADVISOR_CAN_LEAVE)
-    public boolean advisorCanLeave = false;         // 仕可以离开宫
+    private boolean advisorCanLeave = false;         // 仕可以离开宫
     @RuleKey(RuleConstants.INTERNATIONAL_KING)
-    public boolean internationalKing = false;       // 国际象棋风格的王
+    private boolean internationalKing = false;       // 国际象棋风格的王
     @RuleKey(RuleConstants.PAWN_PROMOTION)
-    public boolean pawnPromotion = false;           // 兵卒晋升规则
+    private boolean pawnPromotion = false;           // 兵卒晋升规则
     @RuleKey(RuleConstants.ALLOW_OWN_BASE_LINE)
-    public boolean allowOwnBaseLine = false;        // 兵到达己方底线可以晋升
+    private boolean allowOwnBaseLine = false;        // 兵到达己方底线可以晋升
     @RuleKey(RuleConstants.ALLOW_INSIDE_RETREAT)
-    public boolean allowInsideRetreat = false;      // 兵可以在宫内后退
+    private boolean allowInsideRetreat = false;      // 兵可以在宫内后退
     @RuleKey(RuleConstants.INTERNATIONAL_ADVISOR)
-    public boolean internationalAdvisor = false;    // 国际象棋风格的仕
+    private boolean internationalAdvisor = false;    // 国际象棋风格的仕
     @RuleKey(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER)
-    public boolean allowElephantCrossRiver = false; // 象可以过河
+    private boolean allowElephantCrossRiver = false; // 象可以过河
     @RuleKey(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER)
-    public boolean allowAdvisorCrossRiver = false;  // 仕可以过河
+    private boolean allowAdvisorCrossRiver = false;  // 仕可以过河
     @RuleKey(RuleConstants.ALLOW_KING_CROSS_RIVER)
-    public boolean allowKingCrossRiver = false;     // 王可以过河
+    private boolean allowKingCrossRiver = false;     // 王可以过河
     @RuleKey(RuleConstants.LEFT_RIGHT_CONNECTED)
-    public boolean leftRightConnected = false;      // 左右相连（所有棋子）
+    private boolean leftRightConnected = false;      // 左右相连（所有棋子）
     @RuleKey(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE)
-    public boolean leftRightConnectedHorse = false; // 左右相连（仅马）
+    private boolean leftRightConnectedHorse = false; // 左右相连（仅马）
     @RuleKey(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT)
-    public boolean leftRightConnectedElephant = false; // 左右相连（仅象）
+    private boolean leftRightConnectedElephant = false; // 左右相连（仅象）
 
     // 取消卡子规则
     @RuleKey(RuleConstants.UNBLOCK_PIECE)
-    public boolean unblockPiece = false;            // 通用取消卡子
+    private boolean unblockPiece = false;            // 通用取消卡子
     @RuleKey(RuleConstants.UNBLOCK_HORSE_LEG)
-    public boolean unblockHorseLeg = false;         // 马脚可以被跳过
+    private boolean unblockHorseLeg = false;         // 马脚可以被跳过
     @RuleKey(RuleConstants.UNBLOCK_ELEPHANT_EYE)
-    public boolean unblockElephantEye = false;      // 象眼可以被跳过
+    private boolean unblockElephantEye = false;      // 象眼可以被跳过
 
     // 特殊规则
     @RuleKey(RuleConstants.ALLOW_CAPTURE_OWN_PIECE)
-    public boolean allowCaptureOwnPiece = false;    // 允许吃自己的棋子
+    private boolean allowCaptureOwnPiece = false;    // 允许吃自己的棋子
     @RuleKey(RuleConstants.ALLOW_PIECE_STACKING)
-    public boolean allowPieceStacking = false;      // 允许棋子堆叠
+    private boolean allowPieceStacking = false;      // 允许棋子堆叠
     @RuleKey(RuleConstants.MAX_STACKING_COUNT)
-    public int maxStackingCount = 2;                // 最大堆叠数量
+    private int maxStackingCount = 2;                // 最大堆叠数量
     @RuleKey(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)
-    public boolean allowCarryPiecesAbove = false;   // 允许背负上方棋子
+    private boolean allowCarryPiecesAbove = false;   // 允许背负上方棋子
     @RuleKey(RuleConstants.ALLOW_CAPTURE_CONVERSION)
-    public boolean allowCaptureConversion = false;  // 允许俘虏：吃子改为转换归己方
+    private boolean allowCaptureConversion = false;  // 允许俘虏：吃子改为转换归己方
     @RuleKey(RuleConstants.DEATH_MATCH_UNTIL_VICTORY)
-    public boolean deathMatchUntilVictory = false;  // 死战方休：必须吃掉全部棋子
+    private boolean deathMatchUntilVictory = false;  // 死战方休：必须吃掉全部棋子
 
     // UI相关配置
     @RuleKey(RuleConstants.ALLOW_UNDO)
-    public boolean allowUndo = true;                // 允许悔棋
+    private boolean allowUndo = true;                // 允许悔棋
     @RuleKey(RuleConstants.SHOW_HINTS)
-    public boolean showHints = true;                // 显示提示
+    private boolean showHints = true;                // 显示提示
 
     // reflection-backed mapping from rule constant name -> Field
     private static final Map<String, Field> RULE_FIELDS;
@@ -184,15 +193,107 @@ public class GameRulesConfig {
     }
 
     /**
-     * 根据规则常量设置规则值
+     * Helper: get boolean rule value (interprets numbers/strings as needed)
+     */
+    public boolean getBoolean(String ruleName) {
+        Object v = get(ruleName);
+        if (v == null) return false;
+        if (v instanceof Boolean) return (Boolean) v;
+        if (v instanceof Number) return ((Number) v).intValue() != 0;
+        return Boolean.parseBoolean(String.valueOf(v));
+    }
+
+    /**
+     * Helper: get int rule value (interprets booleans/strings as needed)
+     */
+    public int getInt(String ruleName) {
+        Object v = get(ruleName);
+        if (v == null) return 0;
+        if (v instanceof Number) return ((Number) v).intValue();
+        if (v instanceof Boolean) return ((Boolean) v) ? 1 : 0;
+        try {
+            return Integer.parseInt(String.valueOf(v));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    // listeners for rule changes (delta notification)
+    public enum ChangeSource {
+        UI,       // changes originated from local UI actions
+        NETWORK,  // changes applied from network snapshots
+        API       // programmatic changes (internal code)
+    }
+
+    public interface RuleChangeListener {
+        void onRuleChanged(String key, Object oldValue, Object newValue, ChangeSource source);
+    }
+
+    private final List<RuleChangeListener> changeListeners = new ArrayList<>();
+
+    // single-threaded executor to run change notifications off the calling thread
+    private final ExecutorService notifyExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "RuleChangeNotifier");
+        t.setDaemon(true);
+        return t;
+    });
+
+    // pooled executor to run each listener with a timeout so one slow listener won't block others
+    private final ExecutorService listenerExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "RuleChangeListener");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /**
+     * Shutdown the internal notifier executor (best-effort).
+     */
+    public void shutdownNotifier() {
+        try {
+            notifyExecutor.shutdownNow();
+        } catch (Throwable ignored) {}
+        try {
+            listenerExecutor.shutdownNow();
+        } catch (Throwable ignored) {}
+        try {
+            notifyExecutor.awaitTermination(200, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+        try {
+            listenerExecutor.awaitTermination(200, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+    }
+
+    public void addRuleChangeListener(RuleChangeListener l) {
+        if (l == null) return;
+        synchronized (changeListeners) { changeListeners.add(l); }
+    }
+
+    public void removeRuleChangeListener(RuleChangeListener l) {
+        if (l == null) return;
+        synchronized (changeListeners) { changeListeners.remove(l); }
+    }
+
+    /**
+     * 根据规则常量设置规则值（默认来源为 API）
      * @param ruleName 规则常量（来自RuleConstants）
      * @param value 规则值（Boolean或Integer）
      */
     public void set(String ruleName, Object value) {
+        set(ruleName, value, ChangeSource.API);
+    }
+
+    /**
+     * 根据规则常量设置规则值，并指定变更来源
+     * @param ruleName 规则常量
+     * @param value 规则值
+     * @param source 变更来源（用于避免网络回环等）
+     */
+    public void set(String ruleName, Object value, ChangeSource source) {
         Field f = fieldFor(ruleName);
         if (f == null) return;
         Class<?> type = f.getType();
         try {
+            Object oldVal = f.get(this);
             if ((type == boolean.class) || (type == Boolean.class)) {
                 boolean v = false;
                 if (value instanceof Boolean) v = (Boolean) value;
@@ -205,7 +306,6 @@ public class GameRulesConfig {
                 else if (value instanceof String) {
                     try { v = Integer.parseInt((String) value); } catch (NumberFormatException ignored) {}
                 } else if (value instanceof Boolean) v = ((Boolean) value) ? 1 : 0;
-                // ensure minimum for max stacking count (previously handled by setter)
                 if (RuleConstants.MAX_STACKING_COUNT.equals(ruleName)) {
                     v = Math.max(1, v);
                     f.setInt(this, v);
@@ -213,9 +313,46 @@ public class GameRulesConfig {
                     f.setInt(this, v);
                 }
             } else {
-                // unsupported types: try direct set if compatible
                 if (value != null && type.isInstance(value)) {
                     f.set(this, value);
+                }
+            }
+            Object newVal = f.get(this);
+            if (!Objects.equals(oldVal, newVal)) {
+                List<RuleChangeListener> copy;
+                synchronized (changeListeners) { copy = new ArrayList<>(changeListeners); }
+                if (!copy.isEmpty()) {
+                    // execute notifications asynchronously
+                    final String key = ruleName;
+                    final Object oldV = oldVal;
+                    final Object newV = newVal;
+                    final ChangeSource src = source;
+                    notifyExecutor.submit(() -> {
+                        for (RuleChangeListener l : copy) {
+                            try {
+                                // run each listener on the listenerExecutor and wait with timeout
+                                Future<?> fut = listenerExecutor.submit(() -> {
+                                    l.onRuleChanged(key, oldV, newV, src);
+                                });
+                                try {
+                                    // wait at most 500ms for a listener to finish
+                                    fut.get(500, TimeUnit.MILLISECONDS);
+                                } catch (TimeoutException te) {
+                                    System.err.println("[GameRulesConfig] RuleChangeListener timeout for key=" + key + " listener=" + l);
+                                    fut.cancel(true);
+                                } catch (ExecutionException ee) {
+                                    System.err.println("[GameRulesConfig] RuleChangeListener threw exception for key=" + key + " listener=" + l);
+                                    if (ee.getCause() != null) ee.getCause().printStackTrace(System.err);
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+                            } catch (Throwable t) {
+                                // defensive catch: log error but keep notifying others
+                                System.err.println("[GameRulesConfig] Unexpected error while notifying rule change listener: " + t);
+                                t.printStackTrace(System.err);
+                            }
+                        }
+                    });
                 }
             }
         } catch (IllegalAccessException e) {
@@ -223,24 +360,4 @@ public class GameRulesConfig {
         }
     }
 
-    /**
-     * 根据规则常量获取布尔值规则
-     * @param ruleName 规则常量
-     * @return 布尔值，如果规则不存在或不是布尔值则返回false
-     */
-    public boolean getBoolean(String ruleName) {
-        Object value = get(ruleName);
-        return value instanceof Boolean && (Boolean) value;
-    }
-
-    /**
-     * 根据规则常量获取整数值规则
-     * @param ruleName 规则常量
-     * @return 整数值，如果规则不存在或不是整数值则返回0
-     */
-    public int getInt(String ruleName) {
-        Object value = get(ruleName);
-        return value instanceof Integer ? (Integer) value : 0;
-    }
 }
-

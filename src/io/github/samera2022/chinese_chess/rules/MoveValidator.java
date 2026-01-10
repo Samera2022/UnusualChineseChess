@@ -29,29 +29,29 @@ public class MoveValidator {
 
     // ========== Setter方法（直接修改rulesConfig） ==========
 
-    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.allowFlyingGeneral = allow; }
-    public void setDisableFacingGenerals(boolean allow) { rulesConfig.disableFacingGenerals = allow; }
-    public void setPawnCanRetreat(boolean allow) { rulesConfig.pawnCanRetreat = allow; }
-    public void setNoRiverLimit(boolean allow) { rulesConfig.noRiverLimit = allow; }
-    public void setAdvisorCanLeave(boolean allow) { rulesConfig.advisorCanLeave = allow; }
-    public void setInternationalKing(boolean allow) { rulesConfig.internationalKing = allow; }
-    public void setPawnPromotion(boolean allow) { rulesConfig.pawnPromotion = allow; }
-    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.allowOwnBaseLine = allow; }
-    public void setAllowInsideRetreat(boolean allow) { rulesConfig.allowInsideRetreat = allow; }
-    public void setInternationalAdvisor(boolean allow) { rulesConfig.internationalAdvisor = allow; }
-    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.allowElephantCrossRiver = allow; }
-    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.allowAdvisorCrossRiver = allow; }
-    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.allowKingCrossRiver = allow; }
-    public void setLeftRightConnected(boolean allow) { rulesConfig.leftRightConnected = allow; }
-    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.leftRightConnectedHorse = allow; }
-    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.leftRightConnectedElephant = allow; }
+    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_FLYING_GENERAL, allow, GameRulesConfig.ChangeSource.API); }
+    public void setDisableFacingGenerals(boolean allow) { rulesConfig.set(RuleConstants.DISABLE_FACING_GENERALS, allow, GameRulesConfig.ChangeSource.API); }
+    public void setPawnCanRetreat(boolean allow) { rulesConfig.set(RuleConstants.PAWN_CAN_RETREAT, allow, GameRulesConfig.ChangeSource.API); }
+    public void setNoRiverLimit(boolean allow) { rulesConfig.set(RuleConstants.NO_RIVER_LIMIT, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAdvisorCanLeave(boolean allow) { rulesConfig.set(RuleConstants.ADVISOR_CAN_LEAVE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setInternationalKing(boolean allow) { rulesConfig.set(RuleConstants.INTERNATIONAL_KING, allow, GameRulesConfig.ChangeSource.API); }
+    public void setPawnPromotion(boolean allow) { rulesConfig.set(RuleConstants.PAWN_PROMOTION, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_OWN_BASE_LINE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowInsideRetreat(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_INSIDE_RETREAT, allow, GameRulesConfig.ChangeSource.API); }
+    public void setInternationalAdvisor(boolean allow) { rulesConfig.set(RuleConstants.INTERNATIONAL_ADVISOR, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnected(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow, GameRulesConfig.ChangeSource.API); }
 
-    public void setUnblockPiece(boolean allow) { rulesConfig.unblockPiece = allow; }
-    public void setUnblockHorseLeg(boolean allow) { rulesConfig.unblockHorseLeg = allow; }
-    public void setUnblockElephantEye(boolean allow) { rulesConfig.unblockElephantEye = allow; }
-    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.allowCaptureOwnPiece = allow; }
-    public void setAllowPieceStacking(boolean allow) { rulesConfig.allowPieceStacking = allow; }
-    public void setMaxStackingCount(int count) { rulesConfig.maxStackingCount = Math.max(1, count); }
+    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_PIECE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_HORSE_LEG, allow, GameRulesConfig.ChangeSource.API); }
+    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_ELEPHANT_EYE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_PIECE_STACKING, allow, GameRulesConfig.ChangeSource.API); }
+    public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, Math.max(1, count), GameRulesConfig.ChangeSource.API); }
 
     // 动态访问帮助方法，统一使用通用Getter
     private boolean r(String key) { return rulesConfig != null && rulesConfig.getBoolean(key); }

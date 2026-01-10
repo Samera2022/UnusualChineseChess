@@ -212,17 +212,42 @@ public class GameStateImporter {
     private static void importSettings(GameEngine gameEngine, JsonObject settings) {
         // 基本设置
         if (settings.has("allowUndo")) {
-            gameEngine.setAllowUndo(settings.get("allowUndo").getAsBoolean());
+            gameEngine.getRulesConfig().set(io.github.samera2022.chinese_chess.rules.RuleConstants.ALLOW_UNDO,
+                    settings.get("allowUndo").getAsBoolean(),
+                    io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
         }
 
         if (settings.has("showHints")) {
-            gameEngine.setShowHints(settings.get("showHints").getAsBoolean());
+            gameEngine.getRulesConfig().set(io.github.samera2022.chinese_chess.rules.RuleConstants.SHOW_HINTS,
+                    settings.get("showHints").getAsBoolean(),
+                    io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
         }
 
         // 特殊规则 - 直接通过JSON加载到rulesConfig
         if (settings.has("specialRules")) {
             JsonObject specialRules = settings.getAsJsonObject("specialRules");
-            gameEngine.getRulesConfig().loadFromJson(specialRules);
+            // apply per-key to go through set(...) and notify listeners
+            for (java.util.Map.Entry<String, JsonElement> e : specialRules.entrySet()) {
+                String key = e.getKey();
+                JsonElement el = e.getValue();
+                if (el == null || el.isJsonNull()) {
+                    gameEngine.getRulesConfig().set(key, null, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                } else if (el.isJsonPrimitive()) {
+                    com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
+                    if (p.isBoolean()) {
+                        gameEngine.getRulesConfig().set(key, p.getAsBoolean(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                    } else if (p.isNumber()) {
+                        try {
+                            int iv = p.getAsInt();
+                            gameEngine.getRulesConfig().set(key, iv, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                        } catch (NumberFormatException ex) {
+                            gameEngine.getRulesConfig().set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                        }
+                    } else if (p.isString()) {
+                        gameEngine.getRulesConfig().set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                    }
+                }
+            }
         }
 
         // 注意：不需要手动同步到MoveValidator，因为它们共享同一个rulesConfig实例
@@ -296,4 +321,3 @@ public class GameStateImporter {
         }
     }
 }
-

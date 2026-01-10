@@ -141,14 +141,13 @@ public class GameStateExporter {
         JsonObject settings = new JsonObject();
 
         // 基本设置
-        settings.addProperty("allowUndo", gameEngine.isAllowUndo());
-        settings.addProperty("showHints", gameEngine.isShowHints());
+        settings.addProperty("allowUndo", gameEngine.getRulesConfig().getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.ALLOW_UNDO));
+        settings.addProperty("showHints", gameEngine.getRulesConfig().getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.SHOW_HINTS));
 
         // 特殊规则
-        JsonObject specialRules = gameEngine.getSpecialRules();
+        JsonObject specialRules = gameEngine.getRulesConfig().toJson();
         settings.add("specialRules", specialRules);
 
         return settings;
     }
 }
-
