@@ -59,9 +59,7 @@ public enum UpdateInfo {
                     " - 修复堆叠棋子的移动验证逻辑，现在选择不同堆栈层的棋子会正确使用对应棋子的移动规则。\n" +
                     " - 修复“允许背负上方棋子”选项，现在未勾选时选择下方棋子移动不会带走上方棋子。\n" +
                     " - 修复残局导入导出功能，现在可以正确保存和恢复堆叠棋子的状态。\n" +
-                    " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n\n" +
-                    "## [Warn]\n" +
-                    " - “堆叠棋子”功能已基本完善，但可能仍存在一些边界情况的问题。");
+                    " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n\n");
     private final String version;
     private final String releaseDate;
     private final String description;
@@ -101,6 +99,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_1_1_0.getFormattedLog());
+        System.out.println(VERSION_1_2_0.getFormattedLog());
     }
 }
