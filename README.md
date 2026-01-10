@@ -1,4 +1,4 @@
-# MouseMacros
+# UnusualChineseChess
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Samera2022/UnusualChineseChess/main/docs/images/UnusualChineseChess.png" alt="UnusualChineseChess Logo" width="120">

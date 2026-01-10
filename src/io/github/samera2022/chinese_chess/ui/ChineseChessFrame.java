@@ -82,24 +82,26 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 gameEngine.setAllowUndo(allowUndo);
                 // 联机时不直接禁用，由 updateStatus 按规则和回合判断
                 updateStatus();
+                sendSettingsSnapshotToClient();
             }
             @Override public boolean isAllowUndo() { return gameEngine.isAllowUndo(); }
-            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_FLYING_GENERAL, allow); boardPanel.repaint(); } }
-            @Override public void setDisableFacingGenerals(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.DISABLE_FACING_GENERALS, allow); boardPanel.repaint(); } }
-            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_CAN_RETREAT, allow); boardPanel.repaint(); } }
-            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.NO_RIVER_LIMIT, noLimit); boardPanel.repaint(); } }
-            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ADVISOR_CAN_LEAVE, allow); boardPanel.repaint(); } }
-            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_KING, allow); boardPanel.repaint(); } }
-            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_PROMOTION, allow); boardPanel.repaint(); } }
-            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_OWN_BASE_LINE, allow); boardPanel.repaint(); } }
-            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_INSIDE_RETREAT, allow); boardPanel.repaint(); } }
-            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_ADVISOR, allow); boardPanel.repaint(); } }
-            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow); boardPanel.repaint(); } }
-            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow); boardPanel.repaint(); } }
-            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow); boardPanel.repaint(); } }
-            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED, allow); boardPanel.repaint(); } }
-            @Override public void setLeftRightConnectedHorse(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow); boardPanel.repaint(); } }
-            @Override public void setLeftRightConnectedElephant(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow); boardPanel.repaint(); } }
+            // 特殊玩法的设置：对每个 setter 应用更改并在是主机时同步给客户端
+            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_FLYING_GENERAL, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setDisableFacingGenerals(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.DISABLE_FACING_GENERALS, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_CAN_RETREAT, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.NO_RIVER_LIMIT, noLimit); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ADVISOR_CAN_LEAVE, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_KING, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_PROMOTION, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_OWN_BASE_LINE, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_INSIDE_RETREAT, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.INTERNATIONAL_ADVISOR, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setLeftRightConnectedHorse(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setLeftRightConnectedElephant(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
             @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_FLYING_GENERAL); }
             @Override public boolean isDisableFacingGenerals() { return gameEngine.isSpecialRuleEnabled(RuleConstants.DISABLE_FACING_GENERALS); }
             @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled(RuleConstants.PAWN_CAN_RETREAT); }
@@ -116,23 +118,23 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isLeftRightConnected() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED); }
             @Override public boolean isLeftRightConnectedHorse() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE); }
             @Override public boolean isLeftRightConnectedElephant() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT); }
-            @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockPiece(allow); boardPanel.repaint(); }
-            @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockHorseLeg(allow); boardPanel.repaint(); }
-            @Override public void setUnblockElephantEye(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockElephantEye(allow); boardPanel.repaint(); }
+            @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) { gameEngine.setUnblockPiece(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) { gameEngine.setUnblockHorseLeg(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
+            @Override public void setUnblockElephantEye(boolean allow) { if (!ruleSettingsLocked) { gameEngine.setUnblockElephantEye(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); } }
             @Override public boolean isUnblockPiece() { return gameEngine.isUnblockPiece(); }
             @Override public boolean isUnblockHorseLeg() { return gameEngine.isUnblockHorseLeg(); }
             @Override public boolean isUnblockElephantEye() { return gameEngine.isUnblockElephantEye(); }
-            @Override public void setAllowCaptureOwnPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureOwnPiece(allow); boardPanel.repaint(); }
+            @Override public void setAllowCaptureOwnPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureOwnPiece(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public boolean isAllowCaptureOwnPiece() { return gameEngine.isAllowCaptureOwnPiece(); }
-            @Override public void setAllowCaptureConversion(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureConversion(allow); boardPanel.repaint(); }
+            @Override public void setAllowCaptureConversion(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureConversion(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public boolean isAllowCaptureConversion() { return gameEngine.isAllowCaptureConversion(); }
-            @Override public void setDeathMatchUntilVictory(boolean allow) { if (!ruleSettingsLocked) gameEngine.getRulesConfig().set(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, allow); boardPanel.repaint(); }
+            @Override public void setDeathMatchUntilVictory(boolean allow) { if (!ruleSettingsLocked) gameEngine.getRulesConfig().set(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public boolean isDeathMatchUntilVictory() { return gameEngine.isSpecialRuleEnabled(RuleConstants.DEATH_MATCH_UNTIL_VICTORY); }
-            @Override public void setAllowPieceStacking(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowPieceStacking(allow); boardPanel.repaint(); }
+            @Override public void setAllowPieceStacking(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowPieceStacking(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public boolean isAllowPieceStacking() { return gameEngine.isAllowPieceStacking(); }
-            @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) gameEngine.setMaxStackingCount(count); boardPanel.repaint(); }
+            @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) gameEngine.setMaxStackingCount(count); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public int getMaxStackingCount() { return gameEngine.getMaxStackingCount(); }
-            @Override public void setAllowCarryPiecesAbove(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCarryPiecesAbove(allow); boardPanel.repaint(); }
+            @Override public void setAllowCarryPiecesAbove(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCarryPiecesAbove(allow); boardPanel.repaint(); sendSettingsSnapshotToClient(); }
             @Override public boolean isAllowCarryPiecesAbove() { return gameEngine.isAllowCarryPiecesAbove(); }
         });
 
@@ -149,8 +151,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     ChineseChessFrame.this.repaint();
                 },
                 () -> ruleSettingsPanel.isVisible(),
-                () -> exportGameState(),
-                () -> importGameState()
+                this::exportGameState,
+                this::importGameState
         );
         networkSidePanel.setVisible(true);
         if (togglePanelButton != null) {
@@ -438,6 +440,35 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     JOptionPane.ERROR_MESSAGE);
                 ex.printStackTrace();
             }
+        }
+    }
+
+    // helper: 当当前是主机且已连接时，将设置快照发送给客户端
+    private javax.swing.Timer sendSettingsTimer;
+
+    private void initSettingsSendTimer() {
+        // debounce: 延迟200ms发送，避免短时间内多次设置变动造成网络抖动
+        sendSettingsTimer = new javax.swing.Timer(200, e -> doSendSettingsNow());
+        sendSettingsTimer.setRepeats(false);
+    }
+
+    private void sendSettingsSnapshotToClient() {
+        // 在UI线程被调用：启动/重启定时器以合并快速多次修改
+        if (sendSettingsTimer == null) initSettingsSendTimer();
+        sendSettingsTimer.restart();
+    }
+
+    private void doSendSettingsNow() {
+        try {
+            if (netController != null && netController.isActive() && netController.isHost()) {
+                if (netController.getSession() != null) {
+                    JsonObject snap = gameEngine.getSettingsSnapshot();
+                    netController.getSession().sendSettings(snap);
+                }
+            }
+        } catch (Exception ex) {
+            // 防御性捕获，避免 UI 操作抛出未捕获异常
+            System.out.println("[DEBUG] 发送设置快照失败: " + ex);
         }
     }
 }

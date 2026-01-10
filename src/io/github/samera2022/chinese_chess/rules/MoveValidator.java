@@ -29,42 +29,29 @@ public class MoveValidator {
 
     // ========== Setter方法（直接修改rulesConfig） ==========
 
-    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.setAllowFlyingGeneral(allow); }
-    public void setDisableFacingGenerals(boolean allow) { rulesConfig.setDisableFacingGenerals(allow); }
-    public void setPawnCanRetreat(boolean allow) { rulesConfig.setPawnCanRetreat(allow); }
-    public void setNoRiverLimit(boolean allow) { rulesConfig.setNoRiverLimit(allow); }
-    public void setAdvisorCanLeave(boolean allow) { rulesConfig.setAdvisorCanLeave(allow); }
-    public void setInternationalKing(boolean allow) { rulesConfig.setInternationalKing(allow); }
-    public void setPawnPromotion(boolean allow) { rulesConfig.setPawnPromotion(allow); }
-    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.setAllowOwnBaseLine(allow); }
-    public void setAllowInsideRetreat(boolean allow) { rulesConfig.setAllowInsideRetreat(allow); }
-    public void setInternationalAdvisor(boolean allow) { rulesConfig.setInternationalAdvisor(allow); }
-    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.setAllowElephantCrossRiver(allow); }
-    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.setAllowAdvisorCrossRiver(allow); }
-    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.setAllowKingCrossRiver(allow); }
-    public void setLeftRightConnected(boolean allow) { rulesConfig.setLeftRightConnected(allow); }
-    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.setLeftRightConnectedHorse(allow); }
-    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.setLeftRightConnectedElephant(allow); }
+    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.allowFlyingGeneral = allow; }
+    public void setDisableFacingGenerals(boolean allow) { rulesConfig.disableFacingGenerals = allow; }
+    public void setPawnCanRetreat(boolean allow) { rulesConfig.pawnCanRetreat = allow; }
+    public void setNoRiverLimit(boolean allow) { rulesConfig.noRiverLimit = allow; }
+    public void setAdvisorCanLeave(boolean allow) { rulesConfig.advisorCanLeave = allow; }
+    public void setInternationalKing(boolean allow) { rulesConfig.internationalKing = allow; }
+    public void setPawnPromotion(boolean allow) { rulesConfig.pawnPromotion = allow; }
+    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.allowOwnBaseLine = allow; }
+    public void setAllowInsideRetreat(boolean allow) { rulesConfig.allowInsideRetreat = allow; }
+    public void setInternationalAdvisor(boolean allow) { rulesConfig.internationalAdvisor = allow; }
+    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.allowElephantCrossRiver = allow; }
+    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.allowAdvisorCrossRiver = allow; }
+    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.allowKingCrossRiver = allow; }
+    public void setLeftRightConnected(boolean allow) { rulesConfig.leftRightConnected = allow; }
+    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.leftRightConnectedHorse = allow; }
+    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.leftRightConnectedElephant = allow; }
 
-    public void setUnblockPiece(boolean allow) { rulesConfig.setUnblockPiece(allow); }
-    public void setUnblockHorseLeg(boolean allow) { rulesConfig.setUnblockHorseLeg(allow); }
-    public void setUnblockElephantEye(boolean allow) { rulesConfig.setUnblockElephantEye(allow); }
-    public boolean isUnblockPiece() { return rulesConfig.isUnblockPiece(); }
-    public boolean isUnblockHorseLeg() { return rulesConfig.isUnblockHorseLeg(); }
-    public boolean isUnblockElephantEye() { return rulesConfig.isUnblockElephantEye(); }
-
-    public boolean isPawnPromotion() { return rulesConfig.isPawnPromotion(); }
-    public boolean isAllowOwnBaseLine() { return rulesConfig.isAllowOwnBaseLine(); }
-    public boolean isAllowInsideRetreat() { return rulesConfig.isAllowInsideRetreat(); }
-    public boolean isInternationalAdvisor() { return rulesConfig.isInternationalAdvisor(); }
-
-    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.setAllowCaptureOwnPiece(allow); }
-    public boolean isAllowCaptureOwnPiece() { return rulesConfig.isAllowCaptureOwnPiece(); }
-
-    public void setAllowPieceStacking(boolean allow) { rulesConfig.setAllowPieceStacking(allow); }
-    public boolean isAllowPieceStacking() { return rulesConfig.isAllowPieceStacking(); }
-    public void setMaxStackingCount(int count) { rulesConfig.setMaxStackingCount(count); }
-    public int getMaxStackingCount() { return rulesConfig.getMaxStackingCount(); }
+    public void setUnblockPiece(boolean allow) { rulesConfig.unblockPiece = allow; }
+    public void setUnblockHorseLeg(boolean allow) { rulesConfig.unblockHorseLeg = allow; }
+    public void setUnblockElephantEye(boolean allow) { rulesConfig.unblockElephantEye = allow; }
+    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.allowCaptureOwnPiece = allow; }
+    public void setAllowPieceStacking(boolean allow) { rulesConfig.allowPieceStacking = allow; }
+    public void setMaxStackingCount(int count) { rulesConfig.maxStackingCount = Math.max(1, count); }
 
     // 动态访问帮助方法，统一使用通用Getter
     private boolean r(String key) { return rulesConfig != null && rulesConfig.getBoolean(key); }

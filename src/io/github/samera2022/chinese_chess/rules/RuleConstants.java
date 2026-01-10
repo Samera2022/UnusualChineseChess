@@ -29,7 +29,6 @@ public class RuleConstants {
     public static final String UNBLOCK_ELEPHANT_EYE = "unblockElephantEye";      // 象眼可以被跳过
 
     // 特殊规则
-    public static final String NO_RIVER_LIMIT_PAWN = "noRiverLimitPawn";         // 兵过河限制
     public static final String ALLOW_CAPTURE_OWN_PIECE = "allowCaptureOwnPiece"; // 允许吃自己的棋子
     public static final String ALLOW_PIECE_STACKING = "allowPieceStacking";      // 允许棋子堆叠
     public static final String MAX_STACKING_COUNT = "maxStackingCount";          // 最大堆叠数量
