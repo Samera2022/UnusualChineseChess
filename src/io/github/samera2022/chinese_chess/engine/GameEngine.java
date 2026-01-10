@@ -44,7 +44,8 @@ public class GameEngine {
     }
 
     public GameEngine() {
-        this.rulesConfig = new GameRulesConfig();
+        // Use globally provided shared config (migrated to RulesConfigProvider)
+        this.rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
         this.board = new Board();
         this.validator = new MoveValidator(board);
         this.validator.setRulesConfig(rulesConfig);
@@ -607,21 +608,20 @@ public class GameEngine {
      * 获取规则配置对象
      */
     public GameRulesConfig getRulesConfig() {
-        return rulesConfig;
+        // return provider-backed config to emphasize centralized ownership
+        return io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
     }
 
     /**
      * Graceful shutdown for engine-managed resources. Currently it will shutdown the rules change notifier.
      * This centralizes resource cleanup so callers (UI, JVM shutdown hooks) can call a single method.
      */
-    public void shutdown() {
-        try {
-            if (rulesConfig != null) {
-                rulesConfig.shutdownNotifier();
-            }
-        } catch (Throwable ignored) {}
-        // future: close other engine-managed resources here
-    }
+     public void shutdown() {
+         try {
+            // rulesConfig is managed by RulesConfigProvider; provider is responsible for shutdown
+         } catch (Throwable ignored) {}
+         // future: close other engine-managed resources here
+     }
 
     private Piece.Type convertPieceTypeToSide(Piece.Type type, boolean toRed) {
         switch (type) {
@@ -650,6 +650,10 @@ public class GameEngine {
         }
     }
 }
+
+
+
+
 
 
 

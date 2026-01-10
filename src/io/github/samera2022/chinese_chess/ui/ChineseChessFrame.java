@@ -59,14 +59,16 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     if (gameEngine != null) {
                         gameEngine.shutdown();
                     }
+                    // shutdown provider-managed resources
+                    io.github.samera2022.chinese_chess.rules.RulesConfigProvider.shutdown();
                 } catch (Exception ignored) {}
             }
         });
 
         // 初始化游戏引擎
         gameEngine = new GameEngine();
-        // cache rulesConfig reference for concise access in this frame
-        rulesConfig = gameEngine.getRulesConfig();
+        // cache rulesConfig reference for concise access in this frame (centralized provider)
+        rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
         gameEngine.addGameStateListener(this);
 
         // Also ensure engine-managed resources are stopped on JVM shutdown
@@ -75,6 +77,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 if (gameEngine != null) {
                     gameEngine.shutdown();
                 }
+                io.github.samera2022.chinese_chess.rules.RulesConfigProvider.shutdown();
             } catch (Throwable ignored) {}
         }));
 

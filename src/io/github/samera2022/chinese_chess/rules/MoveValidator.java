@@ -14,8 +14,8 @@ public class MoveValidator {
 
     public MoveValidator(Board board) {
         this.board = board;
-        // 默认创建一个配置，避免未注入时导致无法移动；GameEngine会用共享实例覆盖
-        this.rulesConfig = new GameRulesConfig();
+        // 默认使用全局 provider 的共享配置，避免未注入时产生孤立实例
+        this.rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
     }
 
     /**
