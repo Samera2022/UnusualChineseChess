@@ -48,7 +48,7 @@ public enum UpdateInfo {
                     " - 修复局域网持方的问题，现在局域网能够正常进行对局了！\n\n" +
                     "## [Warn]\n" +
                     " - “堆叠棋子”目前仍然存在一些bug，并未完成。"),
-    VERSION_1_2_0("1.2.0","2026-01-10",
+    VERSION_1_2_0_26m01c("1.2.0-26m01c","2026-01-10 15:11",
                     "## [Added]\n" +
                     " - 添加“取消对将”的玩法。\n" +
                     " - 添加“死战方休”的玩法。\n\n" +
@@ -99,6 +99,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_1_2_0.getFormattedLog());
+        System.out.println(VERSION_1_2_0_26m01c.getFormattedLog());
     }
 }
