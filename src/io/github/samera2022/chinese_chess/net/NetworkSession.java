@@ -20,6 +20,8 @@ public class NetworkSession {
         void onPong(long sentMillis, long rttMillis);
         // 新增：接收对端同步的设置
         void onSettingsReceived(JsonObject settings);
+        // 新增：对端请求撤销一步
+        void onPeerUndo();
     }
 
     private ServerSocket serverSocket;
@@ -150,6 +152,9 @@ public class NetworkSession {
             } else if (line.equals("RESTART")) {
                 System.out.println("[DEBUG] 处理 RESTART 指令");
                 if (listener != null) listener.onPeerRestart();
+            } else if (line.equals("UNDO")) {
+                System.out.println("[DEBUG] 处理 UNDO 指令");
+                if (listener != null) listener.onPeerUndo();
             } else if (line.equals("DISCONNECT")) {
                 System.out.println("[DEBUG] 处理 DISCONNECT 指令");
                 if (listener != null) listener.onDisconnected("对方断开");
@@ -198,7 +203,19 @@ public class NetworkSession {
             } else {
                 System.out.println("[DEBUG][Client] 发送 RESTART 指令");
             }
-            out.println("RESTART");
+        }
+        if (out != null) out.println("RESTART");
+    }
+
+    // 新增：发送 UNDO 指令
+    public void sendUndo() {
+        if (out != null) {
+            if (serverSocket != null) {
+                System.out.println("[DEBUG][Server] 发送 UNDO 指令");
+            } else {
+                System.out.println("[DEBUG][Client] 发送 UNDO 指令");
+            }
+            out.println("UNDO");
         }
     }
 

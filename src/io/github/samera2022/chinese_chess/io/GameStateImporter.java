@@ -238,8 +238,38 @@ public class GameStateImporter {
                 capturedPiece = new Piece(capturedType, toRow, toCol);
             }
 
+            Piece convertedPiece = null;
+            boolean captureConversion = moveObj.has("captureConversion") && moveObj.get("captureConversion").getAsBoolean();
+            if (captureConversion && moveObj.has("convertedPieceType")) {
+                String convertedTypeName = moveObj.get("convertedPieceType").getAsString();
+                Piece.Type convertedType = Piece.Type.valueOf(convertedTypeName);
+                convertedPiece = new Piece(convertedType, toRow, toCol);
+            }
+
             // 创建Move对象并添加到历史记录
             Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+            if (captureConversion) {
+                move.setCaptureConversion(true);
+                move.setConvertedPiece(convertedPiece);
+            }
+
+            // 导入堆栈选择信息
+            if (moveObj.has("selectedStackIndex")) {
+                int selectedStackIndex = moveObj.get("selectedStackIndex").getAsInt();
+                move.setSelectedStackIndex(selectedStackIndex);
+
+                if (moveObj.has("movedStack")) {
+                    JsonArray movedStackArray = moveObj.getAsJsonArray("movedStack");
+                    List<Piece> movedStack = new ArrayList<>();
+                    for (JsonElement stackElement : movedStackArray) {
+                        String stackPieceTypeName = stackElement.getAsString();
+                        Piece.Type stackPieceType = Piece.Type.valueOf(stackPieceTypeName);
+                        movedStack.add(new Piece(stackPieceType, toRow, toCol));
+                    }
+                    move.setMovedStack(movedStack);
+                }
+            }
+
             gameEngine.addMoveToHistory(move);
         }
     }

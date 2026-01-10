@@ -7,6 +7,7 @@ package io.github.samera2022.chinese_chess.rules;
 public class RuleConstants {
     // 基础玩法规则
     public static final String ALLOW_FLYING_GENERAL = "allowFlyingGeneral";      // 允许飞将
+    public static final String DISABLE_FACING_GENERALS = "disableFacingGenerals"; // 取消对将
     public static final String PAWN_CAN_RETREAT = "pawnCanRetreat";              // 兵卒可以后退
     public static final String NO_RIVER_LIMIT = "noRiverLimit";                  // 取消过河限制（所有棋子）
     public static final String ADVISOR_CAN_LEAVE = "advisorCanLeave";            // 仕可以离开宫
@@ -32,9 +33,10 @@ public class RuleConstants {
     public static final String ALLOW_CAPTURE_OWN_PIECE = "allowCaptureOwnPiece"; // 允许吃自己的棋子
     public static final String ALLOW_PIECE_STACKING = "allowPieceStacking";      // 允许棋子堆叠
     public static final String MAX_STACKING_COUNT = "maxStackingCount";          // 最大堆叠数量
+    public static final String ALLOW_CAPTURE_CONVERSION = "allowCaptureConversion"; // 允许俘虏（吃子改为转换归己方）
+    public static final String DEATH_MATCH_UNTIL_VICTORY = "deathMatchUntilVictory"; // 死战方休（必须吃掉全部棋子）
 
     // UI相关配置
     public static final String ALLOW_UNDO = "allowUndo";                         // 允许悔棋
     public static final String SHOW_HINTS = "showHints";                         // 显示提示
 }
-

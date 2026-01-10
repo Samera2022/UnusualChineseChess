@@ -18,6 +18,7 @@ public class BoardPanel extends JPanel {
     private int cellSize = GameConfig.CELL_SIZE;
     private int selectedRow = -1;
     private int selectedCol = -1;
+    private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引
     private java.util.List<Point> validMoves = new java.util.ArrayList<>();
 
     // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
@@ -68,6 +69,11 @@ public class BoardPanel extends JPanel {
         repaint();
     }
 
+    // 新增：对外暴露当前本地执方（用于联机下撤销按钮的启用判断）
+    public Boolean getLocalControlsRed() {
+        return localControlsRed;
+    }
+
     // 设置棋盘是否翻转（黑方在下）
     public void setBoardFlipped(boolean flipped) {
         this.boardFlipped = flipped;
@@ -76,6 +82,17 @@ public class BoardPanel extends JPanel {
 
     public boolean isBoardFlipped() {
         return boardFlipped;
+    }
+
+    /**
+     * 清除选择状态（游戏重新开始时调用）
+     */
+    public void clearSelection() {
+        selectedRow = -1;
+        selectedCol = -1;
+        selectedStackIndex = -1;
+        validMoves.clear();
+        repaint();
     }
 
     /**
@@ -120,6 +137,7 @@ public class BoardPanel extends JPanel {
         if (row == selectedRow && col == selectedCol) {
             selectedRow = -1;
             selectedCol = -1;
+            selectedStackIndex = -1;
             validMoves.clear();
             repaint();
             return;
@@ -130,9 +148,18 @@ public class BoardPanel extends JPanel {
             Piece piece = board.getPiece(row, col);
             if (piece != null && piece.isRed() == gameEngine.isRedTurn()
                     && (localControlsRed == null || piece.isRed() == localControlsRed)) {
-                selectedRow = row;
-                selectedCol = col;
-                calculateValidMoves();
+                // 检查是否有堆栈
+                java.util.List<Piece> stack = board.getStack(row, col);
+                if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1 && stack.size() > 1) {
+                    // 显示堆栈选择对话框
+                    showStackSelectionForSourceDialog(row, col);
+                } else {
+                    // 普通选择
+                    selectedRow = row;
+                    selectedCol = col;
+                    selectedStackIndex = -1;
+                    calculateValidMoves();
+                }
             }
             repaint();
             return;
@@ -146,9 +173,19 @@ public class BoardPanel extends JPanel {
                 || (localControlsRed != null && piece.isRed() != localControlsRed)) {
             selectedRow = -1;
             selectedCol = -1;
+            selectedStackIndex = -1;
             validMoves.clear();
         } else {
-            calculateValidMoves();
+            // 检查是否有堆栈
+            java.util.List<Piece> stack = board.getStack(row, col);
+            if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1 && stack.size() > 1) {
+                // 显示堆栈选择对话框
+                showStackSelectionForSourceDialog(row, col);
+            } else {
+                // 普通选择
+                selectedStackIndex = -1;
+                calculateValidMoves();
+            }
         }
         repaint();
     }
@@ -181,17 +218,22 @@ public class BoardPanel extends JPanel {
 
         // 检查目标位置是否是己方棋子（堆叠情况）
         Piece targetPiece = board.getPiece(toRow, toCol);
-        if (targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
-            targetPiece.isRed() == board.getPiece(fromR, fromC).isRed()) {
+        Piece sourcePiece = selectedStackIndex >= 0 ?
+            board.getStack(fromR, fromC).get(selectedStackIndex) :
+            board.getPiece(fromR, fromC);
+
+        if (sourcePiece != null && targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
+            targetPiece.isRed() == sourcePiece.isRed()) {
             // 目标是己方棋子，检查是否启用堆叠
             if (gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1) {
-                // 直接执行堆叠移动
-                if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null)) {
+                // 直接执行堆叠移动（保留堆栈）
+                if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null, selectedStackIndex)) {
                     if (localMoveListener != null) {
                         localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
                     }
                     selectedRow = -1;
                     selectedCol = -1;
+                    selectedStackIndex = -1;
                     validMoves.clear();
                 }
                 repaint();
@@ -200,7 +242,9 @@ public class BoardPanel extends JPanel {
         }
 
         // 不是堆叠情况，执行正常移动
-        Piece movingPiece = board.getPiece(fromR, fromC);
+        Piece movingPiece = selectedStackIndex >= 0 ?
+            board.getStack(fromR, fromC).get(selectedStackIndex) :
+            board.getPiece(fromR, fromC);
         Piece.Type promotionType = null;
 
         if (movingPiece != null && gameEngine.isSpecialRuleEnabled("pawnPromotion")) {
@@ -221,12 +265,13 @@ public class BoardPanel extends JPanel {
             }
         }
 
-        if (gameEngine.makeMove(fromR, fromC, toRow, toCol, promotionType)) {
+        if (gameEngine.makeMove(fromR, fromC, toRow, toCol, promotionType, selectedStackIndex)) {
             if (localMoveListener != null) {
                 localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
             }
             selectedRow = -1;
             selectedCol = -1;
+            selectedStackIndex = -1;
             validMoves.clear();
         }
 
@@ -283,7 +328,43 @@ public class BoardPanel extends JPanel {
     }
 
     /**
-     * 显示堆叠棋子选择对话框（己方点击堆叠）
+     * 显示源位置堆叠棋子选择对话框（己方左键点击堆叠位置）
+     * 用于选择要移动的具体棋子
+     */
+    private void showStackSelectionForSourceDialog(int row, int col) {
+        Board board = gameEngine.getBoard();
+        java.util.List<Piece> stack = board.getStack(row, col);
+
+        if (stack.isEmpty()) return;
+
+        String[] options = new String[stack.size()];
+        for (int i = 0; i < stack.size(); i++) {
+            Piece p = stack.get(i);
+            options[i] = p.getDisplayName() + " (" + (i + 1) + ")";
+        }
+
+        int choice = JOptionPane.showOptionDialog(
+            this,
+            "选择要移动的棋子（选择某个棋子后，该棋子及其上方的所有棋子都会一起移动）：",
+            "选择要移动的棋子",
+            JOptionPane.DEFAULT_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[stack.size() - 1]
+        );
+
+        if (choice >= 0 && choice < stack.size()) {
+            // 设置选中的棋子信息并计算可用移动
+            selectedRow = row;
+            selectedCol = col;
+            selectedStackIndex = choice;
+            calculateValidMoves();
+        }
+    }
+
+    /**
+     * 显示堆叠棋子选择对话框（己方点击堆叠目标位置）
      */
     private void showStackSelectionDialog(int toRow, int toCol) {
         Board board = gameEngine.getBoard();
@@ -310,13 +391,14 @@ public class BoardPanel extends JPanel {
 
         if (choice >= 0 && choice < stack.size()) {
             // 执行移动
-            if (gameEngine.makeMove(selectedRow, selectedCol, toRow, toCol, null)) {
+            if (gameEngine.makeMove(selectedRow, selectedCol, toRow, toCol, null, selectedStackIndex)) {
                 if (localMoveListener != null) {
                     localMoveListener.onLocalMove(selectedRow, selectedCol, toRow, toCol);
                 }
             }
             selectedRow = -1;
             selectedCol = -1;
+            selectedStackIndex = -1;
             validMoves.clear();
         }
     }
@@ -353,6 +435,7 @@ public class BoardPanel extends JPanel {
         MoveValidator validator = new MoveValidator(board);
         // 将特殊玩法开关同步到临时校验器，确保指示与实际规则一致
         validator.setAllowFlyingGeneral(gameEngine.isSpecialRuleEnabled("allowFlyingGeneral"));
+        validator.setDisableFacingGenerals(gameEngine.isSpecialRuleEnabled("disableFacingGenerals"));
         validator.setPawnCanRetreat(gameEngine.isSpecialRuleEnabled("pawnCanRetreat"));
         validator.setNoRiverLimit(gameEngine.isSpecialRuleEnabled("noRiverLimit"));
         validator.setAdvisorCanLeave(gameEngine.isSpecialRuleEnabled("advisorCanLeave"));
@@ -367,7 +450,6 @@ public class BoardPanel extends JPanel {
         validator.setLeftRightConnected(gameEngine.isSpecialRuleEnabled("leftRightConnected"));
         validator.setLeftRightConnectedHorse(gameEngine.isSpecialRuleEnabled("leftRightConnectedHorse"));
         validator.setLeftRightConnectedElephant(gameEngine.isSpecialRuleEnabled("leftRightConnectedElephant"));
-        validator.setNoRiverLimitPawn(gameEngine.isSpecialRuleEnabled("noRiverLimitPawn"));
 
         // 如果启用了堆叠，则需要启用自己吃自己来显示堆叠目标
         boolean stackingEnabled = gameEngine.isAllowPieceStacking() && gameEngine.getMaxStackingCount() > 1;

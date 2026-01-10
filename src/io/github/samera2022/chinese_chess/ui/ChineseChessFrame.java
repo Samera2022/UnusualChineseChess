@@ -80,10 +80,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public void setAllowUndo(boolean allowUndo) {
                 if (ruleSettingsLocked) return;
                 gameEngine.setAllowUndo(allowUndo);
-                undoButton.setEnabled(allowUndo && !netController.isActive());
+                // 联机时不直接禁用，由 updateStatus 按规则和回合判断
+                updateStatus();
             }
             @Override public boolean isAllowUndo() { return gameEngine.isAllowUndo(); }
             @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ALLOW_FLYING_GENERAL, allow); boardPanel.repaint(); } }
+            @Override public void setDisableFacingGenerals(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.DISABLE_FACING_GENERALS, allow); boardPanel.repaint(); } }
             @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.PAWN_CAN_RETREAT, allow); boardPanel.repaint(); } }
             @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.NO_RIVER_LIMIT, noLimit); boardPanel.repaint(); } }
             @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.ADVISOR_CAN_LEAVE, allow); boardPanel.repaint(); } }
@@ -98,8 +100,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED, allow); boardPanel.repaint(); } }
             @Override public void setLeftRightConnectedHorse(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow); boardPanel.repaint(); } }
             @Override public void setLeftRightConnectedElephant(boolean allow) { if (!ruleSettingsLocked) { gameEngine.getRulesConfig().set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow); boardPanel.repaint(); } }
-            @Override public void setNoRiverLimitPawn(boolean allow) { if (!ruleSettingsLocked) gameEngine.setNoRiverLimitPawn(allow); boardPanel.repaint(); }
             @Override public boolean isAllowFlyingGeneral() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ALLOW_FLYING_GENERAL); }
+            @Override public boolean isDisableFacingGenerals() { return gameEngine.isSpecialRuleEnabled(RuleConstants.DISABLE_FACING_GENERALS); }
             @Override public boolean isPawnCanRetreat() { return gameEngine.isSpecialRuleEnabled(RuleConstants.PAWN_CAN_RETREAT); }
             @Override public boolean isNoRiverLimit() { return gameEngine.isSpecialRuleEnabled(RuleConstants.NO_RIVER_LIMIT); }
             @Override public boolean isAdvisorCanLeave() { return gameEngine.isSpecialRuleEnabled(RuleConstants.ADVISOR_CAN_LEAVE); }
@@ -114,7 +116,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isLeftRightConnected() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED); }
             @Override public boolean isLeftRightConnectedHorse() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE); }
             @Override public boolean isLeftRightConnectedElephant() { return gameEngine.isSpecialRuleEnabled(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT); }
-            @Override public boolean isNoRiverLimitPawn() { return gameEngine.isNoRiverLimitPawn(); }
             @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockPiece(allow); boardPanel.repaint(); }
             @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockHorseLeg(allow); boardPanel.repaint(); }
             @Override public void setUnblockElephantEye(boolean allow) { if (!ruleSettingsLocked) gameEngine.setUnblockElephantEye(allow); boardPanel.repaint(); }
@@ -123,6 +124,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isUnblockElephantEye() { return gameEngine.isUnblockElephantEye(); }
             @Override public void setAllowCaptureOwnPiece(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureOwnPiece(allow); boardPanel.repaint(); }
             @Override public boolean isAllowCaptureOwnPiece() { return gameEngine.isAllowCaptureOwnPiece(); }
+            @Override public void setAllowCaptureConversion(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCaptureConversion(allow); boardPanel.repaint(); }
+            @Override public boolean isAllowCaptureConversion() { return gameEngine.isAllowCaptureConversion(); }
+            @Override public void setDeathMatchUntilVictory(boolean allow) { if (!ruleSettingsLocked) gameEngine.getRulesConfig().set(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, allow); boardPanel.repaint(); }
+            @Override public boolean isDeathMatchUntilVictory() { return gameEngine.isSpecialRuleEnabled(RuleConstants.DEATH_MATCH_UNTIL_VICTORY); }
             @Override public void setAllowPieceStacking(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowPieceStacking(allow); boardPanel.repaint(); }
             @Override public boolean isAllowPieceStacking() { return gameEngine.isAllowPieceStacking(); }
             @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) gameEngine.setMaxStackingCount(count); boardPanel.repaint(); }
@@ -166,8 +171,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
         // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
         netController.getSession().setListener(new NetworkSession.Listener() {
-            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> { gameEngine.makeMove(fromRow, fromCol, toRow, toCol); boardPanel.repaint(); }); }
-            @Override public void onPeerRestart() { SwingUtilities.invokeLater(() -> { gameEngine.restart(); boardPanel.repaint(); }); }
+            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> { gameEngine.makeMove(fromRow, fromCol, toRow, toCol); boardPanel.repaint(); updateStatus(); }); }
+            @Override public void onPeerRestart() { SwingUtilities.invokeLater(() -> { gameEngine.restart(); boardPanel.repaint(); updateStatus(); }); }
             @Override public void onDisconnected(String reason) {
                 SwingUtilities.invokeLater(() -> {
                     ruleSettingsLocked = false;
@@ -187,6 +192,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     ruleSettingsLocked = !netController.isHost();
                     setRuleSettingsEnabled(netController.isHost());
                     ruleSettingsPanel.refreshFromBinder();
+                    updateStatus();
                 });
             }
             @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> networkSidePanel.onPong(sentMillis, rttMillis)); }
@@ -197,8 +203,19 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     // 处理游戏规则设置同步
                     if (!netController.isHost() && settings != null) {
                         gameEngine.applySettingsSnapshot(settings);
-                        undoButton.setEnabled(gameEngine.isAllowUndo() && !netController.isActive());
+                        // 在线状态下撤销按钮权限交由 updateStatus 判断
                         ruleSettingsPanel.refreshFromBinder();
+                        updateStatus();
+                    }
+                });
+            }
+            @Override public void onPeerUndo() {
+                SwingUtilities.invokeLater(() -> {
+                    // 对端请求撤销，本地执行一次撤销并刷新UI
+                    if (gameEngine.undoLastMove()) {
+                        moveHistoryPanel.refreshHistory();
+                        boardPanel.repaint();
+                        updateStatus();
                     }
                 });
             }
@@ -228,7 +245,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         undoButton = new JButton("撤销");
         undoButton.setFont(new Font("SimHei", Font.PLAIN, 14));
         undoButton.addActionListener(e -> {
+            // 本地先尝试撤销（包含规则开关判断）
             if (gameEngine.undoLastMove()) {
+                // 若处于联机，对端也撤销一步以保持一致
+                if (netController.isActive()) {
+                    netController.getSession().sendUndo();
+                }
+                moveHistoryPanel.refreshHistory();
                 boardPanel.repaint();
                 updateStatus();
             }
@@ -240,6 +263,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         restartButton.setFont(new Font("SimHei", Font.PLAIN, 14));
         restartButton.addActionListener(e -> {
             gameEngine.restart();
+            boardPanel.clearSelection();
             // 若处于联机，对端也重开
             if (netController.isActive()) {
                 netController.getSession().sendRestart();
@@ -297,6 +321,18 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
         if (statusLabel != null) {
             statusLabel.setText(status);
+        }
+
+        // 统一控制撤销按钮的可用性：
+        // 离线：按设置开关启用/禁用；
+        // 联机：当轮到本地一方时启用（可撤销对方上一步），否则禁用。
+        boolean allowUndo = gameEngine.isAllowUndo();
+        if (!netController.isActive()) {
+            undoButton.setEnabled(allowUndo);
+        } else {
+            Boolean localControls = boardPanel.getLocalControlsRed();
+            boolean isLocalTurn = (localControls != null) && (gameEngine.isRedTurn() == localControls.booleanValue());
+            undoButton.setEnabled(allowUndo && isLocalTurn);
         }
     }
 

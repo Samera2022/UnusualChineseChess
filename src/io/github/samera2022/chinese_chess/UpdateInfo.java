@@ -47,6 +47,12 @@ public enum UpdateInfo {
                     " - 修复“左右连通”的逻辑，它现在应该能够兼容其他模式了。\n" +
                     " - 修复局域网持方的问题，现在局域网能够正常进行对局了！\n\n" +
                     "## [Warn]\n" +
+                    " - “堆叠棋子”目前仍然存在一些bug，并未完成。"),
+    VERSION_1_2_0("1.2.0","2026",
+                    "## [Fixed]\n" +
+                    " - 修正“帥”和“兵”在左右连通中的表现。\n" +
+                    " - 修复局域网对局中“撤销”按钮，现在其可以在联机中正常使用了。\n\n" +
+                    "## [Warn]\n" +
                     " - “堆叠棋子”目前仍然存在一些bug，并未完成。");
     private final String version;
     private final String releaseDate;

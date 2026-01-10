@@ -59,7 +59,7 @@ public class GameEngine {
      * 尝试执行一步棋
      */
     public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol) {
-        return makeMove(fromRow, fromCol, toRow, toCol, null);
+        return makeMove(fromRow, fromCol, toRow, toCol, null, -1);
     }
 
     /**
@@ -67,6 +67,15 @@ public class GameEngine {
      * @param promotionType 如果兵到达底线，晋升为此类型（null表示不晋升或不需要晋升）
      */
     public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType) {
+        return makeMove(fromRow, fromCol, toRow, toCol, promotionType, -1);
+    }
+
+    /**
+     * 尝试执行一步棋（支持从堆栈中选择）
+     * @param promotionType 如果兵到达底线，晋升为此类型（null表示不晋升或不需要晋升）
+     * @param selectedStackIndex 从堆栈中选择的棋子索引（-1表示不从堆栈选择，使用顶部棋子）
+     */
+    public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType, int selectedStackIndex) {
         if (gameState != GameState.RUNNING) {
             return false;
         }
@@ -80,7 +89,31 @@ public class GameEngine {
             currentReplayStep = -1;
         }
 
-        Piece piece = board.getPiece(fromRow, fromCol);
+        // 获取源位置的堆栈
+        List<Piece> fromStack = board.getStack(fromRow, fromCol);
+        if (fromStack.isEmpty()) {
+            return false;
+        }
+
+        // 确定要移动的棋子
+        Piece piece;
+        List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
+
+        if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
+            // 从堆栈中选择特定的棋子
+            piece = fromStack.get(selectedStackIndex);
+            // 该棋子上方的所有棋子都会跟随移动
+            for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
+                movedStack.add(fromStack.get(i));
+            }
+        } else if (selectedStackIndex == -1) {
+            // 使用顶部棋子（默认行为）
+            piece = board.getPiece(fromRow, fromCol);
+        } else {
+            // 无效的索引
+            return false;
+        }
+
         if (piece == null) {
             return false;
         }
@@ -97,6 +130,7 @@ public class GameEngine {
 
         // 执行移动
         Piece capturedPiece = board.getPiece(toRow, toCol);
+        boolean convertedCapture = false;
 
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
@@ -109,33 +143,69 @@ public class GameEngine {
             }
         }
 
-        if (capturedPiece != null && !isStackingMove) {
+        // 允许俘虏：吃子改为转换归己方，原棋子保持不动
+        Piece convertedPiece = null;
+        if (capturedPiece != null && !isStackingMove && rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
+            Piece.Type targetType = capturedPiece.getType();
+            convertedPiece = new Piece(convertPieceTypeToSide(targetType, piece.isRed()), toRow, toCol);
+            convertedCapture = true;
+            board.setPiece(toRow, toCol, convertedPiece);
+        } else if (capturedPiece != null && !isStackingMove) {
             board.removePiece(toRow, toCol);
         }
 
-        piece.move(toRow, toCol);
-        if (isStackingMove) {
-            board.pushToStack(toRow, toCol, piece);
-        } else {
-            board.setPiece(toRow, toCol, piece);
-        }
-        board.setPiece(fromRow, fromCol, null);
+        boolean movedPiece = !convertedCapture;
+        if (movedPiece) {
+            // 如果从堆栈中选择了棋子，需要先移除源位置的该棋子及其上方的棋子
+            if (selectedStackIndex >= 0) {
+                // 从源位置的堆栈中移除选定的棋子及其上方的所有棋子
+                List<Piece> toMove = new ArrayList<>();
+                for (int i = selectedStackIndex; i < fromStack.size(); i++) {
+                    toMove.add(fromStack.get(i));
+                }
+                for (Piece p : toMove) {
+                    board.popTop(fromRow, fromCol);
+                }
+            } else {
+                // 默认移除顶部棋子
+                board.removePiece(fromRow, fromCol);
+            }
 
-        // 检查兵卒晋升
-        if (rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
+            piece.move(toRow, toCol);
+            if (isStackingMove) {
+                board.pushToStack(toRow, toCol, piece);
+            } else {
+                board.setPiece(toRow, toCol, piece);
+            }
+
+            // 将随之移动的棋子堆栈也移动到目标位置
+            for (Piece p : movedStack) {
+                p.move(toRow, toCol);
+                board.pushToStack(toRow, toCol, p);
+            }
+        }
+
+        // 检查兵卒晋升（仅在棋子实际移动时处理）
+        if (movedPiece && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
             (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) {
-                // 执行晋升
                 board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
             }
         }
 
-        // 记录着法
         Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+        if (convertedCapture) {
+            move.setCaptureConversion(true);
+            move.setConvertedPiece(convertedPiece);
+        }
         if (isStackingMove) {
             move.setStacking(true);
             move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
+        }
+        if (selectedStackIndex >= 0) {
+            move.setSelectedStackIndex(selectedStackIndex);
+            move.setMovedStack(new ArrayList<>(movedStack));
         }
         moveHistory.add(move);
 
@@ -226,8 +296,35 @@ public class GameEngine {
 
         Move lastMove = moveHistory.remove(moveHistory.size() - 1);
 
+        // 处理从堆栈中选择的棋子的撤销
+        if (lastMove.getSelectedStackIndex() >= 0) {
+            // 从目标位置移除该棋子及其跟随的棋子
+            Piece piece = lastMove.getPiece();
+            List<Piece> movedStack = lastMove.getMovedStack();
+
+            // 先移除跟随的棋子（逆序）
+            if (movedStack != null) {
+                for (int i = movedStack.size() - 1; i >= 0; i--) {
+                    board.popTop(lastMove.getToRow(), lastMove.getToCol());
+                }
+            }
+            // 移除主棋子
+            board.popTop(lastMove.getToRow(), lastMove.getToCol());
+
+            // 将主棋子移回原位置
+            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
+            board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), piece);
+
+            // 将跟随的棋子也移回原位置
+            if (movedStack != null) {
+                for (Piece p : movedStack) {
+                    p.move(lastMove.getFromRow(), lastMove.getFromCol());
+                    board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), p);
+                }
+            }
+        }
         // 处理堆叠撤销
-        if (lastMove.isStacking()) {
+        else if (lastMove.isStacking()) {
             // 从目标位置弹出该棋子
             board.popTop(lastMove.getToRow(), lastMove.getToCol());
             // 将棋子放回原位置
@@ -235,16 +332,22 @@ public class GameEngine {
             piece.move(lastMove.getFromRow(), lastMove.getFromCol());
             board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
         } else {
-            // 普通撤销逻辑
-            Piece piece = lastMove.getPiece();
-            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
-            board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
-            board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
+            if (lastMove.isCaptureConversion()) {
+                // 移除转换后的棋子，恢复被俘棋子，原棋子保持不动
+                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
+                if (lastMove.getCapturedPiece() != null) {
+                    board.setPiece(lastMove.getToRow(), lastMove.getToCol(), lastMove.getCapturedPiece());
+                }
+            } else {
+                Piece piece = lastMove.getPiece();
+                piece.move(lastMove.getFromRow(), lastMove.getFromCol());
+                board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
+                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
 
-            // 恢复被吃的棋子（如果有）
-            if (lastMove.getCapturedPiece() != null) {
-                Piece captured = lastMove.getCapturedPiece();
-                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), captured);
+                if (lastMove.getCapturedPiece() != null) {
+                    Piece captured = lastMove.getCapturedPiece();
+                    board.setPiece(lastMove.getToRow(), lastMove.getToCol(), captured);
+                }
             }
         }
 
@@ -329,22 +432,23 @@ public class GameEngine {
         for (int i = 0; i < step && i < moves.size(); i++) {
             Move move = moves.get(i);
 
-            // 获取棋子
             Piece piece = board.getPiece(move.getFromRow(), move.getFromCol());
             if (piece == null) continue;
 
-            // 移除目标位置的棋子（如果有）
             Piece targetPiece = board.getPiece(move.getToRow(), move.getToCol());
             if (targetPiece != null) {
                 board.removePiece(move.getToRow(), move.getToCol());
             }
 
-            // 移动棋子
-            piece.move(move.getToRow(), move.getToCol());
-            board.setPiece(move.getToRow(), move.getToCol(), piece);
-            board.setPiece(move.getFromRow(), move.getFromCol(), null);
+            if (move.isCaptureConversion() && move.getConvertedPiece() != null) {
+                // 原棋子不动，只在目标格放置转换后的己方棋子
+                board.setPiece(move.getToRow(), move.getToCol(), new Piece(move.getConvertedPiece().getType(), move.getToRow(), move.getToCol()));
+            } else {
+                piece.move(move.getToRow(), move.getToCol());
+                board.setPiece(move.getToRow(), move.getToCol(), piece);
+                board.setPiece(move.getFromRow(), move.getFromCol(), null);
+            }
 
-            // 切换回合
             isRedTurn = !isRedTurn;
         }
 
@@ -413,8 +517,6 @@ public class GameEngine {
     public boolean isUnblockHorseLeg() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_HORSE_LEG); }
     public boolean isUnblockElephantEye() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_ELEPHANT_EYE); }
 
-    public void setNoRiverLimitPawn(boolean allow) { rulesConfig.set(RuleConstants.NO_RIVER_LIMIT_PAWN, allow); }
-    public boolean isNoRiverLimitPawn() { return rulesConfig.getBoolean(RuleConstants.NO_RIVER_LIMIT_PAWN); }
 
     public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow); }
     public boolean isAllowCaptureOwnPiece() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_OWN_PIECE); }
@@ -423,6 +525,9 @@ public class GameEngine {
     public boolean isAllowPieceStacking() { return rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING); }
     public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, count); }
     public int getMaxStackingCount() { return rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT); }
+
+    public void setAllowCaptureConversion(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_CONVERSION, allow); }
+    public boolean isAllowCaptureConversion() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION); }
 
     /**
      * 获取设置快照（供联机同步）
@@ -446,5 +551,25 @@ public class GameEngine {
      */
     public GameRulesConfig getRulesConfig() {
         return rulesConfig;
+    }
+
+    private Piece.Type convertPieceTypeToSide(Piece.Type type, boolean toRed) {
+        switch (type) {
+            case RED_KING: return toRed ? Piece.Type.RED_KING : Piece.Type.BLACK_KING;
+            case RED_ADVISOR: return toRed ? Piece.Type.RED_ADVISOR : Piece.Type.BLACK_ADVISOR;
+            case RED_ELEPHANT: return toRed ? Piece.Type.RED_ELEPHANT : Piece.Type.BLACK_ELEPHANT;
+            case RED_HORSE: return toRed ? Piece.Type.RED_HORSE : Piece.Type.BLACK_HORSE;
+            case RED_CHARIOT: return toRed ? Piece.Type.RED_CHARIOT : Piece.Type.BLACK_CHARIOT;
+            case RED_CANNON: return toRed ? Piece.Type.RED_CANNON : Piece.Type.BLACK_CANNON;
+            case RED_SOLDIER: return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
+            case BLACK_KING: return toRed ? Piece.Type.RED_KING : Piece.Type.BLACK_KING;
+            case BLACK_ADVISOR: return toRed ? Piece.Type.RED_ADVISOR : Piece.Type.BLACK_ADVISOR;
+            case BLACK_ELEPHANT: return toRed ? Piece.Type.RED_ELEPHANT : Piece.Type.BLACK_ELEPHANT;
+            case BLACK_HORSE: return toRed ? Piece.Type.RED_HORSE : Piece.Type.BLACK_HORSE;
+            case BLACK_CHARIOT: return toRed ? Piece.Type.RED_CHARIOT : Piece.Type.BLACK_CHARIOT;
+            case BLACK_CANNON: return toRed ? Piece.Type.RED_CANNON : Piece.Type.BLACK_CANNON;
+            case BLACK_SOLDIER: return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
+            default: return type;
+        }
     }
 }

@@ -102,6 +102,23 @@ public class GameStateExporter {
             if (move.getCapturedPiece() != null) {
                 moveObj.addProperty("capturedPieceType", move.getCapturedPiece().getType().name());
             }
+            if (move.isCaptureConversion() && move.getConvertedPiece() != null) {
+                moveObj.addProperty("convertedPieceType", move.getConvertedPiece().getType().name());
+                moveObj.addProperty("captureConversion", true);
+            }
+
+            // 导出堆栈选择信息
+            if (move.getSelectedStackIndex() >= 0) {
+                moveObj.addProperty("selectedStackIndex", move.getSelectedStackIndex());
+                List<Piece> movedStack = move.getMovedStack();
+                if (movedStack != null && !movedStack.isEmpty()) {
+                    JsonArray movedStackArray = new JsonArray();
+                    for (Piece p : movedStack) {
+                        movedStackArray.add(p.getType().name());
+                    }
+                    moveObj.add("movedStack", movedStackArray);
+                }
+            }
 
             moves.add(moveObj);
         }

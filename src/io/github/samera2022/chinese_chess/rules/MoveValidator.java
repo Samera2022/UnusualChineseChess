@@ -30,6 +30,7 @@ public class MoveValidator {
     // ========== Setter方法（直接修改rulesConfig） ==========
 
     public void setAllowFlyingGeneral(boolean allow) { rulesConfig.setAllowFlyingGeneral(allow); }
+    public void setDisableFacingGenerals(boolean allow) { rulesConfig.setDisableFacingGenerals(allow); }
     public void setPawnCanRetreat(boolean allow) { rulesConfig.setPawnCanRetreat(allow); }
     public void setNoRiverLimit(boolean allow) { rulesConfig.setNoRiverLimit(allow); }
     public void setAdvisorCanLeave(boolean allow) { rulesConfig.setAdvisorCanLeave(allow); }
@@ -56,8 +57,6 @@ public class MoveValidator {
     public boolean isAllowOwnBaseLine() { return rulesConfig.isAllowOwnBaseLine(); }
     public boolean isAllowInsideRetreat() { return rulesConfig.isAllowInsideRetreat(); }
     public boolean isInternationalAdvisor() { return rulesConfig.isInternationalAdvisor(); }
-    public void setNoRiverLimitPawn(boolean allow) { rulesConfig.setNoRiverLimitPawn(allow); }
-    public boolean isNoRiverLimitPawn() { return rulesConfig.isNoRiverLimitPawn(); }
 
     public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.setAllowCaptureOwnPiece(allow); }
     public boolean isAllowCaptureOwnPiece() { return rulesConfig.isAllowCaptureOwnPiece(); }
@@ -253,6 +252,73 @@ public class MoveValidator {
     }
 
     /**
+     * 检查垂直方向两点间是否无棋子阻挡（不含端点）
+     */
+    private boolean isClearVerticalPath(int fromRow, int toRow, int col) {
+        int step = fromRow < toRow ? 1 : -1;
+        for (int r = fromRow + step; r != toRow; r += step) {
+            if (board.getPiece(r, col) != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 检查水平方向两点间是否无棋子阻挡（不含端点）
+     * 支持左右连通模式
+     * 返回boolean[2]：
+     * index 0: 直接路径是否清晰
+     * index 1: 环绕路径是否清晰（仅在左右连通模式有效）
+     */
+    private boolean[] isClearHorizontalPath(int row, int fromCol, int toCol) {
+        boolean directPathClear = true;
+        boolean wrapPathClear = true;
+
+        // 检查直接路径
+        int step = fromCol < toCol ? 1 : -1;
+        for (int c = fromCol + step; c != toCol; c += step) {
+            if (board.getPiece(row, c) != null) {
+                directPathClear = false;
+                break;
+            }
+        }
+
+        // 如果启用左右连通，检查环绕路径
+        if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+            wrapPathClear = true;
+            // 环绕路径是绕过棋盘另一端的路径
+            // 计算环绕路径上的棋子数
+            int totalPiecesInRow = 0;
+            for (int c = 0; c < 9; c++) {
+                if (board.getPiece(row, c) != null) {
+                    totalPiecesInRow++;
+                }
+            }
+
+            // 统计直接路径的棋子数
+            int directPathPieces = 0;
+            int minCol = Math.min(fromCol, toCol);
+            int maxCol = Math.max(fromCol, toCol);
+            for (int c = minCol + 1; c < maxCol; c++) {
+                if (board.getPiece(row, c) != null) {
+                    directPathPieces++;
+                }
+            }
+
+            // 环绕路径的棋子数 = 总数 - 两个端点 - 直接路径上的棋子数
+            int occupiedEndPoints = 0;
+            if (board.getPiece(row, fromCol) != null) occupiedEndPoints++;
+            if (board.getPiece(row, toCol) != null) occupiedEndPoints++;
+
+            int wrapPathPieces = totalPiecesInRow - occupiedEndPoints - directPathPieces;
+            wrapPathClear = (wrapPathPieces == 0);
+        }
+
+        return new boolean[]{directPathClear, wrapPathClear};
+    }
+
+    /**
      * 车（车）：可以向前、后、左、右走，不受步数限制
      * 改进：支持左右联通逻辑
      */
@@ -395,6 +461,29 @@ public class MoveValidator {
      * 王（帥）：在宫内活动
      */
     private boolean isValidKingMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
+        Piece target = board.getPiece(toRow, toCol);
+        if (target != null && target.isRed() != piece.isRed()) {
+            boolean targetIsKing = target.getType() == Piece.Type.RED_KING || target.getType() == Piece.Type.BLACK_KING;
+            // 取消对将规则：启用时不允许王见王（飞将）
+            if (r(RuleConstants.DISABLE_FACING_GENERALS) && targetIsKing) {
+                return false; // 禁止王见王
+            }
+            // 王不见王：同列或同行无阻挡，允许直接吃对方王（飞将吃王 / 将吃帥）
+            if (targetIsKing && fromCol == toCol && isClearVerticalPath(fromRow, toRow, fromCol)) {
+                return true; // 同列无阻挡
+            }
+            if (targetIsKing && fromRow == toRow) {
+                boolean[] pathResults = isClearHorizontalPath(fromRow, fromCol, toCol);
+                boolean directPathClear = pathResults[0];
+                boolean wrapPathClear = pathResults[1];
+                // 同行：直接路径清晰或（左右连通模式下）环绕路径清晰
+                if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+                    return directPathClear || wrapPathClear;
+                } else {
+                    return directPathClear;
+                }
+            }
+        }
         if (!r(RuleConstants.NO_RIVER_LIMIT) && !r(RuleConstants.ALLOW_FLYING_GENERAL) && !r(RuleConstants.ALLOW_KING_CROSS_RIVER)) {
             int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
@@ -402,7 +491,8 @@ public class MoveValidator {
             if (toRow < minRow || toRow > maxRow || toCol < minCol || toCol > maxCol) return false;
         }
         int rowDiff = Math.abs(toRow - fromRow);
-        int colDiff = Math.abs(toCol - fromCol);
+        int rawColDiff = Math.abs(toCol - fromCol);
+        int colDiff = r(RuleConstants.LEFT_RIGHT_CONNECTED) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
         if (r(RuleConstants.INTERNATIONAL_KING)) {
             return rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0;
         } else {
@@ -491,9 +581,11 @@ public class MoveValidator {
     /**
      * 兵（兵）
      */
+    //左右连通
     private boolean isValidSoldierMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
         int rowDiff = toRow - fromRow;
-        int colDiff = Math.abs(toCol - fromCol);
+        int rawColDiff = Math.abs(toCol - fromCol);
+        int colDiff = r(RuleConstants.LEFT_RIGHT_CONNECTED) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
         boolean isRed = piece.isRed();
         boolean hasCrossedRiver;
         if (isRed) {

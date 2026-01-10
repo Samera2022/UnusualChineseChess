@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 public class GameRulesConfig {
     // 基础玩法规则
     private boolean allowFlyingGeneral = false;      // 允许飞将
+    private boolean disableFacingGenerals = false;   // 取消对将（允许王见王）
     private boolean pawnCanRetreat = false;          // 兵卒可以后退
     private boolean noRiverLimit = false;            // 取消过河限制（所有棋子）
     private boolean advisorCanLeave = false;         // 仕可以离开宫
@@ -30,10 +31,11 @@ public class GameRulesConfig {
     private boolean unblockElephantEye = false;      // 象眼可以被跳过
 
     // 特殊规则
-    private boolean noRiverLimitPawn = false;        // 兵过河限制
     private boolean allowCaptureOwnPiece = false;    // 允许吃自己的棋子
     private boolean allowPieceStacking = false;      // 允许棋子堆叠
     private int maxStackingCount = 2;                // 最大堆叠数量
+    private boolean allowCaptureConversion = false;  // 允许俘虏：吃子改为转换归己方
+    private boolean deathMatchUntilVictory = false;  // 死战方休：必须吃掉全部棋子
 
     // UI相关配置
     private boolean allowUndo = true;                // 允许悔棋
@@ -45,6 +47,7 @@ public class GameRulesConfig {
     public GameRulesConfig copy() {
         GameRulesConfig config = new GameRulesConfig();
         config.allowFlyingGeneral = this.allowFlyingGeneral;
+        config.disableFacingGenerals = this.disableFacingGenerals;
         config.pawnCanRetreat = this.pawnCanRetreat;
         config.noRiverLimit = this.noRiverLimit;
         config.advisorCanLeave = this.advisorCanLeave;
@@ -62,10 +65,11 @@ public class GameRulesConfig {
         config.unblockPiece = this.unblockPiece;
         config.unblockHorseLeg = this.unblockHorseLeg;
         config.unblockElephantEye = this.unblockElephantEye;
-        config.noRiverLimitPawn = this.noRiverLimitPawn;
         config.allowCaptureOwnPiece = this.allowCaptureOwnPiece;
         config.allowPieceStacking = this.allowPieceStacking;
         config.maxStackingCount = this.maxStackingCount;
+        config.allowCaptureConversion = this.allowCaptureConversion;
+        config.deathMatchUntilVictory = this.deathMatchUntilVictory;
         config.allowUndo = this.allowUndo;
         config.showHints = this.showHints;
         return config;
@@ -77,6 +81,7 @@ public class GameRulesConfig {
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty(RuleConstants.ALLOW_FLYING_GENERAL, allowFlyingGeneral);
+        json.addProperty(RuleConstants.DISABLE_FACING_GENERALS, disableFacingGenerals);
         json.addProperty(RuleConstants.PAWN_CAN_RETREAT, pawnCanRetreat);
         json.addProperty(RuleConstants.NO_RIVER_LIMIT, noRiverLimit);
         json.addProperty(RuleConstants.ADVISOR_CAN_LEAVE, advisorCanLeave);
@@ -94,10 +99,11 @@ public class GameRulesConfig {
         json.addProperty(RuleConstants.UNBLOCK_PIECE, unblockPiece);
         json.addProperty(RuleConstants.UNBLOCK_HORSE_LEG, unblockHorseLeg);
         json.addProperty(RuleConstants.UNBLOCK_ELEPHANT_EYE, unblockElephantEye);
-        json.addProperty(RuleConstants.NO_RIVER_LIMIT_PAWN, noRiverLimitPawn);
         json.addProperty(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allowCaptureOwnPiece);
         json.addProperty(RuleConstants.ALLOW_PIECE_STACKING, allowPieceStacking);
         json.addProperty(RuleConstants.MAX_STACKING_COUNT, maxStackingCount);
+        json.addProperty(RuleConstants.ALLOW_CAPTURE_CONVERSION, allowCaptureConversion);
+        json.addProperty(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, deathMatchUntilVictory);
         json.addProperty(RuleConstants.ALLOW_UNDO, allowUndo);
         json.addProperty(RuleConstants.SHOW_HINTS, showHints);
         return json;
@@ -108,6 +114,7 @@ public class GameRulesConfig {
      */
     public void loadFromJson(JsonObject json) {
         if (json.has(RuleConstants.ALLOW_FLYING_GENERAL)) allowFlyingGeneral = json.get(RuleConstants.ALLOW_FLYING_GENERAL).getAsBoolean();
+        if (json.has(RuleConstants.DISABLE_FACING_GENERALS)) disableFacingGenerals = json.get(RuleConstants.DISABLE_FACING_GENERALS).getAsBoolean();
         if (json.has(RuleConstants.PAWN_CAN_RETREAT)) pawnCanRetreat = json.get(RuleConstants.PAWN_CAN_RETREAT).getAsBoolean();
         if (json.has(RuleConstants.NO_RIVER_LIMIT)) noRiverLimit = json.get(RuleConstants.NO_RIVER_LIMIT).getAsBoolean();
         if (json.has(RuleConstants.ADVISOR_CAN_LEAVE)) advisorCanLeave = json.get(RuleConstants.ADVISOR_CAN_LEAVE).getAsBoolean();
@@ -125,16 +132,18 @@ public class GameRulesConfig {
         if (json.has(RuleConstants.UNBLOCK_PIECE)) unblockPiece = json.get(RuleConstants.UNBLOCK_PIECE).getAsBoolean();
         if (json.has(RuleConstants.UNBLOCK_HORSE_LEG)) unblockHorseLeg = json.get(RuleConstants.UNBLOCK_HORSE_LEG).getAsBoolean();
         if (json.has(RuleConstants.UNBLOCK_ELEPHANT_EYE)) unblockElephantEye = json.get(RuleConstants.UNBLOCK_ELEPHANT_EYE).getAsBoolean();
-        if (json.has(RuleConstants.NO_RIVER_LIMIT_PAWN)) noRiverLimitPawn = json.get(RuleConstants.NO_RIVER_LIMIT_PAWN).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_CAPTURE_OWN_PIECE)) allowCaptureOwnPiece = json.get(RuleConstants.ALLOW_CAPTURE_OWN_PIECE).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_PIECE_STACKING)) allowPieceStacking = json.get(RuleConstants.ALLOW_PIECE_STACKING).getAsBoolean();
         if (json.has(RuleConstants.MAX_STACKING_COUNT)) maxStackingCount = json.get(RuleConstants.MAX_STACKING_COUNT).getAsInt();
+        if (json.has(RuleConstants.ALLOW_CAPTURE_CONVERSION)) allowCaptureConversion = json.get(RuleConstants.ALLOW_CAPTURE_CONVERSION).getAsBoolean();
+        if (json.has(RuleConstants.DEATH_MATCH_UNTIL_VICTORY)) deathMatchUntilVictory = json.get(RuleConstants.DEATH_MATCH_UNTIL_VICTORY).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_UNDO)) allowUndo = json.get(RuleConstants.ALLOW_UNDO).getAsBoolean();
         if (json.has(RuleConstants.SHOW_HINTS)) showHints = json.get(RuleConstants.SHOW_HINTS).getAsBoolean();
     }
 
     // ========== Getters ==========
     public boolean isAllowFlyingGeneral() { return allowFlyingGeneral; }
+    public boolean isDisableFacingGenerals() { return disableFacingGenerals; }
     public boolean isPawnCanRetreat() { return pawnCanRetreat; }
     public boolean isNoRiverLimit() { return noRiverLimit; }
     public boolean isAdvisorCanLeave() { return advisorCanLeave; }
@@ -152,15 +161,17 @@ public class GameRulesConfig {
     public boolean isUnblockPiece() { return unblockPiece; }
     public boolean isUnblockHorseLeg() { return unblockHorseLeg; }
     public boolean isUnblockElephantEye() { return unblockElephantEye; }
-    public boolean isNoRiverLimitPawn() { return noRiverLimitPawn; }
     public boolean isAllowCaptureOwnPiece() { return allowCaptureOwnPiece; }
     public boolean isAllowPieceStacking() { return allowPieceStacking; }
     public int getMaxStackingCount() { return maxStackingCount; }
+    public boolean isDeathMatchUntilVictory() { return deathMatchUntilVictory; }
     public boolean isAllowUndo() { return allowUndo; }
     public boolean isShowHints() { return showHints; }
+    public boolean isAllowCaptureConversion() { return allowCaptureConversion; }
 
     // ========== Setters ==========
     public void setAllowFlyingGeneral(boolean value) { this.allowFlyingGeneral = value; }
+    public void setDisableFacingGenerals(boolean value) { this.disableFacingGenerals = value; }
     public void setPawnCanRetreat(boolean value) { this.pawnCanRetreat = value; }
     public void setNoRiverLimit(boolean value) { this.noRiverLimit = value; }
     public void setAdvisorCanLeave(boolean value) { this.advisorCanLeave = value; }
@@ -178,12 +189,13 @@ public class GameRulesConfig {
     public void setUnblockPiece(boolean value) { this.unblockPiece = value; }
     public void setUnblockHorseLeg(boolean value) { this.unblockHorseLeg = value; }
     public void setUnblockElephantEye(boolean value) { this.unblockElephantEye = value; }
-    public void setNoRiverLimitPawn(boolean value) { this.noRiverLimitPawn = value; }
     public void setAllowCaptureOwnPiece(boolean value) { this.allowCaptureOwnPiece = value; }
     public void setAllowPieceStacking(boolean value) { this.allowPieceStacking = value; }
     public void setMaxStackingCount(int value) { this.maxStackingCount = Math.max(1, value); }
+    public void setDeathMatchUntilVictory(boolean value) { this.deathMatchUntilVictory = value; }
     public void setAllowUndo(boolean value) { this.allowUndo = value; }
     public void setShowHints(boolean value) { this.showHints = value; }
+    public void setAllowCaptureConversion(boolean value) { this.allowCaptureConversion = value; }
 
     // ========== 通用动态访问方法 ==========
 
@@ -195,6 +207,7 @@ public class GameRulesConfig {
     public Object get(String ruleName) {
         switch (ruleName) {
             case RuleConstants.ALLOW_FLYING_GENERAL: return allowFlyingGeneral;
+            case RuleConstants.DISABLE_FACING_GENERALS: return disableFacingGenerals;
             case RuleConstants.PAWN_CAN_RETREAT: return pawnCanRetreat;
             case RuleConstants.NO_RIVER_LIMIT: return noRiverLimit;
             case RuleConstants.ADVISOR_CAN_LEAVE: return advisorCanLeave;
@@ -212,10 +225,11 @@ public class GameRulesConfig {
             case RuleConstants.UNBLOCK_PIECE: return unblockPiece;
             case RuleConstants.UNBLOCK_HORSE_LEG: return unblockHorseLeg;
             case RuleConstants.UNBLOCK_ELEPHANT_EYE: return unblockElephantEye;
-            case RuleConstants.NO_RIVER_LIMIT_PAWN: return noRiverLimitPawn;
             case RuleConstants.ALLOW_CAPTURE_OWN_PIECE: return allowCaptureOwnPiece;
             case RuleConstants.ALLOW_PIECE_STACKING: return allowPieceStacking;
             case RuleConstants.MAX_STACKING_COUNT: return maxStackingCount;
+            case RuleConstants.ALLOW_CAPTURE_CONVERSION: return allowCaptureConversion;
+            case RuleConstants.DEATH_MATCH_UNTIL_VICTORY: return deathMatchUntilVictory;
             case RuleConstants.ALLOW_UNDO: return allowUndo;
             case RuleConstants.SHOW_HINTS: return showHints;
             default: return null;
@@ -232,6 +246,7 @@ public class GameRulesConfig {
             boolean boolValue = (Boolean) value;
             switch (ruleName) {
                 case RuleConstants.ALLOW_FLYING_GENERAL: allowFlyingGeneral = boolValue; break;
+                case RuleConstants.DISABLE_FACING_GENERALS: disableFacingGenerals = boolValue; break;
                 case RuleConstants.PAWN_CAN_RETREAT: pawnCanRetreat = boolValue; break;
                 case RuleConstants.NO_RIVER_LIMIT: noRiverLimit = boolValue; break;
                 case RuleConstants.ADVISOR_CAN_LEAVE: advisorCanLeave = boolValue; break;
@@ -249,11 +264,12 @@ public class GameRulesConfig {
                 case RuleConstants.UNBLOCK_PIECE: unblockPiece = boolValue; break;
                 case RuleConstants.UNBLOCK_HORSE_LEG: unblockHorseLeg = boolValue; break;
                 case RuleConstants.UNBLOCK_ELEPHANT_EYE: unblockElephantEye = boolValue; break;
-                case RuleConstants.NO_RIVER_LIMIT_PAWN: noRiverLimitPawn = boolValue; break;
                 case RuleConstants.ALLOW_CAPTURE_OWN_PIECE: allowCaptureOwnPiece = boolValue; break;
                 case RuleConstants.ALLOW_PIECE_STACKING: allowPieceStacking = boolValue; break;
                 case RuleConstants.ALLOW_UNDO: allowUndo = boolValue; break;
                 case RuleConstants.SHOW_HINTS: showHints = boolValue; break;
+                case RuleConstants.ALLOW_CAPTURE_CONVERSION: allowCaptureConversion = boolValue; break;
+                case RuleConstants.DEATH_MATCH_UNTIL_VICTORY: deathMatchUntilVictory = boolValue; break;
             }
         } else if (value instanceof Integer) {
             int intValue = (Integer) value;
