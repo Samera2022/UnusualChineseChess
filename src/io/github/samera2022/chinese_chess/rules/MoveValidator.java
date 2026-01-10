@@ -3,6 +3,7 @@ package io.github.samera2022.chinese_chess.rules;
 import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
+import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 
 /**
  * 移动规则检查器 - 验证棋子的合法移动
@@ -15,7 +16,7 @@ public class MoveValidator {
     public MoveValidator(Board board) {
         this.board = board;
         // 默认使用全局 provider 的共享配置，避免未注入时产生孤立实例
-        this.rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
+        this.rulesConfig = RulesConfigProvider.get();
     }
 
     /**
@@ -75,8 +76,8 @@ public class MoveValidator {
      */
     public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex) {
         if (rulesConfig == null) {
-            // 未注入规则配置，使用默认规则配置继续判定（防御性分支）
-            rulesConfig = new GameRulesConfig();
+            // 未注入规则配置，使用全局 provider 的实例继续判定（避免孤立本地实例）
+            rulesConfig = RulesConfigProvider.get();
         }
 
         // 检查坐标有效性

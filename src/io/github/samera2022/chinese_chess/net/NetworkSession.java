@@ -2,10 +2,15 @@ package io.github.samera2022.chinese_chess.net;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.github.samera2022.chinese_chess.UpdateInfo;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * 简易局域网会话：支持主机/客户端，传输指令（MOVE/RESTART/DISCONNECT/PING/PONG）。
@@ -20,8 +25,16 @@ public class NetworkSession {
         void onPong(long sentMillis, long rttMillis);
         // 新增：接收对端同步的设置
         void onSettingsReceived(JsonObject settings);
+        // 新增：收到对端版本信息
+        void onPeerVersion(String version);
+        // 新增：收到对端强制走子请求（包含 seq 与 historyLen）
+        void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen);
+        // 新增：收到对端对强制走子的确认（包含 seq）
+        void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq);
         // 新增：对端请求撤销一步
         void onPeerUndo();
+        // 新增：收到对端对强制走子的拒绝（包含 seq 与原因）
+        void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason);
     }
 
     private ServerSocket serverSocket;
@@ -29,6 +42,9 @@ public class NetworkSession {
     private Thread ioThread;
     private PrintWriter out;
     private BufferedReader in;
+    // per-connection ephemeral tokens used to compute a simple HMAC key
+    private String localToken;
+    private String peerToken;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Listener listener;
 
@@ -99,6 +115,21 @@ public class NetworkSession {
         out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
         in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         System.out.println("[DEBUG] Streams 已初始化");
+        // Send our version and a HELLO token as part of handshake
+        try {
+            // version (legacy)
+            if (out != null) {
+                out.println("VERSION " + UpdateInfo.getLatestVersion());
+                System.out.println("[DEBUG] Sent local VERSION " + UpdateInfo.getLatestVersion());
+            }
+            // generate and send HELLO token
+            localToken = UUID.randomUUID().toString();
+            JsonObject hello = new JsonObject();
+            hello.addProperty("cmd", "HELLO");
+            hello.addProperty("token", localToken);
+            hello.addProperty("version", UpdateInfo.getLatestVersion());
+            if (out != null) { out.println(hello); System.out.println("[DEBUG] Sent HELLO token"); }
+        } catch (Throwable ignored) {}
     }
 
     private void readLoop() {
@@ -179,9 +210,127 @@ public class NetworkSession {
                 String json = line.substring("SETTINGS ".length());
                 JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
                 if (listener != null) listener.onSettingsReceived(obj);
+            } else if (line.startsWith("VERSION ")) {
+                System.out.println("[DEBUG] 处理 VERSION 指令");
+                String ver = line.substring("VERSION ".length()).trim();
+                if (listener != null) listener.onPeerVersion(ver);
+            } else if (line.trim().startsWith("{")) {
+                // Try JSON frame parsing (preferred for new control messages)
+                try {
+                    JsonObject jo = JsonParser.parseString(line).getAsJsonObject();
+                    String cmd = jo.has("cmd") ? jo.get("cmd").getAsString() : null;
+                    // HELLO
+                    if ("HELLO".equals(cmd) && jo.has("token")) {
+                        peerToken = jo.get("token").getAsString();
+                        System.out.println("[DEBUG] Received HELLO token from peer");
+                        // don't require signature for HELLO
+                        if (listener != null && jo.has("version")) listener.onPeerVersion(jo.get("version").getAsString());
+                        // stop handling this line
+                        return;
+                    }
+
+                    // verify signature when present (and when both tokens are available)
+                    String sig = jo.has("sig") ? jo.get("sig").getAsString() : null;
+                    JsonObject payload = jo.deepCopy();
+                    if (sig != null) { payload.remove("sig"); }
+                    if (sig != null && localToken != null && peerToken != null) {
+                        String computed = computeHmac(payload.toString());
+                        if (computed == null || !computed.equals(sig)) {
+                            System.out.println("[DEBUG] Signature mismatch, ignoring frame");
+                            // ignore this frame
+                            return;
+                        }
+                    }
+
+                    if ("FORCE_MOVE_REQUEST".equals(cmd)) {
+                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
+                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
+                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
+                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
+                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
+                        int history = jo.has("historyLen") ? jo.get("historyLen").getAsInt() : -1;
+                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
+                    } else if ("FORCE_MOVE_CONFIRM".equals(cmd)) {
+                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
+                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
+                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
+                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
+                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
+                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
+                    } else if ("FORCE_MOVE_REJECT".equals(cmd)) {
+                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
+                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
+                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
+                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
+                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
+                        String reason = jo.has("reason") ? jo.get("reason").getAsString() : "rejected";
+                        if (listener != null) listener.onForceMoveReject(fr, fc, tr, tc, seq, reason);
+                    }
+                } catch (Throwable t) {
+                    // fall back to plain parsing
+                }
+            } else if (line.startsWith("FORCE_MOVE_REQUEST ")) {
+                // legacy plain-text support: FORCE_MOVE_REQUEST fr fc tr tc seq(optional)
+                System.out.println("[DEBUG] 处理 legacy FORCE_MOVE_REQUEST 指令");
+                String[] parts = line.split(" ");
+                if (parts.length >= 5) {
+                    try {
+                        int fr = Integer.parseInt(parts[1]);
+                        int fc = Integer.parseInt(parts[2]);
+                        int tr = Integer.parseInt(parts[3]);
+                        int tc = Integer.parseInt(parts[4]);
+                        long seq = parts.length >= 6 ? Long.parseLong(parts[5]) : 0L;
+                        int history = parts.length >= 7 ? Integer.parseInt(parts[6]) : -1;
+                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
+                    } catch (NumberFormatException ignored) {}
+                }
+            } else if (line.startsWith("FORCE_MOVE_CONFIRM ")) {
+                // legacy confirm
+                System.out.println("[DEBUG] 处理 legacy FORCE_MOVE_CONFIRM 指令");
+                String[] parts = line.split(" ");
+                if (parts.length >= 6) {
+                    try {
+                        int fr = Integer.parseInt(parts[1]);
+                        int fc = Integer.parseInt(parts[2]);
+                        int tr = Integer.parseInt(parts[3]);
+                        int tc = Integer.parseInt(parts[4]);
+                        long seq = Long.parseLong(parts[5]);
+                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
+                    } catch (NumberFormatException ignored) {}
+                }
+              }
+         } catch (Exception ex) {
+             System.out.println("[DEBUG] 处理指令异常: " + ex);
+         }
+     }
+
+    // compute HMAC-SHA256 over payload string using key = localToken + peerToken
+    private String computeHmac(String payload) {
+        try {
+            if (localToken == null || peerToken == null) return null;
+            String key = localToken + peerToken;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] sig = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(sig);
+        } catch (Throwable t) { return null; }
+    }
+
+    // helper: send a JSON envelope and attach signature when possible
+    private void sendJsonEnvelope(JsonObject payload) {
+        if (out == null) return;
+        try {
+            // compute signature if both tokens available
+            JsonObject copy = payload.deepCopy();
+            String sig = null;
+            if (localToken != null && peerToken != null) {
+                sig = computeHmac(copy.toString());
             }
-        } catch (Exception ex) {
-            System.out.println("[DEBUG] 处理指令异常: " + ex);
+            if (sig != null) copy.addProperty("sig", sig);
+            out.println(copy);
+        } catch (Throwable t) {
+            // fallback to raw
+            out.println(payload);
         }
     }
 
@@ -226,7 +375,7 @@ public class NetworkSession {
             } else {
                 System.out.println("[DEBUG][Client] 发送 SETTINGS 指令");
             }
-            out.println("SETTINGS " + settings.toString());
+            out.println("SETTINGS " + settings);
         }
     }
 
@@ -280,5 +429,72 @@ public class NetworkSession {
             ioThread = null;
         }
         closeInternal();
+    }
+
+    /**
+     * Request the peer to allow forcing a move: used when client cannot validate a move
+     * produced by server's newer features. Only send from client to server.
+     */
+    public void sendForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen) {
+        if (out == null) return;
+        try {
+            JsonObject jo = new JsonObject();
+            jo.addProperty("cmd", "FORCE_MOVE_REQUEST");
+            com.google.gson.JsonArray fromArr = new com.google.gson.JsonArray(); fromArr.add(fromRow); fromArr.add(fromCol);
+            com.google.gson.JsonArray toArr = new com.google.gson.JsonArray(); toArr.add(toRow); toArr.add(toCol);
+            jo.add("from", fromArr);
+            jo.add("to", toArr);
+            jo.addProperty("seq", seq);
+            jo.addProperty("historyLen", historyLen);
+            sendJsonEnvelope(jo);
+            System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_REQUEST: " + jo);
+        } catch (Throwable t) {
+            // fallback to legacy
+            System.out.println("[DEBUG] sendForceMoveRequest fallback legacy");
+            out.println("FORCE_MOVE_REQUEST " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + historyLen);
+        }
+    }
+
+    /**
+     * Send confirm frame so the requester will force-apply the move.
+     */
+    public void sendForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq) {
+        if (out == null) return;
+        try {
+            JsonObject jo = new JsonObject();
+            jo.addProperty("cmd", "FORCE_MOVE_CONFIRM");
+            com.google.gson.JsonArray fromA = new com.google.gson.JsonArray(); fromA.add(fromRow); fromA.add(fromCol);
+            com.google.gson.JsonArray toA = new com.google.gson.JsonArray(); toA.add(toRow); toA.add(toCol);
+            jo.add("from", fromA);
+            jo.add("to", toA);
+            jo.addProperty("seq", seq);
+            sendJsonEnvelope(jo);
+            System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_CONFIRM: " + jo);
+        } catch (Throwable t) {
+            System.out.println("[DEBUG] sendForceMoveConfirm fallback legacy");
+            out.println("FORCE_MOVE_CONFIRM " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq);
+        }
+    }
+
+    /**
+     * Send a rejection for a previously requested force-move.
+     */
+    public void sendForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason) {
+        if (out == null) return;
+        try {
+            JsonObject jo = new JsonObject();
+            jo.addProperty("cmd", "FORCE_MOVE_REJECT");
+            com.google.gson.JsonArray farr = new com.google.gson.JsonArray(); farr.add(fromRow); farr.add(fromCol);
+            com.google.gson.JsonArray tarr = new com.google.gson.JsonArray(); tarr.add(toRow); tarr.add(toCol);
+            jo.add("from", farr);
+            jo.add("to", tarr);
+            jo.addProperty("seq", seq);
+            if (reason != null) jo.addProperty("reason", reason);
+            sendJsonEnvelope(jo);
+            System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_REJECT: " + jo);
+        } catch (Throwable t) {
+            System.out.println("[DEBUG] sendForceMoveReject fallback legacy");
+            out.println("FORCE_MOVE_REJECT " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + (reason == null ? "" : reason));
+        }
     }
 }

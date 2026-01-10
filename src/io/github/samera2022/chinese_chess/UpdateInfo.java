@@ -60,8 +60,10 @@ public enum UpdateInfo {
                     " - 修复“允许背负上方棋子”选项，现在未勾选时选择下方棋子移动不会带走上方棋子。\n" +
                     " - 修复残局导入导出功能，现在可以正确保存和恢复堆叠棋子的状态。\n" +
                     " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n\n"),
-    VERSION_1_3_0("1.2.0","2026-01-10 16:58",
-            "## [Added]\n" +
+    VERSION_1_2_0("1.2.0","2026-01-10 19:25",
+                    "## [Added]\n" +
+                    " - 添加“取消对将”的玩法。\n" +
+                    " - 添加“死战方休”的玩法。\n" +
                     " - 统一并强化玩法配置管理：全面使用 GameRulesConfig 作为规则单一数据源，减少了模块间耦合。\n" +
                     " - 运行时差分同步：主机修改玩法设置时仅发送发生改动的字段（diff），并在客户端合并应用。\n" +
                     " - 在 UI 端对设置变更做 200ms 去抖合并，减少网络抖动。\n" +
@@ -69,12 +71,18 @@ public enum UpdateInfo {
                     "## [Changed]\n" +
                     " - 移除了大量对 GameEngine 的冗余包装 getter，调用方改为直接访问 GameRulesConfig 的 getBoolean/getInt/toJson 接口。\n" +
                     " - RuleSettingsPanel 的绑定逻辑改为直接读写 GameRulesConfig，并在本地 UI 变更时标记变更来源为 UI。\n" +
-                    " - GameEngine.shutdown() 集成了规则通知器的关闭（集中化资源清理）。\n\n" +
+                    " - GameEngine.shutdown() 集成了规则通知器的关闭（集中化资源清理）。\n" +
+                    " - 精简版本与更新信息的调用：将对 UpdateInfo 的全限定调用替换为直接导入后使用，简化了网络握手与 UI 显示逻辑的代码可读性。\n\n" +
                     "## [Fixed]\n" +
+                    " - 补充“对将”这一“将”的移动方式。\n" +
+                    " - 修正“帥”和“兵”在左右连通中的表现。\n" +
+                    " - 修复局域网对局中“撤销”按钮，现在其可以在联机中正常使用了。\n" +
+                    " - 修复堆叠棋子的移动验证逻辑，现在选择不同堆栈层的棋子会正确使用对应棋子的移动规则。\n" +
+                    " - 修复“允许背负上方棋子”选项，现在未勾选时选择下方棋子移动不会带走上方棋子。\n" +
+                    " - 修复残局导入导出功能，现在可以正确保存和恢复堆叠棋子的状态。\n" +
+                    " - 修复点击对方堆叠棋子时的交互，现在会显示堆叠信息对话框。\n" +
                     " - 修复/缓解了规则通知过程中异常被吞掉或阻塞的问题（现在会记录关键错误并对超时 listener 进行取消）。\n" +
-                    " - 修复联机设置同步与撤销相关的问题，主机端现在会发送设置快照/差分并避免回环。\n\n" +
-                    "## [Warn]\n" +
-                    " - 当前在 UI 中缓存 GameRulesConfig 的引用是基于现有实现（GameEngine 不会在运行期替换该对象）；若将来支持替换整个规则对象，需要额外的引用同步逻辑。");
+                    " - 修复联机设置同步与撤销相关的问题，主机端现在会发送设置快照/差分并避免回环。");
     private final String version;
     private final String releaseDate;
     private final String description;
@@ -111,6 +119,52 @@ public enum UpdateInfo {
 
     public static String[] getAllDisplayNames() {
         return Stream.of(values()).map(UpdateInfo::getDisplayName).toArray(String[]::new);
+    }
+
+    // 当前最新版本（枚举中最后一个条目）
+    public static String getLatestVersion() {
+        UpdateInfo[] all = values();
+        if (all.length == 0) return "0.0.0";
+        return all[all.length - 1].getVersion();
+    }
+
+    /**
+     * Compare two semantic-like version strings with optional pre-release suffix (dash).
+     * Returns positive if a > b, negative if a < b, 0 if equal.
+     * Pre-release is considered lower than the release (so "1.2.0" > "1.2.0-rc1").
+     */
+    public static int compareVersions(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        try {
+            String[] pa = a.split("-", 2);
+            String[] pb = b.split("-", 2);
+            String coreA = pa[0];
+            String coreB = pb[0];
+            String preA = pa.length > 1 ? pa[1] : null;
+            String preB = pb.length > 1 ? pb[1] : null;
+
+            String[] ca = coreA.split("\\.");
+            String[] cb = coreB.split("\\.");
+            for (int i = 0; i < Math.max(ca.length, cb.length); i++) {
+                int va = i < ca.length ? Integer.parseInt(ca[i]) : 0;
+                int vb = i < cb.length ? Integer.parseInt(cb[i]) : 0;
+                if (va != vb) return Integer.compare(va, vb);
+            }
+            // cores equal; handle pre-release: absence of pre-release means greater (release > prerelease)
+            if (preA == null && preB == null) return 0;
+            if (preA == null) return 1;
+            if (preB == null) return -1;
+            return preA.compareTo(preB);
+        } catch (Exception ex) {
+            // fallback to string compare
+            return a.compareTo(b);
+        }
+    }
+
+    public static boolean isNewer(String a, String b) {
+        return compareVersions(a, b) > 0;
     }
 
     public static void main(String[] args) {

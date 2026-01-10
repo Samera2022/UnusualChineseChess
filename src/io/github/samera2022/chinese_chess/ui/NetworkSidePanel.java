@@ -1,6 +1,7 @@
 package io.github.samera2022.chinese_chess.ui;
 
 import com.google.gson.JsonObject;
+import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
@@ -40,6 +41,9 @@ public class NetworkSidePanel extends JPanel {
     // Tooltip JWindow
     private JWindow tooltipWindow;
     private JLabel tooltipLabel;
+    // local and peer versions for display
+    private String localVersion = null;
+    private String peerVersion = null;
 
     // 新增：外部回调，用于切换左侧的设置组件，并查询当前可见性
     private final Runnable onToggleSettings;
@@ -222,14 +226,41 @@ public class NetworkSidePanel extends JPanel {
             detail = "连接未建立";
         }
 
+        String versionLine = "";
+        String compatLine = "";
+        if (localVersion != null || peerVersion != null) {
+            versionLine = "<b>本机版本:</b> " + (localVersion == null ? "未知" : localVersion) + "<br>" +
+                    "<b>对端版本:</b> " + (peerVersion == null ? "未知" : peerVersion) + "<br>";
+            // compatibility indicator
+            if (localVersion != null && peerVersion != null) {
+                try {
+                    if (UpdateInfo.isNewer(peerVersion, localVersion)) {
+                        compatLine = "<b>兼容性:</b> 对端版本较新，可能不兼容。<br>";
+                    } else if (UpdateInfo.isNewer(localVersion, peerVersion)) {
+                        compatLine = "<b>兼容性:</b> 本机版本较新。<br>";
+                    } else {
+                        compatLine = "<b>兼容性:</b> 版本相同。<br>";
+                    }
+                } catch (Throwable ignored) { }
+            }
+        }
         String html = "<html>" +
                 "<b>状态:</b> " + title + "<br>" +
                 "<b>角色:</b> " + role + "<br>" +
                 "<b>地址:</b> " + addr + "<br>" +
                 "<b>质量:</b> " + detail +
-                "</html>";
+                versionLine + compatLine +
+                 "</html>";
         tooltipLabel.setText(html);
         tooltipWindow.getContentPane().setBackground(new Color(255, 255, 225));
+    }
+
+    public void setLocalVersion(String v) {
+        this.localVersion = v;
+    }
+
+    public void setPeerVersion(String v) {
+        this.peerVersion = v;
     }
 
     private void refreshStatus() {

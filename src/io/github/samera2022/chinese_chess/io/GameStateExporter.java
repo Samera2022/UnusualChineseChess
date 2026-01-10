@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import static io.github.samera2022.chinese_chess.rules.RuleConstants.*;
+
 /**
  * 游戏状态导出器 - 将当前游戏状态导出为JSON文件
  */
@@ -141,8 +143,8 @@ public class GameStateExporter {
         JsonObject settings = new JsonObject();
 
         // 基本设置
-        settings.addProperty("allowUndo", gameEngine.getRulesConfig().getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.ALLOW_UNDO));
-        settings.addProperty("showHints", gameEngine.getRulesConfig().getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.SHOW_HINTS));
+        settings.addProperty("allowUndo", gameEngine.getRulesConfig().getBoolean(ALLOW_UNDO));
+        settings.addProperty("showHints", gameEngine.getRulesConfig().getBoolean(SHOW_HINTS));
 
         // 特殊规则
         JsonObject specialRules = gameEngine.getRulesConfig().toJson();

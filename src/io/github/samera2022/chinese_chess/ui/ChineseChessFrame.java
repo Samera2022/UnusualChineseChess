@@ -1,6 +1,7 @@
 package io.github.samera2022.chinese_chess.ui;
 
 import com.google.gson.JsonObject;
+import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.io.GameStateExporter;
 import io.github.samera2022.chinese_chess.io.GameStateImporter;
@@ -9,6 +10,8 @@ import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
+import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
+import io.github.samera2022.chinese_chess.rules.MoveValidator;
 
 import javax.swing.*;
 import java.awt.event.WindowAdapter;
@@ -22,8 +25,22 @@ import java.util.Objects;
  * 主窗口 - 中国象棋游戏的GUI
  */
 public class ChineseChessFrame extends JFrame implements GameEngine.GameStateListener {
+    // sequence generator for force-move requests
+    private final java.util.concurrent.atomic.AtomicLong forceSeqGenerator = new java.util.concurrent.atomic.AtomicLong(1);
+    // pending force requests (seq -> RequestInfo)
+    private final java.util.Map<Long, RequestInfo> pendingForceRequests = new java.util.HashMap<>();
+
+    private static class RequestInfo {
+        final int fr, fc, tr, tc;
+        final long seq;
+        final int historyLen;
+        int retries = 0;
+        javax.swing.Timer timer;
+        RequestInfo(int fr, int fc, int tr, int tc, long seq, int historyLen) { this.fr=fr;this.fc=fc;this.tr=tr;this.tc=tc;this.seq=seq;this.historyLen=historyLen; }
+    }
+
     private GameEngine gameEngine;
-    private final GameRulesConfig rulesConfig;
+    private GameRulesConfig rulesConfig;
     private BoardPanel boardPanel;
     private MoveHistoryPanel moveHistoryPanel;
     private JPanel rightPanel;
@@ -45,6 +62,42 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     private final Object pendingDiffsLock = new Object();
     private JsonObject pendingDiffs = new JsonObject();
 
+    // named listeners so they can be migrated when provider replaces the instance
+    private final GameRulesConfig.RuleChangeListener rulesChangeListener = (key, oldVal, newVal, source) -> {
+        // don't forward network-originated changes back to peer
+        if (key == null || source == GameRulesConfig.ChangeSource.NETWORK) return;
+        synchronized (pendingDiffsLock) {
+            if (newVal == null) {
+                pendingDiffs.add(key, com.google.gson.JsonNull.INSTANCE);
+            } else if (newVal instanceof Boolean) {
+                pendingDiffs.addProperty(key, (Boolean) newVal);
+            } else if (newVal instanceof Number) {
+                Number n = (Number) newVal;
+                if (n instanceof Integer || n.intValue() == n.doubleValue()) pendingDiffs.addProperty(key, n.intValue());
+                else pendingDiffs.addProperty(key, n.doubleValue());
+            } else if (newVal instanceof String) {
+                pendingDiffs.addProperty(key, (String) newVal);
+            } else {
+                pendingDiffs.addProperty(key, newVal.toString());
+            }
+        }
+        // schedule debounced send on EDT
+        SwingUtilities.invokeLater(this::sendSettingsSnapshotToClient);
+    };
+    private final RulesConfigProvider.InstanceChangeListener providerInstanceListener = (oldInst, newInst) -> {
+        // migrate rule change listener from old instance to new instance and update cached ref
+        try {
+            if (oldInst != null) {
+                try { oldInst.removeRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+            }
+            if (newInst != null) {
+                try { newInst.addRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+            }
+            // update cached ref
+            rulesConfig = newInst;
+        } catch (Throwable ignored) {}
+    };
+
     public ChineseChessFrame() {
         setTitle("不同寻常的中国象棋 - Unusual Chinese Chess");
         setIconImage(new ImageIcon(Objects.requireNonNull(getClass().getResource("/UnusualChineseChess.png"))).getImage());
@@ -59,8 +112,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     if (gameEngine != null) {
                         gameEngine.shutdown();
                     }
-                    // shutdown provider-managed resources
-                    io.github.samera2022.chinese_chess.rules.RulesConfigProvider.shutdown();
+                    try { if (rulesConfig != null) rulesConfig.removeRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+                    try { if (boardPanel != null) boardPanel.unbind(); } catch (Throwable ignored) {}
+                    RulesConfigProvider.removeInstanceChangeListener(providerInstanceListener);
+                    RulesConfigProvider.shutdown();
                 } catch (Exception ignored) {}
             }
         });
@@ -68,7 +123,11 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 初始化游戏引擎
         gameEngine = new GameEngine();
         // cache rulesConfig reference for concise access in this frame (centralized provider)
-        rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
+        rulesConfig = RulesConfigProvider.get();
+        // register provider-level migration listener so UI keeps observing the active config
+        RulesConfigProvider.addInstanceChangeListener(providerInstanceListener);
+        // register the change listener to collect diffs
+        if (rulesConfig != null) rulesConfig.addRuleChangeListener(rulesChangeListener);
         gameEngine.addGameStateListener(this);
 
         // Also ensure engine-managed resources are stopped on JVM shutdown
@@ -77,32 +136,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 if (gameEngine != null) {
                     gameEngine.shutdown();
                 }
-                io.github.samera2022.chinese_chess.rules.RulesConfigProvider.shutdown();
+                try { if (rulesConfig != null) rulesConfig.removeRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+                try { if (boardPanel != null) boardPanel.unbind(); } catch (Throwable ignored) {}
+                RulesConfigProvider.removeInstanceChangeListener(providerInstanceListener);
+                RulesConfigProvider.shutdown();
             } catch (Throwable ignored) {}
         }));
 
-        // register rule change listener to collect diffs for network sync
-        rulesConfig.addRuleChangeListener((key, oldVal, newVal, source) -> {
-            // don't forward network-originated changes back to peer
-            if (key == null || source == GameRulesConfig.ChangeSource.NETWORK) return;
-            synchronized (pendingDiffsLock) {
-                if (newVal == null) {
-                    pendingDiffs.add(key, com.google.gson.JsonNull.INSTANCE);
-                } else if (newVal instanceof Boolean) {
-                    pendingDiffs.addProperty(key, (Boolean) newVal);
-                } else if (newVal instanceof Number) {
-                    Number n = (Number) newVal;
-                    if (n instanceof Integer || n.intValue() == n.doubleValue()) pendingDiffs.addProperty(key, n.intValue());
-                    else pendingDiffs.addProperty(key, n.doubleValue());
-                } else if (newVal instanceof String) {
-                    pendingDiffs.addProperty(key, (String) newVal);
-                } else {
-                    pendingDiffs.addProperty(key, newVal.toString());
-                }
-            }
-            // schedule debounced send on EDT
-            SwingUtilities.invokeLater(this::sendSettingsSnapshotToClient);
-        });
 
         // 创建主面板
         JPanel mainPanel = new JPanel(new BorderLayout());
@@ -229,9 +269,24 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         pack();
         setLocationRelativeTo(null);
 
+        // 设置 networkSidePanel 的本地版本显示
+        networkSidePanel.setLocalVersion(UpdateInfo.getLatestVersion());
         // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
         netController.getSession().setListener(new NetworkSession.Listener() {
-            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> { gameEngine.makeMove(fromRow, fromCol, toRow, toCol); boardPanel.repaint(); updateStatus(); }); }
+            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> {
+                        boolean applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol);
+                        if (!applied) {
+                            // couldn't apply move locally (likely due to feature mismatch)
+                            // send a force request to peer (whoever is authoritative)
+                            try {
+                                long seq = forceSeqGenerator.getAndIncrement();
+                                int historyLen = gameEngine.getMoveHistory().size();
+                                pendingForceRequests.put(seq, new RequestInfo(fromRow, fromCol, toRow, toCol, seq, historyLen));
+                                sendForceRequestWithRetry(seq);
+                            } catch (Throwable ignored) {}
+                        }
+                        boardPanel.repaint(); updateStatus();
+                    }); }
             @Override public void onPeerRestart() { SwingUtilities.invokeLater(() -> { gameEngine.restart(); boardPanel.repaint(); updateStatus(); }); }
             @Override public void onDisconnected(String reason) {
                 SwingUtilities.invokeLater(() -> {
@@ -256,19 +311,74 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 });
             }
             @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> networkSidePanel.onPong(sentMillis, rttMillis)); }
-            @Override public void onSettingsReceived(JsonObject settings) {
+            @Override public void onPeerVersion(String version) { SwingUtilities.invokeLater(() -> networkSidePanel.setPeerVersion(version)); }
+            @Override public void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen) { SwingUtilities.invokeLater(() -> {
+                        // Validate history length first to avoid replay/old requests
+                        int localHistory = gameEngine.getMoveHistory().size();
+                        if (historyLen >= 0 && historyLen != localHistory) {
+                            // Reject: history mismatch
+                            try { netController.getSession().sendForceMoveReject(fromRow, fromCol, toRow, toCol, seq, "history_mismatch"); } catch (Throwable ignored) {}
+                            return;
+                        }
+                        // Received a force request from peer. Validate locally using a transient MoveValidator
+                        MoveValidator tmpValidator = new MoveValidator(gameEngine.getBoard());
+                        tmpValidator.setRulesConfig(gameEngine.getRulesConfig());
+                        boolean localValid = tmpValidator.isValidMove(fromRow, fromCol, toRow, toCol);
+                        if (localValid) {
+                            // confirm immediately
+                            try { netController.getSession().sendForceMoveConfirm(fromRow, fromCol, toRow, toCol, seq); } catch (Throwable ignored) {}
+                        } else {
+                            // not valid locally: ask user for confirmation before confirming
+                            int ans = JOptionPane.showConfirmDialog(ChineseChessFrame.this,
+                                    String.format("对方请求强制执行走子 %d,%d -> %d,%d，您是否确认？", fromRow, fromCol, toRow, toCol),
+                                    "强制走子确认", JOptionPane.YES_NO_OPTION);
+                            if (ans == JOptionPane.YES_OPTION) {
+                                try { netController.getSession().sendForceMoveConfirm(fromRow, fromCol, toRow, toCol, seq); } catch (Throwable ignored) {}
+                            } else {
+                                try { netController.getSession().sendForceMoveReject(fromRow, fromCol, toRow, toCol, seq, "user_rejected"); } catch (Throwable ignored) {}
+                            }
+                        }
+                    }); }
+            @Override public void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq) { SwingUtilities.invokeLater(() -> {
+                         // Peer confirmed our force request. Find pending and apply.
+                         RequestInfo info = pendingForceRequests.remove(seq);
+                         if (info != null) {
+                             if (info.timer != null) { info.timer.stop(); }
+                         }
+                         try {
+                             // Try to invoke forceApplyMove via reflection (may not exist in older builds). Fallback to makeMove.
+                             boolean applied = false;
+                             try {
+                                 java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class);
+                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol);
+                                 if (res instanceof Boolean) applied = (Boolean) res;
+                             } catch (NoSuchMethodException nsme) {
+                                 // fallback: try without bypass (may fail if invalid)
+                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol);
+                             }
+                             if (applied) { boardPanel.repaint(); updateStatus(); }
+                         } catch (Throwable t) { logError(t); }
+                     }); }
+            @Override public void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason) { SwingUtilities.invokeLater(() -> {
+                        // Peer rejected our force request: stop retry and notify user
+                        RequestInfo info = pendingForceRequests.remove(seq);
+                        if (info != null && info.timer != null) info.timer.stop();
+                        // notify user
+                        JOptionPane.showMessageDialog(ChineseChessFrame.this, "对端拒绝强制走子 (" + seq + "): " + reason, "强制走子被拒绝", JOptionPane.WARNING_MESSAGE);
+                    }); }
+             @Override public void onSettingsReceived(JsonObject settings) {
                 SwingUtilities.invokeLater(() -> {
                     // 转发给 NetworkSidePanel 处理持方同步
                     networkSidePanel.onSettingsReceived(settings);
                     // 处理游戏规则设置同步
-                    if (!netController.isHost() && settings != null) {
+                    if (!netController.isHost()) {
                         gameEngine.applySettingsSnapshot(settings);
                         // 在线状态下撤销按钮权限交由 updateStatus 判断
                         ruleSettingsPanel.refreshFromBinder();
                         updateStatus();
                     }
-                });
-            }
+                 });
+             }
             @Override public void onPeerUndo() {
                 SwingUtilities.invokeLater(() -> {
                     // 对端请求撤销，本地执行一次撤销并刷新UI
@@ -391,7 +501,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             undoButton.setEnabled(allowUndo);
         } else {
             Boolean localControls = boardPanel.getLocalControlsRed();
-            boolean isLocalTurn = (localControls != null) && (gameEngine.isRedTurn() == localControls.booleanValue());
+            boolean isLocalTurn = (localControls != null) && (gameEngine.isRedTurn() == localControls);
             undoButton.setEnabled(allowUndo && isLocalTurn);
         }
     }
@@ -449,10 +559,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this,
-                    "导出失败: " + ex.getMessage(),
+                    "残局导出失败: " + ex.getMessage(),
                     "导出错误",
                     JOptionPane.ERROR_MESSAGE);
-                ex.printStackTrace();
+                logError(ex);
             }
         }
     }
@@ -494,10 +604,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     "导入失败: " + ex.getMessage(),
                     "导入错误",
                     JOptionPane.ERROR_MESSAGE);
-                ex.printStackTrace();
-            }
-        }
-    }
+                logError(ex);
+             }
+         }
+     }
 
     // helper: 当当前是主机且已连接时，将设置快照发送给客户端
     private javax.swing.Timer sendSettingsTimer;
@@ -534,6 +644,38 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         } catch (Exception ex) {
             // 防御性捕获，避免 UI 操作抛出未捕获异常
             System.out.println("[DEBUG] 发送设置快照失败: " + ex);
+            logError(ex);
+         }
+     }
+    // retry logic for force-move requests
+    private void sendForceRequestWithRetry(long seq) {
+        RequestInfo info = pendingForceRequests.get(seq);
+        if (info == null) return;
+
+        // give up after 3 retries
+        if (info.retries++ > 2) {
+            pendingForceRequests.remove(seq);
+            return;
         }
+
+        // send the request
+        try {
+            netController.getSession().sendForceMoveRequest(info.fr, info.fc, info.tr, info.tc, seq, gameEngine.getMoveHistory().size());
+        } catch (Throwable ignored) {}
+
+        // install a timeout
+        info.timer = new javax.swing.Timer(3000, e -> {
+            // on timeout, retry sending
+            sendForceRequestWithRetry(seq);
+        });
+        info.timer.setRepeats(false);
+        info.timer.start();
+    }
+
+    // Centralized error logger to avoid direct printStackTrace calls.
+    private static void logError(Throwable t) {
+        if (t == null) return;
+        System.err.println("[ChineseChessFrame] " + t);
+        try { t.printStackTrace(System.err); } catch (Throwable ignored) {}
     }
 }

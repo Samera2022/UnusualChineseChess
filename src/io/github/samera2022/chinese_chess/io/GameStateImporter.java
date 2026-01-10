@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.github.samera2022.chinese_chess.rules.RuleConstants.*;
+import static io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API;
+
 /**
  * 游戏状态导入器 - 从JSON文件导入游戏状态
  */
@@ -212,15 +215,15 @@ public class GameStateImporter {
     private static void importSettings(GameEngine gameEngine, JsonObject settings) {
         // 基本设置
         if (settings.has("allowUndo")) {
-            gameEngine.getRulesConfig().set(io.github.samera2022.chinese_chess.rules.RuleConstants.ALLOW_UNDO,
+            gameEngine.getRulesConfig().set(ALLOW_UNDO,
                     settings.get("allowUndo").getAsBoolean(),
-                    io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                    API);
         }
 
         if (settings.has("showHints")) {
-            gameEngine.getRulesConfig().set(io.github.samera2022.chinese_chess.rules.RuleConstants.SHOW_HINTS,
+            gameEngine.getRulesConfig().set(SHOW_HINTS,
                     settings.get("showHints").getAsBoolean(),
-                    io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                    API);
         }
 
         // 特殊规则 - 直接通过JSON加载到rulesConfig
@@ -231,20 +234,20 @@ public class GameStateImporter {
                 String key = e.getKey();
                 JsonElement el = e.getValue();
                 if (el == null || el.isJsonNull()) {
-                    gameEngine.getRulesConfig().set(key, null, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                    gameEngine.getRulesConfig().set(key, null, API);
                 } else if (el.isJsonPrimitive()) {
                     com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
                     if (p.isBoolean()) {
-                        gameEngine.getRulesConfig().set(key, p.getAsBoolean(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                        gameEngine.getRulesConfig().set(key, p.getAsBoolean(), API);
                     } else if (p.isNumber()) {
                         try {
                             int iv = p.getAsInt();
-                            gameEngine.getRulesConfig().set(key, iv, io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                            gameEngine.getRulesConfig().set(key, iv, API);
                         } catch (NumberFormatException ex) {
-                            gameEngine.getRulesConfig().set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                            gameEngine.getRulesConfig().set(key, p.getAsString(), API);
                         }
                     } else if (p.isString()) {
-                        gameEngine.getRulesConfig().set(key, p.getAsString(), io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API);
+                        gameEngine.getRulesConfig().set(key, p.getAsString(), API);
                     }
                 }
             }

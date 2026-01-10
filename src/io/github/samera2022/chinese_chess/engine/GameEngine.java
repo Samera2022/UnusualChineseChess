@@ -8,6 +8,7 @@ import io.github.samera2022.chinese_chess.rules.CheckDetector;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
+import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 
 import java.util.*;
 
@@ -18,7 +19,15 @@ public class GameEngine {
     private Board board;
     private MoveValidator validator;
     private CheckDetector checkDetector;
+    // injected rules config (may be the provider.get()). Engine does not own lifecycle.
     private GameRulesConfig rulesConfig;
+    private final RulesConfigProvider.InstanceChangeListener providerListener = (oldInst, newInst) -> {
+        // update local reference and refresh validator
+        try {
+            this.rulesConfig = newInst;
+            if (this.validator != null) this.validator.setRulesConfig(newInst);
+        } catch (Throwable ignored) {}
+    };
     private List<Move> moveHistory;
     private boolean isRedTurn;
     private GameState gameState;
@@ -43,17 +52,28 @@ public class GameEngine {
         void onMoveExecuted(Move move);
     }
 
-    public GameEngine() {
-        // Use globally provided shared config (migrated to RulesConfigProvider)
-        this.rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
+    public GameEngine(GameRulesConfig injectedRulesConfig) {
+        // injectedRulesConfig can be RulesConfigProvider.get() or any other instance
+        this.rulesConfig = injectedRulesConfig != null ? injectedRulesConfig : RulesConfigProvider.get();
         this.board = new Board();
         this.validator = new MoveValidator(board);
-        this.validator.setRulesConfig(rulesConfig);
+        this.validator.setRulesConfig(this.rulesConfig);
         this.checkDetector = new CheckDetector(board, validator);
+        // register provider-level listener to support hot-replace
+        RulesConfigProvider.addInstanceChangeListener(providerListener);
         this.moveHistory = new ArrayList<>();
         this.isRedTurn = true;
         this.gameState = GameState.RUNNING;
         this.listeners = new ArrayList<>();
+    }
+
+    // convenience no-arg ctor keeps backward compatibility (uses provider.get())
+    public GameEngine() { this(RulesConfigProvider.get()); }
+
+    public void setRulesConfig(GameRulesConfig newConfig) {
+        if (newConfig == null) return;
+        this.rulesConfig = newConfig;
+        if (this.validator != null) this.validator.setRulesConfig(newConfig);
     }
 
     /**
@@ -100,9 +120,9 @@ public class GameEngine {
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
         // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
-        boolean carryEnabled = rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
-                && rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
+        boolean carryEnabled = this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
+                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
@@ -141,10 +161,11 @@ public class GameEngine {
 
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
-        if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && capturedPiece != null &&
-                capturedPiece.isRed() == piece.isRed()) {
+        if (this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
+                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
-            if (stackSize < rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
+            if (stackSize < this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
                 isStackingMove = true;
                 capturedPiece = null; // 堆叠时不吃子，只堆叠
             }
@@ -152,7 +173,7 @@ public class GameEngine {
 
         // 允许俘虏：吃子改为转换归己方，原棋子保持不动
         Piece convertedPiece = null;
-        if (capturedPiece != null && !isStackingMove && rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
+        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
             Piece.Type targetType = capturedPiece.getType();
             convertedPiece = new Piece(convertPieceTypeToSide(targetType, piece.isRed()), toRow, toCol);
             convertedCapture = true;
@@ -218,7 +239,7 @@ public class GameEngine {
         }
 
         // 检查兵卒晋升（仅在棋子实际移动时处理）
-        if (movedPiece && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
+        if (movedPiece && this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
                 (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) {
@@ -257,10 +278,139 @@ public class GameEngine {
     }
 
     /**
+     * Check whether a move would be considered valid under current rules (without applying it).
+     */
+    public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return isValidMove(fromRow, fromCol, toRow, toCol, -1);
+    }
+
+    public boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex) {
+        if (gameState != GameState.RUNNING) return false;
+        List<Piece> fromStack = board.getStack(fromRow, fromCol);
+        if (fromStack == null || fromStack.isEmpty()) return false;
+        Piece piece = selectedStackIndex >= 0 && selectedStackIndex < fromStack.size() ? fromStack.get(selectedStackIndex) : board.getPiece(fromRow, fromCol);
+        if (piece == null) return false;
+        // ensure current-turn ownership
+        if (piece.isRed() != isRedTurn) return false;
+        try {
+            return validator.isValidMove(fromRow, fromCol, toRow, toCol, selectedStackIndex);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Force-apply a move without local validation. Intended to be used when peer confirms authority.
+     */
+    public boolean forceApplyMove(int fromRow, int fromCol, int toRow, int toCol) {
+        return forceApplyMove(fromRow, fromCol, toRow, toCol, null, -1);
+    }
+
+    public boolean forceApplyMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType, int selectedStackIndex) {
+        if (gameState != GameState.RUNNING) return false;
+
+        if (isInReplayMode && currentReplayStep >= 0 && currentReplayStep < moveHistory.size()) {
+            moveHistory = new ArrayList<>(moveHistory.subList(0, currentReplayStep));
+            isInReplayMode = false;
+            currentReplayStep = -1;
+        }
+
+        List<Piece> fromStack = board.getStack(fromRow, fromCol);
+        if (fromStack == null || fromStack.isEmpty()) return false;
+
+        Piece piece;
+        List<Piece> movedStack = new ArrayList<>();
+        boolean carryEnabled = this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
+                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
+
+        if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
+            piece = fromStack.get(selectedStackIndex);
+            if (carryEnabled) {
+                for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) movedStack.add(fromStack.get(i));
+            }
+        } else if (selectedStackIndex == -1) {
+            piece = board.getPiece(fromRow, fromCol);
+        } else return false;
+
+        if (piece == null) return false;
+
+        Piece capturedPiece = board.getPiece(toRow, toCol);
+        boolean convertedCapture = false;
+        Piece convertedPiece = null;
+
+        boolean isStackingMove = false;
+        if (this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
+                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
+            int stackSize = board.getStackSize(toRow, toCol);
+            if (stackSize < this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
+                isStackingMove = true;
+                capturedPiece = null;
+            }
+        }
+
+        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
+            Piece.Type targetType = capturedPiece.getType();
+            convertedPiece = new Piece(convertPieceTypeToSide(targetType, piece.isRed()), toRow, toCol);
+            convertedCapture = true;
+            board.setPiece(toRow, toCol, convertedPiece);
+        } else if (capturedPiece != null && !isStackingMove) {
+            board.removePiece(toRow, toCol);
+        }
+
+        boolean movedPiece = !convertedCapture;
+        if (movedPiece) {
+            if (selectedStackIndex >= 0) {
+                if (carryEnabled) {
+                    int countToRemove = fromStack.size() - selectedStackIndex;
+                    for (int i = 0; i < countToRemove; i++) board.popTop(fromRow, fromCol);
+                } else {
+                    List<Piece> piecesAbove = new ArrayList<>();
+                    for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) piecesAbove.add(fromStack.get(i));
+                    int countToPop = fromStack.size() - selectedStackIndex;
+                    for (int k = 0; k < countToPop; k++) board.popTop(fromRow, fromCol);
+                    for (Piece p : piecesAbove) board.pushToStack(fromRow, fromCol, p);
+                }
+            } else {
+                board.removePiece(fromRow, fromCol);
+            }
+
+            piece.move(toRow, toCol);
+            if (isStackingMove) board.pushToStack(toRow, toCol, piece);
+            else board.setPiece(toRow, toCol, piece);
+
+            if (carryEnabled) {
+                for (Piece p : movedStack) {
+                    p.move(toRow, toCol);
+                    board.pushToStack(toRow, toCol, p);
+                }
+            }
+        }
+
+        if (movedPiece && this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)
+                && (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
+            boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
+            if (isAtBaseLine && promotionType != null) board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
+        }
+
+        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+        if (convertedCapture) { move.setCaptureConversion(true); move.setConvertedPiece(convertedPiece); }
+        if (isStackingMove) { move.setStacking(true); move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol))); }
+        if (selectedStackIndex >= 0) { move.setSelectedStackIndex(selectedStackIndex); move.setMovedStack(new ArrayList<>(movedStack)); }
+        moveHistory.add(move);
+
+        isRedTurn = !isRedTurn;
+        for (GameStateListener listener : listeners) listener.onMoveExecuted(move);
+        checkGameState();
+        return true;
+    }
+
+    /**
      * 检查兵卒是否需要晋升
      */
     public boolean needsPromotion(int row, int col) {
-        if (!rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
+        if (!this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
             return false;
         }
         Piece piece = board.getPiece(row, col);
@@ -319,7 +469,7 @@ public class GameEngine {
      * 撤销上一步棋
      */
     public boolean undoLastMove() {
-        if (!rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO)) {
+        if (!this.rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO)) {
             return false;
         }
         if (moveHistory.isEmpty()) {
@@ -567,7 +717,7 @@ public class GameEngine {
      * 获取设置快照（供联机同步）
      */
     public JsonObject getSettingsSnapshot() {
-        return rulesConfig.toJson();
+        return this.rulesConfig.toJson();
     }
 
     /**
@@ -580,36 +730,36 @@ public class GameEngine {
             String key = e.getKey();
             com.google.gson.JsonElement el = e.getValue();
             if (el == null || el.isJsonNull()) {
-                rulesConfig.set(key, null, GameRulesConfig.ChangeSource.NETWORK);
+                this.rulesConfig.set(key, null, GameRulesConfig.ChangeSource.NETWORK);
             } else if (el.isJsonPrimitive()) {
                 com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
                 if (p.isBoolean()) {
-                    rulesConfig.set(key, p.getAsBoolean(), GameRulesConfig.ChangeSource.NETWORK);
+                    this.rulesConfig.set(key, p.getAsBoolean(), GameRulesConfig.ChangeSource.NETWORK);
                 } else if (p.isNumber()) {
                     // most rule numbers are ints
                     try {
                         int iv = p.getAsInt();
-                        rulesConfig.set(key, iv, GameRulesConfig.ChangeSource.NETWORK);
+                        this.rulesConfig.set(key, iv, GameRulesConfig.ChangeSource.NETWORK);
                     } catch (NumberFormatException ex) {
-                        rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
+                        this.rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
                     }
                 } else if (p.isString()) {
-                    rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
+                    this.rulesConfig.set(key, p.getAsString(), GameRulesConfig.ChangeSource.NETWORK);
                 }
             } else {
                 // ignore complex types for now
             }
         }
         // refresh validator reference
-        validator.setRulesConfig(rulesConfig);
+        validator.setRulesConfig(this.rulesConfig);
     }
 
     /**
      * 获取规则配置对象
      */
     public GameRulesConfig getRulesConfig() {
-        // return provider-backed config to emphasize centralized ownership
-        return io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
+        // return the engine's configured rulesConfig (injected or updated via provider replace)
+        return this.rulesConfig;
     }
 
     /**
@@ -618,7 +768,8 @@ public class GameEngine {
      */
      public void shutdown() {
          try {
-            // rulesConfig is managed by RulesConfigProvider; provider is responsible for shutdown
+            // Unregister provider listener to avoid leaks
+            RulesConfigProvider.removeInstanceChangeListener(providerListener);
          } catch (Throwable ignored) {}
          // future: close other engine-managed resources here
      }
@@ -650,10 +801,3 @@ public class GameEngine {
         }
     }
 }
-
-
-
-
-
-
-

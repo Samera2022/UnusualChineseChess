@@ -6,6 +6,8 @@ import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
+import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
+import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 
 import javax.swing.*;
 import java.awt.*;
@@ -16,7 +18,13 @@ import java.awt.event.*;
  */
 public class BoardPanel extends JPanel {
     private GameEngine gameEngine;
-    private io.github.samera2022.chinese_chess.rules.GameRulesConfig rulesConfig = io.github.samera2022.chinese_chess.rules.RulesConfigProvider.get();
+    private GameRulesConfig rulesConfig = RulesConfigProvider.get();
+    private final GameRulesConfig.RuleChangeListener ruleChangeListener = (key, oldV, newV, src) -> {
+        // when specific config changes, keep validator updated (debounced updates not necessary here)
+        syncValidatorFromConfig();
+    };
+    private RulesConfigProvider.InstanceChangeListener providerListener;
+
     private int cellSize = GameConfig.CELL_SIZE;
     private int selectedRow = -1;
     private int selectedCol = -1;
@@ -50,6 +58,22 @@ public class BoardPanel extends JPanel {
 
     public BoardPanel(GameEngine gameEngine) {
         this.gameEngine = gameEngine;
+        // register provider instance listener to keep local rulesConfig up-to-date
+        // initialize providerListener here to avoid forward-reference issues
+        this.providerListener = (oldInst, newInst) -> {
+            try {
+                if (oldInst != null) {
+                    try { oldInst.removeRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
+                }
+                if (newInst != null) {
+                    try { newInst.addRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
+                }
+                this.rulesConfig = newInst;
+                syncValidatorFromConfig();
+            } catch (Throwable ignored) {}
+        };
+        RulesConfigProvider.addInstanceChangeListener(providerListener);
+        if (this.rulesConfig != null) this.rulesConfig.addRuleChangeListener(ruleChangeListener);
         setBackground(BOARD_COLOR);
         addMouseListener(new MouseAdapter() {
             @Override
@@ -266,14 +290,14 @@ public class BoardPanel extends JPanel {
             board.getPiece(fromR, fromC);
         Piece.Type promotionType = null;
 
-        if (movingPiece != null && rulesConfig.getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.PAWN_PROMOTION)) {
+        if (movingPiece != null && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
             boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
                                movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
             boolean isAtOpponentBaseLine = (movingPiece.isRed() && toRow == 0) ||
                                           (!movingPiece.isRed() && toRow == 9);
             boolean isAtOwnBaseLine = (movingPiece.isRed() && toRow == 9) ||
                                      (!movingPiece.isRed() && toRow == 0);
-            boolean allowOwnBaseLine = rulesConfig.getBoolean(io.github.samera2022.chinese_chess.rules.RuleConstants.ALLOW_OWN_BASE_LINE);
+            boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE);
 
             if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
                 promotionType = showPromotionDialog(movingPiece.isRed());
@@ -778,5 +802,23 @@ public class BoardPanel extends JPanel {
         int width = boardWidth + 2 * pieceRadius;
         int height = boardHeight + 2 * pieceRadius;
         return new Dimension(width, height);
+    }
+
+    /**
+     * Unregister listeners from provider. Caller (e.g. ChineseChessFrame) should call this on shutdown.
+     */
+    public void unbind() {
+        try {
+            RulesConfigProvider.removeInstanceChangeListener(providerListener);
+        } catch (Throwable ignored) {}
+        try { if (this.rulesConfig != null) this.rulesConfig.removeRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
+    }
+
+    private void syncValidatorFromConfig() {
+        try {
+            MoveValidator validator = new MoveValidator(gameEngine.getBoard());
+            validator.setRulesConfig(this.rulesConfig);
+            // optional: we don't replace engine's validator here; BoardPanel only uses validator for hints
+        } catch (Throwable ignored) {}
     }
 }

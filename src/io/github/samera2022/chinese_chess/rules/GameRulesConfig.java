@@ -274,6 +274,54 @@ public class GameRulesConfig {
     }
 
     /**
+     * Return a snapshot (shallow copy) of currently registered RuleChangeListeners.
+     * The returned list is safe to iterate but modifications won't affect internal state.
+     */
+    public java.util.List<RuleChangeListener> getRuleChangeListenersSnapshot() {
+        synchronized (changeListeners) {
+            return new java.util.ArrayList<>(changeListeners);
+        }
+    }
+
+    /**
+     * Thread-safely transfer all registered RuleChangeListener from this instance to target.
+     * This method will attempt to avoid duplicate registrations (by reference equality).
+     * After successful transfer the listeners will be removed from this instance.
+     * This is a best-effort operation; failures for individual listeners are logged to System.err
+     * but do not stop the overall transfer.
+     */
+    public void transferListenersTo(GameRulesConfig target) {
+        if (target == null) throw new IllegalArgumentException("target cannot be null");
+        java.util.List<RuleChangeListener> toMove;
+        synchronized (changeListeners) {
+            // copy current listeners
+            toMove = new java.util.ArrayList<>(changeListeners);
+        }
+
+        if (toMove.isEmpty()) return;
+
+        for (RuleChangeListener l : toMove) {
+            if (l == null) continue;
+            try {
+                // avoid duplicate registration in target (by reference)
+                boolean exists = false;
+                java.util.List<RuleChangeListener> targetSnapshot = target.getRuleChangeListenersSnapshot();
+                for (RuleChangeListener tl : targetSnapshot) {
+                    if (tl == l) { exists = true; break; }
+                }
+                if (!exists) {
+                    target.addRuleChangeListener(l);
+                }
+                // remove from this instance
+                try { removeRuleChangeListener(l); } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                System.err.println("[GameRulesConfig] transferListenersTo: failed to transfer listener: " + t);
+                t.printStackTrace(System.err);
+            }
+        }
+    }
+
+    /**
      * 根据规则常量设置规则值（默认来源为 API）
      * @param ruleName 规则常量（来自RuleConstants）
      * @param value 规则值（Boolean或Integer）
@@ -332,32 +380,45 @@ public class GameRulesConfig {
                             try {
                                 // run each listener on the listenerExecutor and wait with timeout
                                 Future<?> fut = listenerExecutor.submit(() -> {
-                                    l.onRuleChanged(key, oldV, newV, src);
+                                    try {
+                                        l.onRuleChanged(key, oldV, newV, src);
+                                    } catch (Throwable inner) {
+                                        // ensure listener exceptions do not break the executor thread
+                                        System.err.println("[GameRulesConfig] listener threw: " + inner);
+                                        inner.printStackTrace(System.err);
+                                    }
                                 });
                                 try {
-                                    // wait at most 500ms for a listener to finish
-                                    fut.get(500, TimeUnit.MILLISECONDS);
+                                    // wait a short time for the listener to complete
+                                    fut.get(200, TimeUnit.MILLISECONDS);
                                 } catch (TimeoutException te) {
-                                    System.err.println("[GameRulesConfig] RuleChangeListener timeout for key=" + key + " listener=" + l);
+                                    // listener too slow; cancel and continue
                                     fut.cancel(true);
+                                    System.err.println("[GameRulesConfig] listener timed out for key=" + key + " listener=" + l);
                                 } catch (ExecutionException ee) {
-                                    System.err.println("[GameRulesConfig] RuleChangeListener threw exception for key=" + key + " listener=" + l);
+                                    System.err.println("[GameRulesConfig] listener execution failed for key=" + key + " listener=" + l + ": " + ee.getCause());
                                     if (ee.getCause() != null) ee.getCause().printStackTrace(System.err);
                                 } catch (InterruptedException ie) {
                                     Thread.currentThread().interrupt();
+                                    System.err.println("[GameRulesConfig] listener wait interrupted");
                                 }
                             } catch (Throwable t) {
-                                // defensive catch: log error but keep notifying others
-                                System.err.println("[GameRulesConfig] Unexpected error while notifying rule change listener: " + t);
+                                // protect the notifier thread from any listener-related errors
+                                System.err.println("[GameRulesConfig] failed invoking listener: " + t);
                                 t.printStackTrace(System.err);
                             }
                         }
                     });
-                }
-            }
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
+                 }
+             }
+         } catch (IllegalAccessException ex) {
+             throw new RuntimeException(ex);
+         }
+     }
 
-}
+    // Shutdown helpers: close executors when the config is GC'd (defensive)
+    @Override
+    protected void finalize() throws Throwable {
+        try { shutdownNotifier(); } finally { super.finalize(); }
+    }
+ }
