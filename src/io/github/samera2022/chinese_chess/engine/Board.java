@@ -151,6 +151,39 @@ public class Board {
         return p;
     }
 
+    /**
+     * 从堆栈中移除指定索引的棋子
+     * @param row 行
+     * @param col 列
+     * @param index 要移除的棋子索引（0为底部）
+     * @return 被移除的棋子，如果索引无效则返回null
+     */
+    public Piece removeFromStack(int row, int col, int index) {
+        if (!isValid(row, col)) return null;
+        Deque<Piece> dq = stacks.get(key(row, col));
+        if (dq == null || dq.isEmpty() || index < 0 || index >= dq.size()) return null;
+
+        // 将堆栈转换为列表以便按索引访问
+        java.util.List<Piece> list = new java.util.ArrayList<>(dq);
+        Piece removed = list.remove(index);
+
+        // 更新棋子列表
+        if (removed.isRed()) redPieces.remove(removed);
+        else blackPieces.remove(removed);
+
+        // 重建堆栈
+        dq.clear();
+        dq.addAll(list);
+
+        // 更新棋盘顶部棋子
+        board[row][col] = dq.peekLast();
+
+        // 如果堆栈为空，移除键
+        if (dq.isEmpty()) stacks.remove(key(row, col));
+
+        return removed;
+    }
+
     public void clearStack(int row, int col) {
         if (!isValid(row, col)) return;
         Deque<Piece> dq = stacks.remove(key(row, col));

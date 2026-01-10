@@ -60,12 +60,14 @@ public class RuleSettingsPanel extends JPanel {
         boolean isUnblockPiece();
         boolean isUnblockHorseLeg();
         boolean isUnblockElephantEye();
-        boolean isAllowCaptureConversion();
         boolean isDeathMatchUntilVictory();
         void setAllowPieceStacking(boolean allow);
         boolean isAllowPieceStacking();
         void setMaxStackingCount(int count);
         int getMaxStackingCount();
+        void setAllowCarryPiecesAbove(boolean allow);
+        boolean isAllowCarryPiecesAbove();
+        boolean isAllowCaptureConversion();
     }
 
     public void refreshFromBinder() {
@@ -379,10 +381,29 @@ public class RuleSettingsPanel extends JPanel {
 
         special2Content.add(stackingPanel);
 
+        // 缩进的子选项：允许背负上方棋子（仅当允许堆叠时可用）
+        JCheckBox chkAllowCarryPiecesAbove = new JCheckBox("允许背负上方棋子");
+        chkAllowCarryPiecesAbove.setAlignmentX(Component.LEFT_ALIGNMENT);
+        chkAllowCarryPiecesAbove.setEnabled(false); // 初始禁用
+
+        JPanel indentedCarryPanel = new JPanel();
+        indentedCarryPanel.setLayout(new BoxLayout(indentedCarryPanel, BoxLayout.X_AXIS));
+        indentedCarryPanel.add(Box.createHorizontalStrut(20));
+        indentedCarryPanel.add(chkAllowCarryPiecesAbove);
+        indentedCarryPanel.add(Box.createHorizontalGlue());
+        indentedCarryPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        indentedCarryPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        special2Content.add(indentedCarryPanel);
+
         // 依赖关系：主选项未勾选时，输入框禁用
         chkAllowPieceStacking.addActionListener(e -> {
             boolean enabled = chkAllowPieceStacking.isSelected();
             txtStackingCount.setEnabled(enabled);
+            chkAllowCarryPiecesAbove.setEnabled(enabled);
+            if (!enabled) {
+                chkAllowCarryPiecesAbove.setSelected(false);
+            }
             // 互斥逻辑：允许棋子堆叠数被选中时，禁止允许自己吃自己
             if (enabled) {
                 chkAllowCaptureOwnPiece.setSelected(false);
@@ -401,11 +422,14 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowPieceStacking.setSelected(false);
                 chkAllowPieceStacking.setEnabled(false);
                 txtStackingCount.setEnabled(false);
+                chkAllowCarryPiecesAbove.setSelected(false);
+                chkAllowCarryPiecesAbove.setEnabled(false);
                 chkAllowCaptureConversion.setEnabled(false);
             } else {
                 if (!chkAllowPieceStacking.isSelected()) {
                     chkAllowPieceStacking.setEnabled(true);
                     txtStackingCount.setEnabled(false);
+                    chkAllowCarryPiecesAbove.setEnabled(false);
                 }
                 chkAllowCaptureConversion.setEnabled(true);
             }
@@ -417,12 +441,15 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowPieceStacking.setSelected(false);
                 chkAllowPieceStacking.setEnabled(false);
                 txtStackingCount.setEnabled(false);
+                chkAllowCarryPiecesAbove.setSelected(false);
+                chkAllowCarryPiecesAbove.setEnabled(false);
                 chkAllowCaptureOwnPiece.setSelected(false);
                 chkAllowCaptureOwnPiece.setEnabled(false);
             } else {
                 if (!chkAllowPieceStacking.isSelected()) {
                     chkAllowPieceStacking.setEnabled(true);
                     txtStackingCount.setEnabled(false);
+                    chkAllowCarryPiecesAbove.setEnabled(false);
                 }
                 if (!chkAllowCaptureOwnPiece.isSelected()) {
                     chkAllowCaptureOwnPiece.setEnabled(true);
@@ -635,6 +662,7 @@ public class RuleSettingsPanel extends JPanel {
             current.addProperty("allowCaptureConversion", chkAllowCaptureConversion.isSelected());
             current.addProperty("deathMatchUntilVictory", chkDeathMatchUntilVictory.isSelected());
             current.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
+            current.addProperty("allowCarryPiecesAbove", chkAllowCarryPiecesAbove.isSelected());
             try {
                 String stackText = txtStackingCount.getText();
                 int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);
@@ -673,6 +701,7 @@ public class RuleSettingsPanel extends JPanel {
                 boolean allowCaptureConversion = obj.has("allowCaptureConversion") && obj.get("allowCaptureConversion").getAsBoolean();
                 boolean deathMatchUntilVictory = obj.has("deathMatchUntilVictory") && obj.get("deathMatchUntilVictory").getAsBoolean();
                 boolean allowPieceStacking = obj.has("allowPieceStacking") && obj.get("allowPieceStacking").getAsBoolean();
+                boolean allowCarryPiecesAbove = obj.has("allowCarryPiecesAbove") && obj.get("allowCarryPiecesAbove").getAsBoolean();
                 int maxStackingCount = obj.has("maxStackingCount") ? obj.get("maxStackingCount").getAsInt() : 2;
                 // 验证范围：只允许 1-16 之间的正整数
                 maxStackingCount = Math.max(1, Math.min(16, maxStackingCount));
@@ -705,6 +734,7 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowCaptureConversion.setSelected(allowCaptureConversion);
                 chkDeathMatchUntilVictory.setSelected(deathMatchUntilVictory);
                 chkAllowPieceStacking.setSelected(allowPieceStacking);
+                chkAllowCarryPiecesAbove.setSelected(allowCarryPiecesAbove && allowPieceStacking);
                 txtStackingCount.setText(String.valueOf(maxStackingCount));
                 // 在JSON导入后和applyState后同步互斥禁用状态
                 Runnable updateMutualExclusion = () -> {
@@ -758,6 +788,7 @@ public class RuleSettingsPanel extends JPanel {
                     b.setAllowCaptureOwnPiece(allowCaptureOwnPiece);
                     b.setAllowCaptureConversion(allowCaptureConversion);
                     b.setAllowPieceStacking(allowPieceStacking);
+                    b.setAllowCarryPiecesAbove(allowCarryPiecesAbove && allowPieceStacking);
                     b.setMaxStackingCount(maxStackingCount);
                 }
             } catch (Exception ex) {
@@ -795,6 +826,7 @@ public class RuleSettingsPanel extends JPanel {
                 chkAllowCaptureConversion.setSelected(b.isAllowCaptureConversion());
                 chkDeathMatchUntilVictory.setSelected(b.isDeathMatchUntilVictory());
                 chkAllowPieceStacking.setSelected(b.isAllowPieceStacking());
+                chkAllowCarryPiecesAbove.setSelected(b.isAllowCarryPiecesAbove());
                 txtStackingCount.setText(String.valueOf(b.getMaxStackingCount()));
 
                 // 同步依赖的控件状态
@@ -813,9 +845,11 @@ public class RuleSettingsPanel extends JPanel {
                     chkUnblockElephantEye.setSelected(false);
                 }
                 txtStackingCount.setEnabled(chkAllowPieceStacking.isSelected());
+                chkAllowCarryPiecesAbove.setEnabled(chkAllowPieceStacking.isSelected());
                 if (chkAllowCaptureOwnPiece.isSelected()) {
                     chkAllowPieceStacking.setEnabled(false);
                     txtStackingCount.setEnabled(false);
+                    chkAllowCarryPiecesAbove.setEnabled(false);
                     chkAllowCaptureConversion.setEnabled(false);
                 } else if (chkAllowPieceStacking.isSelected()) {
                     chkAllowCaptureOwnPiece.setEnabled(false);
@@ -824,6 +858,7 @@ public class RuleSettingsPanel extends JPanel {
                     chkAllowCaptureOwnPiece.setEnabled(false);
                     chkAllowPieceStacking.setEnabled(false);
                     txtStackingCount.setEnabled(false);
+                    chkAllowCarryPiecesAbove.setEnabled(false);
                 }
             }
         });

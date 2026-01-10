@@ -102,9 +102,11 @@ public class GameEngine {
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
             piece = fromStack.get(selectedStackIndex);
-            // 该棋子上方的所有棋子都会跟随移动
-            for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
-                movedStack.add(fromStack.get(i));
+            // 只有在允许背负上方棋子时，该棋子上方的所有棋子才会跟随移动
+            if (rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)) {
+                for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
+                    movedStack.add(fromStack.get(i));
+                }
             }
         } else if (selectedStackIndex == -1) {
             // 使用顶部棋子（默认行为）
@@ -158,13 +160,20 @@ public class GameEngine {
         if (movedPiece) {
             // 如果从堆栈中选择了棋子，需要先移除源位置的该棋子及其上方的棋子
             if (selectedStackIndex >= 0) {
-                // 从源位置的堆栈中移除选定的棋子及其上方的所有棋子
-                List<Piece> toMove = new ArrayList<>();
-                for (int i = selectedStackIndex; i < fromStack.size(); i++) {
-                    toMove.add(fromStack.get(i));
-                }
-                for (Piece p : toMove) {
-                    board.popTop(fromRow, fromCol);
+                // 如果允许背负上方棋子，移除选定的棋子及其上方的所有棋子
+                // 否则，只移除选定的棋子
+                if (rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)) {
+                    // 移除选定的棋子及其上方的所有棋子
+                    List<Piece> toMove = new ArrayList<>();
+                    for (int i = selectedStackIndex; i < fromStack.size(); i++) {
+                        toMove.add(fromStack.get(i));
+                    }
+                    for (Piece p : toMove) {
+                        board.popTop(fromRow, fromCol);
+                    }
+                } else {
+                    // 只移除选定的棋子
+                    board.removeFromStack(fromRow, fromCol, selectedStackIndex);
                 }
             } else {
                 // 默认移除顶部棋子
@@ -525,6 +534,8 @@ public class GameEngine {
     public boolean isAllowPieceStacking() { return rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING); }
     public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, count); }
     public int getMaxStackingCount() { return rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT); }
+    public void setAllowCarryPiecesAbove(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, allow); }
+    public boolean isAllowCarryPiecesAbove() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE); }
 
     public void setAllowCaptureConversion(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_CONVERSION, allow); }
     public boolean isAllowCaptureConversion() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION); }

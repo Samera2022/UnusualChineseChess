@@ -132,6 +132,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             @Override public boolean isAllowPieceStacking() { return gameEngine.isAllowPieceStacking(); }
             @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) gameEngine.setMaxStackingCount(count); boardPanel.repaint(); }
             @Override public int getMaxStackingCount() { return gameEngine.getMaxStackingCount(); }
+            @Override public void setAllowCarryPiecesAbove(boolean allow) { if (!ruleSettingsLocked) gameEngine.setAllowCarryPiecesAbove(allow); boardPanel.repaint(); }
+            @Override public boolean isAllowCarryPiecesAbove() { return gameEngine.isAllowCarryPiecesAbove(); }
         });
 
         // 面板，带"玩法设置"按钮，点击后切换左侧设置组件

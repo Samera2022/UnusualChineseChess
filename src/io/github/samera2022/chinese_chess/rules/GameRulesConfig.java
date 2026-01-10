@@ -34,6 +34,7 @@ public class GameRulesConfig {
     private boolean allowCaptureOwnPiece = false;    // 允许吃自己的棋子
     private boolean allowPieceStacking = false;      // 允许棋子堆叠
     private int maxStackingCount = 2;                // 最大堆叠数量
+    private boolean allowCarryPiecesAbove = false;   // 允许背负上方棋子
     private boolean allowCaptureConversion = false;  // 允许俘虏：吃子改为转换归己方
     private boolean deathMatchUntilVictory = false;  // 死战方休：必须吃掉全部棋子
 
@@ -68,6 +69,7 @@ public class GameRulesConfig {
         config.allowCaptureOwnPiece = this.allowCaptureOwnPiece;
         config.allowPieceStacking = this.allowPieceStacking;
         config.maxStackingCount = this.maxStackingCount;
+        config.allowCarryPiecesAbove = this.allowCarryPiecesAbove;
         config.allowCaptureConversion = this.allowCaptureConversion;
         config.deathMatchUntilVictory = this.deathMatchUntilVictory;
         config.allowUndo = this.allowUndo;
@@ -102,6 +104,7 @@ public class GameRulesConfig {
         json.addProperty(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allowCaptureOwnPiece);
         json.addProperty(RuleConstants.ALLOW_PIECE_STACKING, allowPieceStacking);
         json.addProperty(RuleConstants.MAX_STACKING_COUNT, maxStackingCount);
+        json.addProperty(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, allowCarryPiecesAbove);
         json.addProperty(RuleConstants.ALLOW_CAPTURE_CONVERSION, allowCaptureConversion);
         json.addProperty(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, deathMatchUntilVictory);
         json.addProperty(RuleConstants.ALLOW_UNDO, allowUndo);
@@ -135,6 +138,7 @@ public class GameRulesConfig {
         if (json.has(RuleConstants.ALLOW_CAPTURE_OWN_PIECE)) allowCaptureOwnPiece = json.get(RuleConstants.ALLOW_CAPTURE_OWN_PIECE).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_PIECE_STACKING)) allowPieceStacking = json.get(RuleConstants.ALLOW_PIECE_STACKING).getAsBoolean();
         if (json.has(RuleConstants.MAX_STACKING_COUNT)) maxStackingCount = json.get(RuleConstants.MAX_STACKING_COUNT).getAsInt();
+        if (json.has(RuleConstants.ALLOW_CARRY_PIECES_ABOVE)) allowCarryPiecesAbove = json.get(RuleConstants.ALLOW_CARRY_PIECES_ABOVE).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_CAPTURE_CONVERSION)) allowCaptureConversion = json.get(RuleConstants.ALLOW_CAPTURE_CONVERSION).getAsBoolean();
         if (json.has(RuleConstants.DEATH_MATCH_UNTIL_VICTORY)) deathMatchUntilVictory = json.get(RuleConstants.DEATH_MATCH_UNTIL_VICTORY).getAsBoolean();
         if (json.has(RuleConstants.ALLOW_UNDO)) allowUndo = json.get(RuleConstants.ALLOW_UNDO).getAsBoolean();
@@ -164,6 +168,7 @@ public class GameRulesConfig {
     public boolean isAllowCaptureOwnPiece() { return allowCaptureOwnPiece; }
     public boolean isAllowPieceStacking() { return allowPieceStacking; }
     public int getMaxStackingCount() { return maxStackingCount; }
+    public boolean isAllowCarryPiecesAbove() { return allowCarryPiecesAbove; }
     public boolean isDeathMatchUntilVictory() { return deathMatchUntilVictory; }
     public boolean isAllowUndo() { return allowUndo; }
     public boolean isShowHints() { return showHints; }
@@ -192,6 +197,7 @@ public class GameRulesConfig {
     public void setAllowCaptureOwnPiece(boolean value) { this.allowCaptureOwnPiece = value; }
     public void setAllowPieceStacking(boolean value) { this.allowPieceStacking = value; }
     public void setMaxStackingCount(int value) { this.maxStackingCount = Math.max(1, value); }
+    public void setAllowCarryPiecesAbove(boolean value) { this.allowCarryPiecesAbove = value; }
     public void setDeathMatchUntilVictory(boolean value) { this.deathMatchUntilVictory = value; }
     public void setAllowUndo(boolean value) { this.allowUndo = value; }
     public void setShowHints(boolean value) { this.showHints = value; }
@@ -228,6 +234,7 @@ public class GameRulesConfig {
             case RuleConstants.ALLOW_CAPTURE_OWN_PIECE: return allowCaptureOwnPiece;
             case RuleConstants.ALLOW_PIECE_STACKING: return allowPieceStacking;
             case RuleConstants.MAX_STACKING_COUNT: return maxStackingCount;
+            case RuleConstants.ALLOW_CARRY_PIECES_ABOVE: return allowCarryPiecesAbove;
             case RuleConstants.ALLOW_CAPTURE_CONVERSION: return allowCaptureConversion;
             case RuleConstants.DEATH_MATCH_UNTIL_VICTORY: return deathMatchUntilVictory;
             case RuleConstants.ALLOW_UNDO: return allowUndo;
@@ -266,6 +273,7 @@ public class GameRulesConfig {
                 case RuleConstants.UNBLOCK_ELEPHANT_EYE: unblockElephantEye = boolValue; break;
                 case RuleConstants.ALLOW_CAPTURE_OWN_PIECE: allowCaptureOwnPiece = boolValue; break;
                 case RuleConstants.ALLOW_PIECE_STACKING: allowPieceStacking = boolValue; break;
+                case RuleConstants.ALLOW_CARRY_PIECES_ABOVE: allowCarryPiecesAbove = boolValue; break;
                 case RuleConstants.ALLOW_UNDO: allowUndo = boolValue; break;
                 case RuleConstants.SHOW_HINTS: showHints = boolValue; break;
                 case RuleConstants.ALLOW_CAPTURE_CONVERSION: allowCaptureConversion = boolValue; break;

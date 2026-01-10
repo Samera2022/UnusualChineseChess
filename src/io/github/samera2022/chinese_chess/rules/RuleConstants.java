@@ -33,6 +33,7 @@ public class RuleConstants {
     public static final String ALLOW_CAPTURE_OWN_PIECE = "allowCaptureOwnPiece"; // 允许吃自己的棋子
     public static final String ALLOW_PIECE_STACKING = "allowPieceStacking";      // 允许棋子堆叠
     public static final String MAX_STACKING_COUNT = "maxStackingCount";          // 最大堆叠数量
+    public static final String ALLOW_CARRY_PIECES_ABOVE = "allowCarryPiecesAbove"; // 允许背负上方棋子
     public static final String ALLOW_CAPTURE_CONVERSION = "allowCaptureConversion"; // 允许俘虏（吃子改为转换归己方）
     public static final String DEATH_MATCH_UNTIL_VICTORY = "deathMatchUntilVictory"; // 死战方休（必须吃掉全部棋子）
 
