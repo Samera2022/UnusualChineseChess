@@ -402,6 +402,7 @@ public class GameEngine {
         if (convertedCapture) { move.setCaptureConversion(true); move.setConvertedPiece(convertedPiece); }
         if (isStackingMove) { move.setStacking(true); move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol))); }
         if (selectedStackIndex >= 0) { move.setSelectedStackIndex(selectedStackIndex); move.setMovedStack(new ArrayList<>(movedStack)); }
+        move.setForceMove(true); // 标记为强制走子
         moveHistory.add(move);
 
         isRedTurn = !isRedTurn;

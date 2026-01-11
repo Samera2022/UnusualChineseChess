@@ -135,6 +135,9 @@ public class GameStateExporter {
                 }
             }
 
+            // 导出强制走子标记
+            moveObj.addProperty("forceMove", move.isForceMove());
+
             moves.add(moveObj);
         }
 

@@ -18,6 +18,7 @@ public class Move implements HistoryItem {
     private Piece convertedPiece;              // 转换后的己方棋子
     private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引（-1表示无效或不从堆栈选择）
     private List<Piece> movedStack; // 移动时随之移动的堆栈中的其他棋子
+    private boolean isForceMove = false; // 是否为强制走子
 
     public Move(int fromRow, int fromCol, int toRow, int toCol, Piece piece, Piece capturedPiece) {
         this.fromRow = fromRow;
@@ -78,18 +79,27 @@ public class Move implements HistoryItem {
     public void setMovedStack(List<Piece> stack) { this.movedStack = stack; }
     public List<Piece> getMovedStack() { return movedStack; }
 
+    public void setForceMove(boolean force) { this.isForceMove = force; }
+    public boolean isForceMove() { return isForceMove; }
+
     @Override
     public String toString() {
-        String notation = piece.getDisplayName() + " (" + fromRow + "," + fromCol + ") -> (" + toRow + "," + toCol + ")";
-        if (selectedStackIndex >= 0) {
-            notation += " [堆叠选择:" + (selectedStackIndex + 1) + "]";
-        } else if (isStacking) {
-            notation += " [堆叠]";
-        } else if (captureConversion && capturedPiece != null) {
-            notation += " [俘虏 " + capturedPiece.getDisplayName() + "]";
-        } else if (capturedPiece != null) {
-            notation += " [吃了 " + capturedPiece.getDisplayName() + "]";
+        StringBuilder notation = new StringBuilder();
+        if (isForceMove) {
+            notation.append("Force ");
         }
-        return notation;
+        notation.append(piece.getDisplayName())
+                .append(" (").append(fromRow).append(",").append(fromCol).append(") -> (")
+                .append(toRow).append(",").append(toCol).append(")");
+        if (selectedStackIndex >= 0) {
+            notation.append(" [堆叠选择:").append(selectedStackIndex + 1).append("]");
+        } else if (isStacking) {
+            notation.append(" [堆叠]");
+        } else if (captureConversion && capturedPiece != null) {
+            notation.append(" [俘虏 ").append(capturedPiece.getDisplayName()).append("]");
+        } else if (capturedPiece != null) {
+            notation.append(" [吃了 ").append(capturedPiece.getDisplayName()).append("]");
+        }
+        return notation.toString();
     }
 }

@@ -327,6 +327,10 @@ public class GameStateImporter {
                 move.setCaptureConversion(true);
                 move.setConvertedPiece(convertedPiece);
             }
+            // 设置强制走子标记
+            if (moveObj.has("forceMove")) {
+                move.setForceMove(moveObj.get("forceMove").getAsBoolean());
+            }
 
             // 导入堆栈选择信息
             if (moveObj.has("selectedStackIndex")) {
