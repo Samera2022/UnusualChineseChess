@@ -225,6 +225,17 @@ public class BoardPanel extends JPanel {
         // 如果没有选择棋子，选择点击的棋子
         if (selectedRow == -1) {
             Piece piece = board.getPiece(row, col);
+
+            // 联机模式下的回合检查
+            if (localControlsRed != null) {
+                // 联机模式：只能在己方回合选择己方棋子
+                if (gameEngine.isRedTurn() != localControlsRed) {
+                    System.out.println("[DEBUG] 联机模式：当前不是己方回合，无法选择棋子");
+                    repaint();
+                    return;
+                }
+            }
+
             if (piece != null && piece.isRed() == gameEngine.isRedTurn()
                     && (localControlsRed == null || piece.isRed() == localControlsRed)) {
                 // 检查是否有堆栈
@@ -311,6 +322,15 @@ public class BoardPanel extends JPanel {
 
         int fromR = selectedRow;
         int fromC = selectedCol;
+
+        // 联机模式下的回合检查（右键移动时）
+        if (localControlsRed != null) {
+            // 联机模式：只能在己方回合移动棋子
+            if (gameEngine.isRedTurn() != localControlsRed) {
+                System.out.println("[DEBUG] 联机模式：当前不是己方回合，无法移动棋子");
+                return;
+            }
+        }
 
         // 检查目标位置是否是己方棋子（堆叠情况）
         Piece targetPiece = board.getPiece(toRow, toCol);

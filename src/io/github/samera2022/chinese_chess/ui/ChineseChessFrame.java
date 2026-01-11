@@ -434,9 +434,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                              }
                              System.out.println("[DEBUG] 强制移动应用结果: " + applied);
                              if (applied) {
+                                 // 清除选中状态和移动指示器（申请方）
+                                 boardPanel.clearSelection();
                                  boardPanel.repaint();
                                  updateStatus();
-                                 boardPanel.clearForceMoveIndicator();
                                  // 通知对端已应用，带晋升信息
                                  try {
                                      String promoName = promotionType != null ? promotionType.name() : null;
@@ -461,9 +462,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                                  applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promoType, -1);
                              }
                              if (applied) {
+                                 // 清除选中状态和移动指示器（非申请方同步状态）
+                                 boardPanel.clearSelection();
                                  boardPanel.repaint();
                                  updateStatus();
-                                 boardPanel.clearForceMoveIndicator();
                              }
                          } catch (Throwable t) { logError(t); }
                      }); }
