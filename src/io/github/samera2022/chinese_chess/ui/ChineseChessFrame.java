@@ -55,7 +55,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
     // 新的右侧网络面板
     private NetModeController netController = new NetModeController();
-    private NetworkSidePanel networkSidePanel;
+    private InfoSidePanel infoSidePanel;
     private RuleSettingsPanel ruleSettingsPanel;
     private boolean ruleSettingsLocked = false;
     private JPanel westDock;
@@ -286,7 +286,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         });
 
         // 面板，带"玩法设置"按钮，点击后切换左侧设置组件
-        networkSidePanel = new NetworkSidePanel(
+        infoSidePanel = new InfoSidePanel(
                 netController,
                 boardPanel,
                 gameEngine,
@@ -301,7 +301,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 this::exportGameState,
                 this::importGameState
         );
-        networkSidePanel.setVisible(true);
+        infoSidePanel.setVisible(true);
         if (togglePanelButton != null) {
             togglePanelButton.setSelected(true);
             togglePanelButton.setText("隐藏面板");
@@ -309,7 +309,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
         westDock = new JPanel(new BorderLayout());
         westDock.add(ruleSettingsPanel, BorderLayout.WEST);
-        westDock.add(networkSidePanel, BorderLayout.CENTER);
+        westDock.add(infoSidePanel, BorderLayout.CENTER);
 
         // 组装
         mainPanel.add(westDock, BorderLayout.WEST);
@@ -321,7 +321,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         setLocationRelativeTo(null);
 
         // 设置 networkSidePanel 的本地版本显示
-        networkSidePanel.setLocalVersion(UpdateInfo.getLatestVersion());
+        infoSidePanel.setLocalVersion(UpdateInfo.getLatestVersion());
         // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
         netController.getSession().setListener(new NetworkSession.SyncGameStateListener() {
             @Override
@@ -334,27 +334,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         // 如果位置上没棋子（可能是同步延迟导致的幽灵操作），直接忽略
                         if (piece == null) return;
 
-                        // 2. === 核心安全检查：防止对方操作我方棋子 ===
-                        boolean amIHost = netController.isHost();     // 我是主机（红方）吗？
-                        boolean isPieceRed = piece.isRed();           // 被移动的棋子是红棋吗？
-
-                        // 规则：
-                        // 如果我是主机(红)，对方就是客机(黑)。对方只能移动黑棋 (!isPieceRed)。
-                        // 如果对方试图移动红棋 (isPieceRed)，说明对方在操作我的棋子 -> 拦截！
-                        if (amIHost && isPieceRed) {
-                            System.err.println("[安全拦截] 拒绝对方非法的操作：客机试图移动主机的红棋！");
-                            return;
-                        }
-
-                        // 如果我是客机(黑)，对方就是主机(红)。对方只能移动红棋 (isPieceRed)。
-                        // 如果对方试图移动黑棋 (!isPieceRed)，说明对方在操作我的棋子 -> 拦截！
-                        if (!amIHost && !isPieceRed) {
-                            System.err.println("[安全拦截] 拒绝对方非法的操作：主机试图移动客机的黑棋！");
-                            return;
-                        }
-                        // ===========================================
-
-                        // 3. 校验通过，执行对方的着法
                         if (gameEngine.makeMove(fromRow, fromCol, toRow, toCol)) {
                             boardPanel.clearSelection();
                             boardPanel.repaint();
@@ -387,13 +366,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     pendingForceRequests.clear();
                     undoButton.setEnabled(true);
                     boardPanel.setLocalControlsRed(null);
-                    networkSidePanel.onDisconnected(reason);
+                    infoSidePanel.onDisconnected(reason);
                 });
             }
             @Override
             public void onConnected(String peerInfo) {
                 SwingUtilities.invokeLater(() -> {
-                    networkSidePanel.onConnected(peerInfo);
+                    infoSidePanel.onConnected(peerInfo);
 
                     // 修改点 1：如果是主机，连接建立后立即发送完整的游戏状态快照
                     if (netController.isHost()) {
@@ -413,8 +392,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     updateStatus();
                 });
             }
-            @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> networkSidePanel.onPong(sentMillis, rttMillis)); }
-            @Override public void onPeerVersion(String version) { SwingUtilities.invokeLater(() -> networkSidePanel.setPeerVersion(version)); }
+            @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> infoSidePanel.onPong(sentMillis, rttMillis)); }
+            @Override public void onPeerVersion(String version) { SwingUtilities.invokeLater(() -> infoSidePanel.setPeerVersion(version)); }
             @Override public void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen) { SwingUtilities.invokeLater(() -> {
                         System.out.println("[DEBUG] 收到强制走子请求: " + fromRow + "," + fromCol + " -> " + toRow + "," + toCol + " (seq=" + seq + ", historyLen=" + historyLen + ")");
 
@@ -547,7 +526,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
              @Override public void onSettingsReceived(JsonObject settings) {
                 SwingUtilities.invokeLater(() -> {
                     // 转发给 NetworkSidePanel 处理持方同步
-                    networkSidePanel.onSettingsReceived(settings);
+                    infoSidePanel.onSettingsReceived(settings);
                     // 处理游戏规则设置同步
                     if (!netController.isHost()) {
                         gameEngine.applySettingsSnapshot(settings);
@@ -575,7 +554,9 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     try {
                         System.out.println("[SYNC] 收到对局状态，开始恢复...");
 
-                        // 修改点 2：直接使用 GameEngine 内部方法恢复状态，不再依赖外部 Importer
+                        // 调用修改后的 GameEngine 方法
+                        // 如果出错，这里会直接抛出异常，进入 catch 块
+                        // 不会再误报“同步成功”
                         gameEngine.loadSyncState(state);
 
                         // 强制刷新所有 UI 组件
@@ -587,15 +568,24 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         updateStatus();
 
                         if (ruleSettingsPanel != null) ruleSettingsPanel.refreshFromBinder();
+
+                        // 刷新历史记录面板
                         moveHistoryPanel.refreshHistory();
-                        moveHistoryPanel.showNavigation(); // 显示历史导航栏
+                        // 关键：确保历史记录面板没有选中“第0步”，否则可能会触发 rebuildBoardToStep(0)
+                        // 这取决于 MoveHistoryPanel 的实现，通常 refreshHistory 后保持默认状态即可
+                        // 如果你发现同步后棋盘变成了初始状态，可以在这里加一句：
+                        // moveHistoryPanel.selectLastMove(); // (如果你的 Panel 有这个方法)
+                        moveHistoryPanel.showNavigation();
 
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
                                 "已成功加入对局并同步当前状态！", "同步成功", JOptionPane.INFORMATION_MESSAGE);
 
                     } catch (Exception ex) {
+                        // 这样我们就能看到真正的错误原因了
+                        ex.printStackTrace();
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
-                                "对局同步失败: " + ex.getMessage(), "同步错误", JOptionPane.ERROR_MESSAGE);
+                                "对局同步失败: " + ex.getMessage() + "\n请查看控制台获取详细错误堆栈。",
+                                "同步错误", JOptionPane.ERROR_MESSAGE);
                         logError(ex);
                     }
                 });
@@ -666,7 +656,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         togglePanelButton.setFont(new Font("SimHei", Font.PLAIN, 14));
         togglePanelButton.addActionListener(e -> {
             boolean show = togglePanelButton.isSelected();
-            networkSidePanel.setVisible(show);
+            infoSidePanel.setVisible(show);
             togglePanelButton.setText(show ? "隐藏面板" : "显示面板");
             ChineseChessFrame.this.pack();
             ChineseChessFrame.this.revalidate();
@@ -682,7 +672,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     /**
      * 更新状态标签
      */
-    private void updateStatus() {
+    void updateStatus() {
         GameEngine.GameState state = gameEngine.getGameState();
         String status;
 

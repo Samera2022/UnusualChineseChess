@@ -6,39 +6,39 @@ package io.github.samera2022.chinese_chess.rules;
  */
 public class RuleConstants {
     // 基础玩法规则
-    public static final String ALLOW_FLYING_GENERAL = "allowFlyingGeneral";      // 允许飞将
-    public static final String DISABLE_FACING_GENERALS = "disableFacingGenerals"; // 取消对将
-    public static final String PAWN_CAN_RETREAT = "pawnCanRetreat";              // 兵卒可以后退
-    public static final String NO_RIVER_LIMIT = "noRiverLimit";                  // 取消过河限制（所有棋子）
-    public static final String ADVISOR_CAN_LEAVE = "advisorCanLeave";            // 仕可以离开宫
-    public static final String INTERNATIONAL_KING = "internationalKing";         // 国际象棋风格的王
-    public static final String PAWN_PROMOTION = "pawnPromotion";                 // 兵卒晋升规则
-    public static final String ALLOW_OWN_BASE_LINE = "allowOwnBaseLine";         // 兵到达己方底线可以晋升
-    public static final String ALLOW_INSIDE_RETREAT = "allowInsideRetreat";      // 兵可以在宫内后退
-    public static final String INTERNATIONAL_ADVISOR = "internationalAdvisor";   // 国际象棋风格的仕
-    public static final String ALLOW_ELEPHANT_CROSS_RIVER = "allowElephantCrossRiver"; // 象可以过河
-    public static final String ALLOW_ADVISOR_CROSS_RIVER = "allowAdvisorCrossRiver";   // 仕可以过河
-    public static final String ALLOW_KING_CROSS_RIVER = "allowKingCrossRiver";   // 王可以过河
-    public static final String LEFT_RIGHT_CONNECTED = "leftRightConnected";      // 左右相连（所有棋子）
-    public static final String LEFT_RIGHT_CONNECTED_HORSE = "leftRightConnectedHorse";     // 左右相连（仅马）
-    public static final String LEFT_RIGHT_CONNECTED_ELEPHANT = "leftRightConnectedElephant"; // 左右相连（仅象）
+    public static final String ALLOW_FLYING_GENERAL = "allow_flying_general";      // 允许飞将
+    public static final String DISABLE_FACING_GENERALS = "disable_facing_generals"; // 取消对将
+    public static final String PAWN_CAN_RETREAT = "pawn_can_retreat";              // 兵卒可以后退
+    public static final String NO_RIVER_LIMIT = "no_river_limit";                  // 取消过河限制（所有棋子）
+    public static final String ADVISOR_CAN_LEAVE = "advisor_can_leave";            // 仕可以离开宫
+    public static final String INTERNATIONAL_KING = "international_king";         // 国际象棋风格的王
+    public static final String PAWN_PROMOTION = "pawn_promotion";                 // 兵卒晋升规则
+    public static final String ALLOW_OWN_BASE_LINE = "allow_own_base_line";         // 兵到达己方底线可以晋升
+    public static final String ALLOW_INSIDE_RETREAT = "allow_inside_retreat";      // 兵可以在宫内后退
+    public static final String INTERNATIONAL_ADVISOR = "international_advisor";   // 国际象棋风格的仕
+    public static final String ALLOW_ELEPHANT_CROSS_RIVER = "allow_elephant_cross_river"; // 象可以过河
+    public static final String ALLOW_ADVISOR_CROSS_RIVER = "allow_advisor_cross_river";   // 仕可以过河
+    public static final String ALLOW_KING_CROSS_RIVER = "allow_king_cross_river";   // 王可以过河
+    public static final String LEFT_RIGHT_CONNECTED = "left_right_connected";      // 左右相连（所有棋子）
+    public static final String LEFT_RIGHT_CONNECTED_HORSE = "left_right_connected_horse";     // 左右相连（仅马）
+    public static final String LEFT_RIGHT_CONNECTED_ELEPHANT = "left_right_connected_elephant"; // 左右相连（仅象）
 
     // 取消卡子规则
-    public static final String UNBLOCK_PIECE = "unblockPiece";                   // 通用取消卡子
-    public static final String UNBLOCK_HORSE_LEG = "unblockHorseLeg";            // 马脚可以被跳过
-    public static final String UNBLOCK_ELEPHANT_EYE = "unblockElephantEye";      // 象眼可以被跳过
+    public static final String UNBLOCK_PIECE = "unblock_piece";                   // 通用取消卡子
+    public static final String UNBLOCK_HORSE_LEG = "unblock_horse_leg";            // 马脚可以被跳过
+    public static final String UNBLOCK_ELEPHANT_EYE = "unblock_elephant_eye";      // 象眼可以被跳过
 
     // 特殊规则
-    public static final String ALLOW_CAPTURE_OWN_PIECE = "allowCaptureOwnPiece"; // 允许吃自己的棋子
-    public static final String ALLOW_PIECE_STACKING = "allowPieceStacking";      // 允许棋子堆叠
-    public static final String MAX_STACKING_COUNT = "maxStackingCount";          // 最大堆叠数量
-    public static final String ALLOW_CARRY_PIECES_ABOVE = "allowCarryPiecesAbove"; // 允许背负上方棋子
-    public static final String ALLOW_CAPTURE_CONVERSION = "allowCaptureConversion"; // 允许俘虏（吃子改为转换归己方）
-    public static final String DEATH_MATCH_UNTIL_VICTORY = "deathMatchUntilVictory"; // 死战方休（必须吃掉全部棋子）
+    public static final String ALLOW_CAPTURE_OWN_PIECE = "allow_capture_own_piece"; // 允许吃自己的棋子
+    public static final String ALLOW_PIECE_STACKING = "allow_piece_stacking";      // 允许棋子堆叠
+    public static final String MAX_STACKING_COUNT = "max_stacking_count";          // 最大堆叠数量
+    public static final String ALLOW_CARRY_PIECES_ABOVE = "allow_carry_pieces_above"; // 允许背负上方棋子
+    public static final String ALLOW_CAPTURE_CONVERSION = "allow_capture_conversion"; // 允许俘虏（吃子改为转换归己方）
+    public static final String DEATH_MATCH_UNTIL_VICTORY = "death_match_until_victory"; // 死战方休（必须吃掉全部棋子）
 
     // UI相关配置
-    public static final String ALLOW_UNDO = "allowUndo";                         // 允许悔棋
-    public static final String SHOW_HINTS = "showHints";                         // 显示提示
+    public static final String ALLOW_UNDO = "allow_undo";                         // 允许悔棋
+    public static final String SHOW_HINTS = "show_hints";                         // 显示提示
 
 //    /**
 //     * 获取规则键对应的显示名称

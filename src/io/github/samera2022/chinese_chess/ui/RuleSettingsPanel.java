@@ -85,9 +85,9 @@ public class RuleSettingsPanel extends JPanel {
         JCheckBox chkAllowUndo = new JCheckBox("允许悔棋");
         // 保证在 BoxLayout 中左对齐
         chkAllowUndo.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(chkAllowUndo);
 
-        form.add(Box.createVerticalStrut(10));
+        form.add(chkAllowUndo);
+        form.add(Box.createVerticalStrut(6));
 
         // 延申玩法分组（可折叠）
         JPanel special = new JPanel();
@@ -154,6 +154,7 @@ public class RuleSettingsPanel extends JPanel {
         chkAdvisorCanLeave.setAlignmentX(Component.LEFT_ALIGNMENT);
         chkInternationalKing.setAlignmentX(Component.LEFT_ALIGNMENT);
         chkPawnPromotion.setAlignmentX(Component.LEFT_ALIGNMENT);
+
 
         specialContent.add(chkFlyingGeneral);
         specialContent.add(Box.createVerticalStrut(6));
@@ -862,3 +863,4 @@ public class RuleSettingsPanel extends JPanel {
         if (apply != null) apply.run();
     }
 }
+

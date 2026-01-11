@@ -918,90 +918,99 @@ public class GameEngine {
 
     /**
      * 从快照中恢复游戏状态（覆盖当前状态）
+     * 注意：移除了内部 try-catch，将异常抛出给调用者处理
      */
     public void loadSyncState(JsonObject root) {
         if (root == null) return;
 
-        try {
-            // 1. 恢复规则配置
-            if (root.has("rulesConfig")) {
-                applySettingsSnapshot(root.getAsJsonObject("rulesConfig"));
-            }
+        // 1. 恢复规则配置
+        if (root.has("rulesConfig")) {
+            applySettingsSnapshot(root.getAsJsonObject("rulesConfig"));
+        }
 
-            // 2. 恢复基础状态
-            if (root.has("isRedTurn")) {
-                this.isRedTurn = root.get("isRedTurn").getAsBoolean();
+        // 2. 恢复基础状态
+        if (root.has("isRedTurn")) {
+            this.isRedTurn = root.get("isRedTurn").getAsBoolean();
+        }
+        if (root.has("gameState")) {
+            try {
+                this.gameState = GameState.valueOf(root.get("gameState").getAsString());
+            } catch (Exception e) {
+                this.gameState = GameState.RUNNING;
             }
-            if (root.has("gameState")) {
-                try {
-                    this.gameState = GameState.valueOf(root.get("gameState").getAsString());
-                } catch (Exception e) {
-                    this.gameState = GameState.RUNNING;
+        }
+
+        // 3. 恢复历史记录
+        this.moveHistory.clear();
+        if (root.has("moveHistory")) {
+            JsonArray moves = root.getAsJsonArray("moveHistory");
+            for (JsonElement el : moves) {
+                Move m = gson.fromJson(el, Move.class);
+                this.moveHistory.add(m);
+            }
+        }
+
+        // 4. 恢复规则变更记录
+        this.ruleChangeHistory.clear();
+        if (root.has("ruleChangeHistory")) {
+            JsonArray changes = root.getAsJsonArray("ruleChangeHistory");
+            for (JsonElement el : changes) {
+                RuleChangeRecord r = gson.fromJson(el, RuleChangeRecord.class);
+                this.ruleChangeHistory.add(r);
+            }
+        }
+
+        // 5. 恢复棋盘
+        // === 修改点：安全清空棋盘，不依赖 board.clearBoard() ===
+        // 假设 board.removePiece 会移除该位置的一个棋子（或顶部棋子）
+        // 我们循环调用直到该位置为空
+        for (int r = 0; r < board.getRows(); r++) {
+            for (int c = 0; c < board.getCols(); c++) {
+                while (board.getPiece(r, c) != null) {
+                    // 使用 removePiece 逐个清理
+                    board.removePiece(r, c);
                 }
             }
+        }
 
-            // 3. 恢复历史记录
-            // 先清空
-            this.moveHistory.clear();
-            if (root.has("moveHistory")) {
-                JsonArray moves = root.getAsJsonArray("moveHistory");
-                for (JsonElement el : moves) {
-                    Move m = gson.fromJson(el, Move.class);
-                    this.moveHistory.add(m);
-                }
-            }
+        if (root.has("boardData")) {
+            JsonArray boardData = root.getAsJsonArray("boardData");
+            for (JsonElement el : boardData) {
+                JsonObject cell = el.getAsJsonObject();
+                int r = cell.get("row").getAsInt();
+                int c = cell.get("col").getAsInt();
+                JsonArray stackArr = cell.getAsJsonArray("stack");
 
-            // 4. 恢复规则变更记录
-            this.ruleChangeHistory.clear();
-            if (root.has("ruleChangeHistory")) {
-                JsonArray changes = root.getAsJsonArray("ruleChangeHistory");
-                for (JsonElement el : changes) {
-                    RuleChangeRecord r = gson.fromJson(el, RuleChangeRecord.class);
-                    this.ruleChangeHistory.add(r);
-                }
-            }
+                // 重建堆栈：按顺序放入
+                // stackArr[0] 是底部，stackArr[last] 是顶部
+                for (int i = 0; i < stackArr.size(); i++) {
+                    String typeName = stackArr.get(i).getAsString();
+                    Piece.Type type = Piece.Type.valueOf(typeName);
+                    Piece piece = new Piece(type, r, c);
 
-            // 5. 恢复棋盘 (核心：处理堆叠)
-            this.board.clearBoard(); // 需要确保 Board 有这个方法，或者使用 reset 但 reset 会放初始棋子
-            // 如果 Board.clearBoard() 不存在，可以用循环 removePiece
-            // 假设 Board 类没有公开 clearBoard，我们手动清空：
-            // for(int r=0; r<board.getRows(); r++) for(int c=0; c<board.getCols(); c++) board.removePiece(r, c);
-            // *但在提供的 savedInitialBoard 逻辑中使用了 board.clearBoard()，所以假设它存在*。
-
-            if (root.has("boardData")) {
-                JsonArray boardData = root.getAsJsonArray("boardData");
-                for (JsonElement el : boardData) {
-                    JsonObject cell = el.getAsJsonObject();
-                    int r = cell.get("row").getAsInt();
-                    int c = cell.get("col").getAsInt();
-                    JsonArray stackArr = cell.getAsJsonArray("stack");
-
-                    // 重建堆栈
-                    for (int i = 0; i < stackArr.size(); i++) {
-                        String typeName = stackArr.get(i).getAsString();
-                        Piece.Type type = Piece.Type.valueOf(typeName);
-                        Piece piece = new Piece(type, r, c);
-
-                        // 第一个棋子用 setPiece (或直接 push，取决于 Board 实现)
-                        // 为安全起见：如果是空的，set；如果不空，pushToStack
-                        if (i == 0) {
-                            board.setPiece(r, c, piece);
-                        } else {
-                            board.pushToStack(r, c, piece);
-                        }
+                    if (i == 0) {
+                        board.setPiece(r, c, piece);
+                    } else {
+                        board.pushToStack(r, c, piece);
                     }
                 }
             }
-
-            // 刷新验证器状态
-            this.validator.setRulesConfig(this.rulesConfig);
-
-            // 通知监听器 UI 更新
-            notifyGameStateChanged();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("恢复同步状态失败: " + e.getMessage());
         }
+
+        // 6. === 新增：重置回放系统的初始状态 ===
+        // 为了让加入方能够正常回放历史，我们需要假定一个初始状态。
+        // 如果是标准开局，我们创建一个新的标准棋盘作为回放起点。
+        // 这样 rebuildBoardToStep(0) 就能工作了。
+        Board standardBoard = new Board(); // 创建一个标准初始棋盘
+        this.savedInitialBoard = standardBoard.deepCopy();
+        this.savedInitialIsRedTurn = true;
+        this.isInReplayMode = false;
+        this.currentReplayStep = -1;
+
+        // 刷新验证器状态
+        this.validator.setRulesConfig(this.rulesConfig);
+
+        // 通知监听器 UI 更新
+        notifyGameStateChanged();
     }
 }

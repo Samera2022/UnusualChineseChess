@@ -4,18 +4,17 @@ import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.net.NetModeController;
-import io.github.samera2022.chinese_chess.net.NetworkSession;
+import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
+import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.util.*;
 import java.awt.event.*;
 import java.util.function.BooleanSupplier;
 
-public class NetworkSidePanel extends JPanel {
+public class InfoSidePanel extends JPanel {
     private final NetModeController netController;
     private final BoardPanel boardPanel;
     private final GameEngine gameEngine;
@@ -67,9 +66,11 @@ public class NetworkSidePanel extends JPanel {
         }
     }
 
-    public NetworkSidePanel(NetModeController netController, BoardPanel boardPanel, GameEngine gameEngine, JButton undoButton,
-                            Runnable onToggleSettings, BooleanSupplier isSettingsVisible,
-                            Runnable onExportGame, Runnable onImportGame) {
+    // 新增：用于监听规则变更
+
+    public InfoSidePanel(NetModeController netController, BoardPanel boardPanel, GameEngine gameEngine, JButton undoButton,
+                         Runnable onToggleSettings, BooleanSupplier isSettingsVisible,
+                         Runnable onExportGame, Runnable onImportGame) {
         this.netController = Objects.requireNonNull(netController);
         this.boardPanel = Objects.requireNonNull(boardPanel);
         this.gameEngine = Objects.requireNonNull(gameEngine);
@@ -171,9 +172,7 @@ public class NetworkSidePanel extends JPanel {
         timer.setRepeats(true);
         timer.start();
 
-        // 安装鼠标提示窗口（仅在“未连接”标签上）
         installQualityTooltip();
-
         setupSideSync();
     }
 
@@ -209,7 +208,7 @@ public class NetworkSidePanel extends JPanel {
     private void updateTooltipContent() {
         boolean connected = netController.isActive();
         String title = connected ? "连接中" : "未连接";
-        String role = connected ? (netController.isHost() ? "主机(红)" : "客户端(黑)") : "不可用";
+        String role = connected ? (netController.isHost() ? "主机" : "客户端") : "不可用";
         String addr = netController.displayAddress();
 
         String detail;
@@ -437,15 +436,23 @@ public class NetworkSidePanel extends JPanel {
     public void onSettingsReceived(JsonObject settings) {
         if (!settings.has("cmd")) return;
         String cmd = settings.get("cmd").getAsString();
+        System.out.println("Receiving "+cmd);
         if (SYNC_SIDE_CMD.equals(cmd)) {
             String side = settings.get("side").getAsString();
             boolean peerIsRed = "red".equals(side);
             // 对方的持方，本地切换为相反持方（互斥）
             boolean localIsRed = !peerIsRed;
+            System.out.println("local is Red: "+localIsRed);
             localRedBtn.setSelected(localIsRed);
             applyLocalSide(localIsRed, true); // 标记为网络同步
             boardPanel.repaint();
+            // 新增：强制刷新主窗口的状态栏（轮到X方）
+            Container top = getTopLevelAncestor();
+            if (top instanceof ChineseChessFrame) {
+                ((ChineseChessFrame) top).updateStatus();
+            }
         } else if (SYNC_SIDE_AUTH_CMD.equals(cmd)) {
+            System.out.println("SYNC_SIDE_AUTH_CMD");
             // 客户端收到切换权指令
             boolean clientAuth = settings.get("auth").getAsBoolean();
             hasSideAuth = clientAuth;
