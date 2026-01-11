@@ -198,6 +198,14 @@ public class BoardPanel extends JPanel {
      * 处理左键点击 - 点击交点附近时选中棋子
      */
     private void handleLeftClick(MouseEvent e) {
+        // 修正：只在联机且不是己方回合时禁止操作
+        System.out.println("Local Controls Red != null: "+(localControlsRed != null));
+        System.out.println("gameEngine is Red Turn: "+gameEngine.isRedTurn());
+        System.out.println("local Controls Red: "+localControlsRed);
+        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+            return;
+        }
+
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
@@ -301,6 +309,11 @@ public class BoardPanel extends JPanel {
      * 处理右键点击 - 在选中棋子后，右键尝试移动到该位置（会触发堆叠检查）
      */
     private void handleRightClick(MouseEvent e) {
+        // 修正：只在联机且不是己方回合时禁止操作
+        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+            return;
+        }
+
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
@@ -405,6 +418,11 @@ public class BoardPanel extends JPanel {
      * 处理中键点击 - 在选中棋子后，中键点击目标位置申请强制走子
      */
     private void handleMiddleClick(MouseEvent e) {
+        // 修正：只在联机且不是己方回合时禁止操作
+        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+            return;
+        }
+
         System.out.println("[DEBUG] [BoardPanel] 中键被点击");
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);

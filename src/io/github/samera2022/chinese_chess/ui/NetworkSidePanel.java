@@ -486,7 +486,7 @@ public class NetworkSidePanel extends JPanel {
 
         // 5. 设置本地控制权
         // 如果启用了逻辑，则绑定红/黑控制权；否则设为 null (默认状态)
-        boardPanel.setLocalControlsRed(shouldApplyFlipLogic ? Boolean.valueOf(effectiveRed) : null);
+        boardPanel.setLocalControlsRed(shouldApplyFlipLogic ? effectiveRed : true);
     }
 
     // 监听"本地X方"切换
