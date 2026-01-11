@@ -94,6 +94,54 @@ public class GameStateImporter {
     }
 
     /**
+     * 从JsonObject导入游戏状态（用于网络同步等场景）
+     */
+    public static void importGameState(GameEngine gameEngine, JsonObject root) {
+        if (root == null) {
+            throw new IllegalArgumentException("无效的JSON对象");
+        }
+        // 1. 导入玩法设置
+        if (root.has("settings")) {
+            importSettings(gameEngine, root.getAsJsonObject("settings"));
+        }
+        // 2. 导入棋盘状态
+        if (!root.has("boardState")) {
+            throw new IllegalArgumentException("缺少棋盘状态信息");
+        }
+        importBoardState(gameEngine, root.getAsJsonObject("boardState"));
+        // 3. 导入游戏基本信息
+        if (root.has("gameInfo")) {
+            importGameInfo(gameEngine, root.getAsJsonObject("gameInfo"));
+        }
+        // 4. 导入着法记录
+        if (root.has("moveHistory")) {
+            gameEngine.clearMoveHistory();
+            importMoveHistory(gameEngine, root.getAsJsonArray("moveHistory"));
+        }
+        // 5. 导入玩法变更记录
+        if (root.has("ruleChangeHistory")) {
+            gameEngine.clearRuleChangeHistory();
+            importRuleChangeHistory(gameEngine, root.getAsJsonArray("ruleChangeHistory"));
+        }
+        // 6. 重建初始状态（用于回放）
+        rebuildInitialStateForReplay(gameEngine, root);
+        // 7. 通知监听器刷新历史记录
+        try {
+            java.lang.reflect.Field listenersField = gameEngine.getClass().getDeclaredField("listeners");
+            listenersField.setAccessible(true);
+            java.util.List<?> listeners = (java.util.List<?>) listenersField.get(gameEngine);
+            for (Object listener : listeners) {
+                java.lang.reflect.Method onMoveExecuted = listener.getClass().getMethod("onMoveExecuted", io.github.samera2022.chinese_chess.model.Move.class);
+                onMoveExecuted.invoke(listener, (Object) null);
+                java.lang.reflect.Method onGameStateChanged = listener.getClass().getMethod("onGameStateChanged", io.github.samera2022.chinese_chess.engine.GameEngine.GameState.class);
+                onGameStateChanged.invoke(listener, io.github.samera2022.chinese_chess.engine.GameEngine.GameState.RUNNING);
+            }
+        } catch (Exception e) {
+            // 反射失败则忽略
+        }
+    }
+
+    /**
      * 重建初始状态用于回放
      */
     private static void rebuildInitialStateForReplay(GameEngine gameEngine, JsonObject root) {

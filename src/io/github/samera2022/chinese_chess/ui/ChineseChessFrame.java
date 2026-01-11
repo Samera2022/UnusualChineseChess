@@ -197,7 +197,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     boardPanel.clearForceMoveIndicator();
                 } catch (Throwable t) {
                     System.out.println("[DEBUG] 发送强制走子请求失败: " + t);
-                    t.printStackTrace();
+                    logError(t);
                     JOptionPane.showMessageDialog(ChineseChessFrame.this, "发送强制走子请求失败：" + t.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
                     boardPanel.clearForceMoveIndicator();
                 }
@@ -323,21 +323,51 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 设置 networkSidePanel 的本地版本显示
         networkSidePanel.setLocalVersion(UpdateInfo.getLatestVersion());
         // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
-        netController.getSession().setListener(new NetworkSession.Listener() {
-            @Override public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) { SwingUtilities.invokeLater(() -> {
-                        boolean applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol);
-                        if (!applied) {
-                            // couldn't apply move locally (likely due to feature mismatch)
-                            // send a force request to peer (whoever is authoritative)
-                            try {
-                                long seq = forceSeqGenerator.getAndIncrement();
-                                int historyLen = gameEngine.getMoveHistory().size();
-                                pendingForceRequests.put(seq, new RequestInfo(fromRow, fromCol, toRow, toCol, seq, historyLen));
-                                sendForceRequestWithRetry(seq);
-                            } catch (Throwable ignored) {}
+        netController.getSession().setListener(new NetworkSession.SyncGameStateListener() {
+            @Override
+            public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        // 1. 获取被移动的棋子对象
+                        Piece piece = gameEngine.getBoard().getPiece(fromRow, fromCol);
+
+                        // 如果位置上没棋子（可能是同步延迟导致的幽灵操作），直接忽略
+                        if (piece == null) return;
+
+                        // 2. === 核心安全检查：防止对方操作我方棋子 ===
+                        boolean amIHost = netController.isHost();     // 我是主机（红方）吗？
+                        boolean isPieceRed = piece.isRed();           // 被移动的棋子是红棋吗？
+
+                        // 规则：
+                        // 如果我是主机(红)，对方就是客机(黑)。对方只能移动黑棋 (!isPieceRed)。
+                        // 如果对方试图移动红棋 (isPieceRed)，说明对方在操作我的棋子 -> 拦截！
+                        if (amIHost && isPieceRed) {
+                            System.err.println("[安全拦截] 拒绝对方非法的操作：客机试图移动主机的红棋！");
+                            return;
                         }
-                        boardPanel.repaint(); updateStatus();
-                    }); }
+
+                        // 如果我是客机(黑)，对方就是主机(红)。对方只能移动红棋 (isPieceRed)。
+                        // 如果对方试图移动黑棋 (!isPieceRed)，说明对方在操作我的棋子 -> 拦截！
+                        if (!amIHost && !isPieceRed) {
+                            System.err.println("[安全拦截] 拒绝对方非法的操作：主机试图移动客机的黑棋！");
+                            return;
+                        }
+                        // ===========================================
+
+                        // 3. 校验通过，执行对方的着法
+                        if (gameEngine.makeMove(fromRow, fromCol, toRow, toCol)) {
+                            boardPanel.clearSelection();
+                            boardPanel.repaint();
+                            updateStatus();
+                            moveHistoryPanel.refreshHistory();
+                        } else {
+                            System.err.println("收到对手无效着法，请求重新同步...");
+                        }
+                    } catch (Exception e) {
+                        logError(e);
+                    }
+                });
+            }
             @Override public void onPeerRestart() { SwingUtilities.invokeLater(() -> {
                 gameEngine.restart();
                 boardPanel.clearForceMoveIndicator();
@@ -360,13 +390,23 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     networkSidePanel.onDisconnected(reason);
                 });
             }
-            @Override public void onConnected(String peerInfo) {
+            @Override
+            public void onConnected(String peerInfo) {
                 SwingUtilities.invokeLater(() -> {
                     networkSidePanel.onConnected(peerInfo);
+
+                    // 修改点 1：如果是主机，连接建立后立即发送完整的游戏状态快照
                     if (netController.isHost()) {
-                        JsonObject snap = gameEngine.getSettingsSnapshot();
-                        netController.getSession().sendSettings(snap);
+                        try {
+                            // 使用 GameEngine 新增的直接获取快照方法
+                            JsonObject fullState = gameEngine.getSyncState();
+                            netController.getSession().sendSyncGameState(fullState);
+                            System.out.println("[SYNC] 主机已发送完整对局状态");
+                        } catch (Exception ex) {
+                            System.err.println("[SYNC] 发送对局同步失败: " + ex);
+                        }
                     }
+
                     ruleSettingsLocked = !netController.isHost();
                     setRuleSettingsEnabled(netController.isHost());
                     ruleSettingsPanel.refreshFromBinder();
@@ -526,6 +566,37 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         moveHistoryPanel.refreshHistory();
                         boardPanel.repaint();
                         updateStatus();
+                    }
+                });
+            }
+            @Override
+            public void onSyncGameStateReceived(JsonObject state) {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        System.out.println("[SYNC] 收到对局状态，开始恢复...");
+
+                        // 修改点 2：直接使用 GameEngine 内部方法恢复状态，不再依赖外部 Importer
+                        gameEngine.loadSyncState(state);
+
+                        // 强制刷新所有 UI 组件
+                        boardPanel.clearSelection();
+                        boardPanel.clearForceMoveIndicator();
+                        boardPanel.clearRemotePieceHighlight();
+
+                        boardPanel.repaint();
+                        updateStatus();
+
+                        if (ruleSettingsPanel != null) ruleSettingsPanel.refreshFromBinder();
+                        moveHistoryPanel.refreshHistory();
+                        moveHistoryPanel.showNavigation(); // 显示历史导航栏
+
+                        JOptionPane.showMessageDialog(ChineseChessFrame.this,
+                                "已成功加入对局并同步当前状态！", "同步成功", JOptionPane.INFORMATION_MESSAGE);
+
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(ChineseChessFrame.this,
+                                "对局同步失败: " + ex.getMessage(), "同步错误", JOptionPane.ERROR_MESSAGE);
+                        logError(ex);
                     }
                 });
             }

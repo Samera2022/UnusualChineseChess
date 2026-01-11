@@ -1,5 +1,8 @@
 package io.github.samera2022.chinese_chess.engine;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.model.HistoryItem;
 import io.github.samera2022.chinese_chess.model.Move;
@@ -18,6 +21,7 @@ import java.util.*;
  * 游戏引擎 - 管理游戏状态和逻辑
  */
 public class GameEngine {
+    private final Gson gson = new Gson();
     private Board board;
     private MoveValidator validator;
     private CheckDetector checkDetector;
@@ -864,6 +868,140 @@ public class GameEngine {
             case BLACK_SOLDIER:
                 return toRed ? Piece.Type.RED_SOLDIER : Piece.Type.BLACK_SOLDIER;
             default: return type;
+        }
+    }
+
+    /**
+     * 获取完整的游戏状态快照（用于联机同步）
+     */
+    public JsonObject getSyncState() {
+        JsonObject root = new JsonObject();
+
+        // 1. 基础状态
+        root.addProperty("isRedTurn", isRedTurn);
+        root.addProperty("gameState", gameState.name());
+
+        // 2. 规则配置
+        root.add("rulesConfig", rulesConfig.toJson());
+
+        // 3. 历史记录 (着法)
+        // 使用 Gson 直接序列化 List<Move>
+        root.add("moveHistory", gson.toJsonTree(moveHistory));
+
+        // 4. 规则变更记录
+        root.add("ruleChangeHistory", gson.toJsonTree(ruleChangeHistory));
+
+        // 5. 棋盘上的棋子 (包含堆叠信息)
+        JsonArray boardArray = new JsonArray();
+        for (int r = 0; r < board.getRows(); r++) {
+            for (int c = 0; c < board.getCols(); c++) {
+                List<Piece> stack = board.getStack(r, c);
+                if (stack != null && !stack.isEmpty()) {
+                    JsonObject cellObj = new JsonObject();
+                    cellObj.addProperty("row", r);
+                    cellObj.addProperty("col", c);
+
+                    JsonArray stackArr = new JsonArray();
+                    for (Piece p : stack) {
+                        // 只需要保存类型，因为 Piece(Type, r, c) 构造函数会根据 Type 确定颜色
+                        stackArr.add(p.getType().name());
+                    }
+                    cellObj.add("stack", stackArr);
+                    boardArray.add(cellObj);
+                }
+            }
+        }
+        root.add("boardData", boardArray);
+
+        return root;
+    }
+
+    /**
+     * 从快照中恢复游戏状态（覆盖当前状态）
+     */
+    public void loadSyncState(JsonObject root) {
+        if (root == null) return;
+
+        try {
+            // 1. 恢复规则配置
+            if (root.has("rulesConfig")) {
+                applySettingsSnapshot(root.getAsJsonObject("rulesConfig"));
+            }
+
+            // 2. 恢复基础状态
+            if (root.has("isRedTurn")) {
+                this.isRedTurn = root.get("isRedTurn").getAsBoolean();
+            }
+            if (root.has("gameState")) {
+                try {
+                    this.gameState = GameState.valueOf(root.get("gameState").getAsString());
+                } catch (Exception e) {
+                    this.gameState = GameState.RUNNING;
+                }
+            }
+
+            // 3. 恢复历史记录
+            // 先清空
+            this.moveHistory.clear();
+            if (root.has("moveHistory")) {
+                JsonArray moves = root.getAsJsonArray("moveHistory");
+                for (JsonElement el : moves) {
+                    Move m = gson.fromJson(el, Move.class);
+                    this.moveHistory.add(m);
+                }
+            }
+
+            // 4. 恢复规则变更记录
+            this.ruleChangeHistory.clear();
+            if (root.has("ruleChangeHistory")) {
+                JsonArray changes = root.getAsJsonArray("ruleChangeHistory");
+                for (JsonElement el : changes) {
+                    RuleChangeRecord r = gson.fromJson(el, RuleChangeRecord.class);
+                    this.ruleChangeHistory.add(r);
+                }
+            }
+
+            // 5. 恢复棋盘 (核心：处理堆叠)
+            this.board.clearBoard(); // 需要确保 Board 有这个方法，或者使用 reset 但 reset 会放初始棋子
+            // 如果 Board.clearBoard() 不存在，可以用循环 removePiece
+            // 假设 Board 类没有公开 clearBoard，我们手动清空：
+            // for(int r=0; r<board.getRows(); r++) for(int c=0; c<board.getCols(); c++) board.removePiece(r, c);
+            // *但在提供的 savedInitialBoard 逻辑中使用了 board.clearBoard()，所以假设它存在*。
+
+            if (root.has("boardData")) {
+                JsonArray boardData = root.getAsJsonArray("boardData");
+                for (JsonElement el : boardData) {
+                    JsonObject cell = el.getAsJsonObject();
+                    int r = cell.get("row").getAsInt();
+                    int c = cell.get("col").getAsInt();
+                    JsonArray stackArr = cell.getAsJsonArray("stack");
+
+                    // 重建堆栈
+                    for (int i = 0; i < stackArr.size(); i++) {
+                        String typeName = stackArr.get(i).getAsString();
+                        Piece.Type type = Piece.Type.valueOf(typeName);
+                        Piece piece = new Piece(type, r, c);
+
+                        // 第一个棋子用 setPiece (或直接 push，取决于 Board 实现)
+                        // 为安全起见：如果是空的，set；如果不空，pushToStack
+                        if (i == 0) {
+                            board.setPiece(r, c, piece);
+                        } else {
+                            board.pushToStack(r, c, piece);
+                        }
+                    }
+                }
+            }
+
+            // 刷新验证器状态
+            this.validator.setRulesConfig(this.rulesConfig);
+
+            // 通知监听器 UI 更新
+            notifyGameStateChanged();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("恢复同步状态失败: " + e.getMessage());
         }
     }
 }

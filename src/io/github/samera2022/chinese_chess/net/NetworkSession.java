@@ -40,6 +40,13 @@ public class NetworkSession {
         void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason);
     }
 
+    /**
+     * 新增：同步对局状态回调接口
+     */
+    public interface SyncGameStateListener extends Listener {
+        void onSyncGameStateReceived(JsonObject state);
+    }
+
     private ServerSocket serverSocket;
     private Socket socket;
     private Thread ioThread;
@@ -308,6 +315,18 @@ public class NetworkSession {
                         } else {
                             System.out.println("[DEBUG] [NetworkSession] listener为空！");
                         }
+                    } else if ("SYNC_GAME_STATE".equals(cmd)) {
+                        if (jo.has("state")) {
+                            JsonObject state = jo.getAsJsonObject("state");
+                            System.out.println("[DEBUG] 收到 SYNC_GAME_STATE: " + state);
+                            if (listener != null) {
+                                // 新增回调
+                                if (listener instanceof SyncGameStateListener) {
+                                    ((SyncGameStateListener) listener).onSyncGameStateReceived(state);
+                                }
+                            }
+                        }
+                        return;
                     }
                 } catch (Throwable t) {
                     // fall back to plain parsing
@@ -583,6 +602,22 @@ public class NetworkSession {
             System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_APPLIED: " + jo);
         } catch (Throwable t) {
             System.out.println("[DEBUG] sendForceMoveApplied 异常: " + t);
+        }
+    }
+
+    /**
+     * 发送完整对局状态（用于断线重连同步）
+     */
+    public void sendSyncGameState(JsonObject gameState) {
+        if (out == null || gameState == null) return;
+        try {
+            JsonObject jo = new JsonObject();
+            jo.addProperty("cmd", "SYNC_GAME_STATE");
+            jo.add("state", gameState);
+            sendJsonEnvelope(jo);
+            System.out.println("[DEBUG] 发送 SYNC_GAME_STATE: " + jo);
+        } catch (Throwable t) {
+            System.out.println("[DEBUG] sendSyncGameState 异常: " + t);
         }
     }
 }
