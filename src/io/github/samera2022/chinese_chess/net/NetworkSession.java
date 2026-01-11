@@ -34,7 +34,7 @@ public class NetworkSession {
         // 新增：对端请求撤销一步
         void onPeerUndo();
 
-        void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq);
+        void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType);
 
         // 新增：收到对端对强制走子的拒绝（包含 seq 与原因）
         void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason);
@@ -294,6 +294,20 @@ public class NetworkSession {
                         } else {
                             System.out.println("[DEBUG] [NetworkSession] listener为空！");
                         }
+                    } else if ("FORCE_MOVE_APPLIED".equals(cmd)) {
+                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
+                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
+                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
+                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
+                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
+                        String promo = jo.has("promotion") ? jo.get("promotion").getAsString() : null;
+                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_APPLIED: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", promo=" + promo + ")");
+                        if (listener != null) {
+                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveApplied");
+                            listener.onForceMoveApplied(fr, fc, tr, tc, seq, promo);
+                        } else {
+                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
+                        }
                     }
                 } catch (Throwable t) {
                     // fall back to plain parsing
@@ -548,6 +562,27 @@ public class NetworkSession {
         } catch (Throwable t) {
             System.out.println("[DEBUG] sendForceMoveReject fallback legacy");
             out.println("FORCE_MOVE_REJECT " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + (reason == null ? "" : reason));
+        }
+    }
+
+    /**
+     * Notify peer that a force move has been applied, with optional promotion.
+     */
+    public void sendForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType) {
+        if (out == null) return;
+        try {
+            JsonObject jo = new JsonObject();
+            jo.addProperty("cmd", "FORCE_MOVE_APPLIED");
+            com.google.gson.JsonArray fromA = new com.google.gson.JsonArray(); fromA.add(fromRow); fromA.add(fromCol);
+            com.google.gson.JsonArray toA = new com.google.gson.JsonArray(); toA.add(toRow); toA.add(toCol);
+            jo.add("from", fromA);
+            jo.add("to", toA);
+            jo.addProperty("seq", seq);
+            if (promotionType != null) jo.addProperty("promotion", promotionType);
+            sendJsonEnvelope(jo);
+            System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_APPLIED: " + jo);
+        } catch (Throwable t) {
+            System.out.println("[DEBUG] sendForceMoveApplied 异常: " + t);
         }
     }
 }

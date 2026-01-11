@@ -343,6 +343,7 @@ public class BoardPanel extends JPanel {
             board.getPiece(fromR, fromC);
         Piece.Type promotionType = null;
 
+        // 检查是否需要晋升：首先验证这是一个有效的移动
         if (movingPiece != null && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
             boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
                                movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
@@ -352,11 +353,17 @@ public class BoardPanel extends JPanel {
                                      (!movingPiece.isRed() && toRow == 0);
             boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE);
 
+            // 只有在兵卒到达底线 且 移动是有效的情况下才弹出晋升对话框
             if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
-                promotionType = showPromotionDialog(movingPiece.isRed());
-                if (promotionType == null) {
-                    repaint();
-                    return;
+                // 先验证移动是否有效（使用临时的 MoveValidator）
+                MoveValidator tmpValidator = new MoveValidator(gameEngine.getBoard());
+                tmpValidator.setRulesConfig(gameEngine.getRulesConfig());
+                if (tmpValidator.isValidMove(fromR, fromC, toRow, toCol, selectedStackIndex)) {
+                    promotionType = showPromotionDialog(movingPiece.isRed());
+                    if (promotionType == null) {
+                        repaint();
+                        return;
+                    }
                 }
             }
         }

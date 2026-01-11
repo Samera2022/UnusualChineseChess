@@ -2,10 +2,12 @@ package io.github.samera2022.chinese_chess.ui;
 
 import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.UpdateInfo;
+import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.io.GameStateExporter;
 import io.github.samera2022.chinese_chess.io.GameStateImporter;
 import io.github.samera2022.chinese_chess.model.Move;
+import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
@@ -401,20 +403,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         if (ans == JOptionPane.YES_OPTION) {
                             System.out.println("[DEBUG] 发送 FORCE_MOVE_CONFIRM");
                             try { netController.getSession().sendForceMoveConfirm(fromRow, fromCol, toRow, toCol, seq); } catch (Throwable ignored) {}
-
-                            // 接收方也立即执行强制移动
-                            System.out.println("[DEBUG] 接收方执行强制移动");
-                            try {
-                                boolean applied = gameEngine.forceApplyMove(fromRow, fromCol, toRow, toCol);
-                                System.out.println("[DEBUG] 接收方强制移动结果: " + applied);
-                                if (applied) {
-                                    boardPanel.repaint();
-                                    updateStatus();
-                                }
-                            } catch (Throwable t) {
-                                System.out.println("[DEBUG] 接收方强制移动异常: " + t);
-                                t.printStackTrace();
-                            }
+                            // 接收方不执行晋升选择，也不在本地应用（等待对端最终应用/广播）
                         } else {
                             System.out.println("[DEBUG] 发送 FORCE_MOVE_REJECT");
                             try { netController.getSession().sendForceMoveReject(fromRow, fromCol, toRow, toCol, seq, "user_rejected"); } catch (Throwable ignored) {}
@@ -427,42 +416,49 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
                          // Peer confirmed our force request. Find pending and apply.
                          RequestInfo info = pendingForceRequests.remove(seq);
-                         if (info != null) {
-                             if (info.timer != null) { info.timer.stop(); }
-                         }
+                         if (info != null && info.timer != null) { info.timer.stop(); }
                          try {
-                             // Try to invoke forceApplyMove via reflection (may not exist in older builds). Fallback to makeMove.
+                             // 先告知用户对方已同意
+                             JOptionPane.showMessageDialog(ChineseChessFrame.this, "对方已同意你的强制走子", "强制走子成功", JOptionPane.INFORMATION_MESSAGE);
+
+                             // 仅强制走子发起方决定晋升（兵的所有者）
+                             Piece.Type promotionType = resolveForcePromotionType(fromRow, fromCol, toRow, toCol);
+
                              boolean applied = false;
                              try {
-                                 java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class);
-                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol);
+                                 java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class, Piece.Type.class, int.class);
+                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promotionType, -1);
                                  if (res instanceof Boolean) applied = (Boolean) res;
                              } catch (NoSuchMethodException nsme) {
-                                 // fallback: try without bypass (may fail if invalid)
-                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol);
+                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promotionType, -1);
                              }
                              System.out.println("[DEBUG] 强制移动应用结果: " + applied);
                              if (applied) {
                                  boardPanel.repaint();
                                  updateStatus();
-                                 // 清除指示器并显示确认窗体
                                  boardPanel.clearForceMoveIndicator();
-                                 JOptionPane.showMessageDialog(ChineseChessFrame.this, "对方已同意你的强制走子", "强制走子成功", JOptionPane.INFORMATION_MESSAGE);
+                                 // 通知对端已应用，带晋升信息
+                                 try {
+                                     String promoName = promotionType != null ? promotionType.name() : null;
+                                     netController.getSession().sendForceMoveApplied(fromRow, fromCol, toRow, toCol, seq, promoName);
+                                 } catch (Throwable ignored) {}
                              }
                          } catch (Throwable t) { logError(t); }
                      }); }
-            @Override public void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq) { SwingUtilities.invokeLater(() -> {
+            @Override public void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionTypeName) { SwingUtilities.invokeLater(() -> {
                          // Peer reports that a force move was applied. Ensure we stop any retry timer and apply locally if needed.
                          RequestInfo info = pendingForceRequests.remove(seq);
                          if (info != null && info.timer != null) { info.timer.stop(); }
                          try {
+                             Piece.Type promoType = null;
+                             try { if (promotionTypeName != null) promoType = Piece.Type.valueOf(promotionTypeName); } catch (Exception ignored) {}
                              boolean applied = false;
                              try {
-                                 java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class);
-                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol);
+                                 java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class, Piece.Type.class, int.class);
+                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promoType, -1);
                                  if (res instanceof Boolean) applied = (Boolean) res;
                              } catch (NoSuchMethodException nsme) {
-                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol);
+                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promoType, -1);
                              }
                              if (applied) {
                                  boardPanel.repaint();
@@ -809,5 +805,37 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         if (t == null) return;
         System.err.println("[ChineseChessFrame] " + t);
         try { t.printStackTrace(System.err); } catch (Throwable ignored) {}
+    }
+
+    // helper: prompt promotion type when a forced move drives a soldier to baseline
+    private Piece.Type resolveForcePromotionType(int fromRow, int fromCol, int toRow, int toCol) {
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(fromRow, fromCol) || !board.isValid(toRow, toCol)) return null;
+        Piece p = board.getPiece(fromRow, fromCol);
+        if (p == null) return null;
+        if (!rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) return null;
+        boolean isSoldier = p.getType() == Piece.Type.RED_SOLDIER || p.getType() == Piece.Type.BLACK_SOLDIER;
+        if (!isSoldier) return null;
+        boolean isAtOpponentBaseLine = (p.isRed() && toRow == 0) || (!p.isRed() && toRow == 9);
+        boolean isAtOwnBaseLine = (p.isRed() && toRow == 9) || (!p.isRed() && toRow == 0);
+        boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE);
+        if (!(isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) return null;
+
+        // prompt user for promotion choice
+        Piece.Type[] types = p.isRed()
+                ? new Piece.Type[]{Piece.Type.RED_CHARIOT, Piece.Type.RED_HORSE, Piece.Type.RED_CANNON, Piece.Type.RED_ELEPHANT, Piece.Type.RED_ADVISOR}
+                : new Piece.Type[]{Piece.Type.BLACK_CHARIOT, Piece.Type.BLACK_HORSE, Piece.Type.BLACK_CANNON, Piece.Type.BLACK_ELEPHANT, Piece.Type.BLACK_ADVISOR};
+        String[] options = new String[types.length];
+        for (int i = 0; i < types.length; i++) options[i] = types[i].getChineseName();
+        int choice = JOptionPane.showOptionDialog(this,
+                "选择晋升的棋子：",
+                "兵卒晋升",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                options,
+                options[0]);
+        if (choice >= 0 && choice < types.length) return types[choice];
+        return null;
     }
 }
