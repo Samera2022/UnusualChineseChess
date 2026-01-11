@@ -33,6 +33,9 @@ public class NetworkSession {
         void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq);
         // 新增：对端请求撤销一步
         void onPeerUndo();
+
+        void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq);
+
         // 新增：收到对端对强制走子的拒绝（包含 seq 与原因）
         void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason);
     }
@@ -234,12 +237,20 @@ public class NetworkSession {
                     JsonObject payload = jo.deepCopy();
                     if (sig != null) { payload.remove("sig"); }
                     if (sig != null && localToken != null && peerToken != null) {
-                        String computed = computeHmac(payload.toString());
+                        // 发送端用 localToken + peerToken 计算签名
+                        // 接收端的 localToken 是发送端的 peerToken，接收端的 peerToken 是发送端的 localToken
+                        // 所以接收端应该用 peerToken + localToken 来验证
+                        String computed = computeHmacWithKey(payload.toString(), peerToken + localToken);
+                        System.out.println("[DEBUG] 签名验证: 收到=" + sig);
+                        System.out.println("[DEBUG] 签名验证: 计算=" + computed);
+                        System.out.println("[DEBUG] 签名验证: localToken=" + localToken);
+                        System.out.println("[DEBUG] 签名验证: peerToken=" + peerToken);
                         if (computed == null || !computed.equals(sig)) {
                             System.out.println("[DEBUG] Signature mismatch, ignoring frame");
                             // ignore this frame
                             return;
                         }
+                        System.out.println("[DEBUG] 签名验证通过");
                     }
 
                     if ("FORCE_MOVE_REQUEST".equals(cmd)) {
@@ -249,14 +260,26 @@ public class NetworkSession {
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
                         int history = jo.has("historyLen") ? jo.get("historyLen").getAsInt() : -1;
-                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
+                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_REQUEST: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", historyLen=" + history + ")");
+                        if (listener != null) {
+                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveRequest");
+                            listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
+                        } else {
+                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
+                        }
                     } else if ("FORCE_MOVE_CONFIRM".equals(cmd)) {
                         int fr = jo.getAsJsonArray("from").get(0).getAsInt();
                         int fc = jo.getAsJsonArray("from").get(1).getAsInt();
                         int tr = jo.getAsJsonArray("to").get(0).getAsInt();
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
-                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
+                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_CONFIRM: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ")");
+                        if (listener != null) {
+                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveConfirm");
+                            listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
+                        } else {
+                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
+                        }
                     } else if ("FORCE_MOVE_REJECT".equals(cmd)) {
                         int fr = jo.getAsJsonArray("from").get(0).getAsInt();
                         int fc = jo.getAsJsonArray("from").get(1).getAsInt();
@@ -264,14 +287,20 @@ public class NetworkSession {
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
                         String reason = jo.has("reason") ? jo.get("reason").getAsString() : "rejected";
-                        if (listener != null) listener.onForceMoveReject(fr, fc, tr, tc, seq, reason);
+                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_REJECT: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", reason=" + reason + ")");
+                        if (listener != null) {
+                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveReject");
+                            listener.onForceMoveReject(fr, fc, tr, tc, seq, reason);
+                        } else {
+                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
+                        }
                     }
                 } catch (Throwable t) {
                     // fall back to plain parsing
                 }
             } else if (line.startsWith("FORCE_MOVE_REQUEST ")) {
                 // legacy plain-text support: FORCE_MOVE_REQUEST fr fc tr tc seq(optional)
-                System.out.println("[DEBUG] 处理 legacy FORCE_MOVE_REQUEST 指令");
+                System.out.println("[DEBUG] 处理 legacy FORCE_MOVE_REQUEST 指令: " + line);
                 String[] parts = line.split(" ");
                 if (parts.length >= 5) {
                     try {
@@ -281,8 +310,16 @@ public class NetworkSession {
                         int tc = Integer.parseInt(parts[4]);
                         long seq = parts.length >= 6 ? Long.parseLong(parts[5]) : 0L;
                         int history = parts.length >= 7 ? Integer.parseInt(parts[6]) : -1;
-                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
-                    } catch (NumberFormatException ignored) {}
+                        System.out.println("[DEBUG] [NetworkSession] 解析legacy FORCE_MOVE_REQUEST: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", historyLen=" + history + ")");
+                        if (listener != null) {
+                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveRequest");
+                            listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
+                        } else {
+                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
+                        }
+                    } catch (NumberFormatException e) {
+                        System.out.println("[DEBUG] [NetworkSession] legacy FORCE_MOVE_REQUEST解析异常: " + e);
+                    }
                 }
             } else if (line.startsWith("FORCE_MOVE_CONFIRM ")) {
                 // legacy confirm
@@ -306,9 +343,13 @@ public class NetworkSession {
 
     // compute HMAC-SHA256 over payload string using key = localToken + peerToken
     private String computeHmac(String payload) {
+        return computeHmacWithKey(payload, localToken + peerToken);
+    }
+
+    // compute HMAC-SHA256 over payload string using custom key
+    private String computeHmacWithKey(String payload, String key) {
         try {
-            if (localToken == null || peerToken == null) return null;
-            String key = localToken + peerToken;
+            if (key == null) return null;
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] sig = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
@@ -318,17 +359,29 @@ public class NetworkSession {
 
     // helper: send a JSON envelope and attach signature when possible
     private void sendJsonEnvelope(JsonObject payload) {
-        if (out == null) return;
+        if (out == null) {
+            System.out.println("[DEBUG] sendJsonEnvelope: out is null, cannot send!");
+            return;
+        }
         try {
             // compute signature if both tokens available
             JsonObject copy = payload.deepCopy();
             String sig = null;
             if (localToken != null && peerToken != null) {
                 sig = computeHmac(copy.toString());
+                System.out.println("[DEBUG] 发送签名: sig=" + sig);
+                System.out.println("[DEBUG] 发送签名: localToken=" + localToken);
+                System.out.println("[DEBUG] 发送签名: peerToken=" + peerToken);
+                System.out.println("[DEBUG] 发送签名: key=" + (localToken + peerToken));
             }
             if (sig != null) copy.addProperty("sig", sig);
+            System.out.println("[DEBUG] sendJsonEnvelope: 实际发送的完整消息: " + copy);
             out.println(copy);
+            out.flush(); // 确保立即发送
+            System.out.println("[DEBUG] sendJsonEnvelope: 消息已通过 out.println 发送并 flush");
         } catch (Throwable t) {
+            System.out.println("[DEBUG] sendJsonEnvelope 异常: " + t);
+            t.printStackTrace();
             // fallback to raw
             out.println(payload);
         }

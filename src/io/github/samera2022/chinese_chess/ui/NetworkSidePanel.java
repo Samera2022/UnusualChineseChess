@@ -309,7 +309,7 @@ public class NetworkSidePanel extends JPanel {
     }
 
     private void onJoin() {
-        JTextField hostField = new JTextField();
+        JTextField hostField = new JTextField("127.0.0.1");
         JTextField portField = new JTextField("12345");
         JPanel p = new JPanel(new GridLayout(0,1));
         p.add(new JLabel("主机地址:")); p.add(hostField);

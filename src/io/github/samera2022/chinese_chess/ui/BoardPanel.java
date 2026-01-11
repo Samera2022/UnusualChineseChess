@@ -31,6 +31,12 @@ public class BoardPanel extends JPanel {
     private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引
     private java.util.List<Point> validMoves = new java.util.ArrayList<>();
 
+    // 强制走子相关的字段
+    private int forceMoveFromRow = -1;
+    private int forceMoveFromCol = -1;
+    private int forceMoveToRow = -1;
+    private int forceMoveToCol = -1;
+
     // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
     private Boolean localControlsRed = null;
 
@@ -84,6 +90,9 @@ public class BoardPanel extends JPanel {
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
                     // 右键：尝试移动到该位置
                     handleRightClick(e);
+                } else if (e.getButton() == MouseEvent.BUTTON2) {
+                    // 中键：尝试强制走子
+                    handleMiddleClick(e);
                 }
             }
         });
@@ -111,6 +120,46 @@ public class BoardPanel extends JPanel {
     }
 
     /**
+     * 设置强制走子指示器的位置（显示红色圆圈）
+     */
+    public void setForceMoveIndicator(int fromRow, int fromCol, int toRow, int toCol) {
+        this.forceMoveFromRow = fromRow;
+        this.forceMoveFromCol = fromCol;
+        this.forceMoveToRow = toRow;
+        this.forceMoveToCol = toCol;
+        repaint();
+    }
+
+    /**
+     * 清除强制走子指示器
+     */
+    public void clearForceMoveIndicator() {
+        this.forceMoveFromRow = -1;
+        this.forceMoveFromCol = -1;
+        this.forceMoveToRow = -1;
+        this.forceMoveToCol = -1;
+        repaint();
+    }
+
+    /**
+     * 临时显示对方选中的棋子（黄色高亮）
+     */
+    public void setRemotePieceHighlight(int row, int col) {
+        this.selectedRow = row;
+        this.selectedCol = col;
+        repaint();
+    }
+
+    /**
+     * 清除远程棋子高亮
+     */
+    public void clearRemotePieceHighlight() {
+        this.selectedRow = -1;
+        this.selectedCol = -1;
+        repaint();
+    }
+
+    /**
      * 清除选择状态（游戏重新开始时调用）
      */
     public void clearSelection() {
@@ -118,6 +167,10 @@ public class BoardPanel extends JPanel {
         selectedCol = -1;
         selectedStackIndex = -1;
         validMoves.clear();
+        forceMoveFromRow = -1;
+        forceMoveFromCol = -1;
+        forceMoveToRow = -1;
+        forceMoveToCol = -1;
         repaint();
     }
 
@@ -322,7 +375,82 @@ public class BoardPanel extends JPanel {
     }
 
     /**
-     * 显示晋升选择对话框
+     * 处理中键点击 - 在选中棋子后，中键点击目标位置申请强制走子
+     */
+    private void handleMiddleClick(MouseEvent e) {
+        System.out.println("[DEBUG] [BoardPanel] 中键被点击");
+        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
+        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
+        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
+
+        // 转换为逻辑坐标
+        int[] logical = displayToLogic(displayRow, displayCol);
+        int toRow = logical[0];
+        int toCol = logical[1];
+        System.out.println("[DEBUG] [BoardPanel] 目标坐标: " + toRow + "," + toCol);
+
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(toRow, toCol)) {
+            System.out.println("[DEBUG] [BoardPanel] 目标坐标无效");
+            return;
+        }
+
+        // 如果没有选择棋子，不处理中键
+        if (selectedRow == -1 || selectedCol == -1) {
+            System.out.println("[DEBUG] [BoardPanel] 没有选择棋子");
+            return;
+        }
+
+        System.out.println("[DEBUG] [BoardPanel] 选中棋子: " + selectedRow + "," + selectedCol);
+
+        // 检查选中的棋子是否是己方的
+        Piece sourcePiece = selectedStackIndex >= 0 ?
+            board.getStack(selectedRow, selectedCol).get(selectedStackIndex) :
+            board.getPiece(selectedRow, selectedCol);
+
+        if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn() ||
+            (localControlsRed != null && sourcePiece.isRed() != localControlsRed)) {
+            // 不是己方棋子，不能进行强制走子
+            System.out.println("[DEBUG] [BoardPanel] 选中的不是己方棋子");
+            return;
+        }
+
+        System.out.println("[DEBUG] [BoardPanel] 显示强制走子指示器和弹出确认窗体");
+        // 显示强制走子指示器（红色圆圈）
+        setForceMoveIndicator(selectedRow, selectedCol, toRow, toCol);
+
+        // 弹出确认窗体
+        int ans = JOptionPane.showConfirmDialog(this,
+                "是否进行强制走子？",
+                "强制走子确认",
+                JOptionPane.YES_NO_OPTION);
+
+        if (ans == JOptionPane.YES_OPTION) {
+            System.out.println("[DEBUG] [BoardPanel] 用户确认强制走子，触发回调");
+            // 触发强制走子请求的回调接口
+            if (forceMoveRequestListener != null) {
+                forceMoveRequestListener.onForceMoveRequest(selectedRow, selectedCol, toRow, toCol);
+            }
+        } else {
+            System.out.println("[DEBUG] [BoardPanel] 用户取消强制走子");
+            // 取消操作，清除指示器
+            clearForceMoveIndicator();
+        }
+
+        repaint();
+    }
+
+    /**
+     * 强制走子请求监听器接口
+     */
+    public interface ForceMoveRequestListener {
+        void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol);
+    }
+    private ForceMoveRequestListener forceMoveRequestListener;
+    public void setForceMoveRequestListener(ForceMoveRequestListener listener) {
+        this.forceMoveRequestListener = listener;
+    }
+    /**
      * @param isRed 是否是红方
      * @return 选择的棋子类型，null表示取消
      */
@@ -638,6 +766,17 @@ public class BoardPanel extends JPanel {
             int moveX = display[1] * cellSize;
             int moveY = display[0] * cellSize;
             g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
+        }
+
+        // 绘制强制走子指示器 - 红色圆圈
+        if (forceMoveToRow != -1 && forceMoveToCol != -1) {
+            int[] display = logicToDisplay(forceMoveToRow, forceMoveToCol);
+            int moveX = display[1] * cellSize;
+            int moveY = display[0] * cellSize;
+            g2d.setColor(new Color(255, 0, 0)); // 红色
+            g2d.setStroke(new BasicStroke(3));
+            int radius = cellSize / 2;
+            g2d.drawOval(moveX - radius, moveY - radius, radius * 2, radius * 2);
         }
     }
 
