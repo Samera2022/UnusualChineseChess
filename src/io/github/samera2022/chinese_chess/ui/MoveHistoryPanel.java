@@ -81,7 +81,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
      */
     public void showNavigation() {
         List<Move> moves = gameEngine.getMoveHistory();
-        if (moves.size() > 0) {
+        if (!moves.isEmpty()) {
             isInReplayMode = true;
             currentStep = moves.size(); // 初始显示最后一步
             gameEngine.setReplayMode(true, currentStep);
@@ -200,7 +200,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
             currentStep = -1;
             // 检查是否还需要显示导航面板
             List<Move> moves = gameEngine.getMoveHistory();
-            if (moves.size() == 0) {
+            if (moves.isEmpty()) {
                 navigationPanel.setVisible(false);
             } else {
                 // 更新到最新状态

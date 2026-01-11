@@ -61,16 +61,36 @@ public class GameStateImporter {
 
         // 4. 导入着法记录
         if (root.has("moveHistory")) {
+            gameEngine.clearMoveHistory(); // 只清空 moveHistory
             importMoveHistory(gameEngine, root.getAsJsonArray("moveHistory"));
         }
 
         // 5. 导入玩法变更记录
         if (root.has("ruleChangeHistory")) {
+            gameEngine.clearRuleChangeHistory(); // 只清空 ruleChangeHistory
             importRuleChangeHistory(gameEngine, root.getAsJsonArray("ruleChangeHistory"));
         }
 
         // 6. 重建初始状态（用于回放）
         rebuildInitialStateForReplay(gameEngine, root);
+
+        // 7. 导入完成后，通知监听器刷新历史记录（确保UI端用getCombinedHistory()刷新显示）
+        // 这里用null触发所有监听器的onMoveExecuted，实际项目可根据UI刷新机制调整
+        try {
+            java.lang.reflect.Field listenersField = gameEngine.getClass().getDeclaredField("listeners");
+            listenersField.setAccessible(true);
+            java.util.List<?> listeners = (java.util.List<?>) listenersField.get(gameEngine);
+            for (Object listener : listeners) {
+                // 先调用 onMoveExecuted(null)
+                java.lang.reflect.Method onMoveExecuted = listener.getClass().getMethod("onMoveExecuted", io.github.samera2022.chinese_chess.model.Move.class);
+                onMoveExecuted.invoke(listener, (Object) null);
+                // 再调用 onGameStateChanged(GameEngine.GameState.RUNNING)
+                java.lang.reflect.Method onGameStateChanged = listener.getClass().getMethod("onGameStateChanged", io.github.samera2022.chinese_chess.engine.GameEngine.GameState.class);
+                onGameStateChanged.invoke(listener, io.github.samera2022.chinese_chess.engine.GameEngine.GameState.RUNNING);
+            }
+        } catch (Exception e) {
+            // 反射失败则忽略，不影响主流程
+        }
     }
 
     /**
@@ -112,9 +132,9 @@ public class GameStateImporter {
                     // 恢复被吃的棋子
                     if (move.getCapturedPiece() != null) {
                         Piece captured = new Piece(
-                            move.getCapturedPiece().getType(),
-                            move.getToRow(),
-                            move.getToCol()
+                                move.getCapturedPiece().getType(),
+                                move.getToRow(),
+                                move.getToCol()
                         );
                         board.setPiece(move.getToRow(), move.getToCol(), captured);
                     }
@@ -346,3 +366,4 @@ public class GameStateImporter {
         }
     }
 }
+

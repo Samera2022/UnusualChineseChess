@@ -74,9 +74,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         if (key != null && !RuleConstants.ALLOW_UNDO.equals(key) && !RuleConstants.SHOW_HINTS.equals(key)) {
             if (newVal instanceof Boolean) {
                 boolean enabled = (Boolean) newVal;
-                String displayName = RuleConstants.getDisplayName(key);
                 int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
-                RuleChangeRecord record = new RuleChangeRecord(key, displayName, enabled, afterMoveIndex);
+                RuleChangeRecord record = new RuleChangeRecord(key, key, enabled, afterMoveIndex);
                 gameEngine.addRuleChangeToHistory(record);
                 // Update the move history panel
                 if (moveHistoryPanel != null) {

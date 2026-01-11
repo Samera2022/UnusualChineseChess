@@ -40,53 +40,103 @@ public class RuleConstants {
     public static final String ALLOW_UNDO = "allowUndo";                         // 允许悔棋
     public static final String SHOW_HINTS = "showHints";                         // 显示提示
 
-    /**
-     * 获取规则键对应的显示名称
-     * @param ruleKey 规则键
-     * @return 显示名称，如果找不到则返回规则键本身
-     */
-    public static String getDisplayName(String ruleKey) {
-        switch (ruleKey) {
-            case ALLOW_FLYING_GENERAL: return "允许飞将";
-            case DISABLE_FACING_GENERALS: return "取消对将";
-            case PAWN_CAN_RETREAT: return "兵卒可以后退";
-            case NO_RIVER_LIMIT: return "取消过河限制";
-            case ADVISOR_CAN_LEAVE: return "仕可以离开宫";
-            case INTERNATIONAL_KING: return "国际象棋风格的王";
-            case PAWN_PROMOTION: return "兵卒晋升规则";
-            case ALLOW_OWN_BASE_LINE: return "兵到达己方底线可以晋升";
-            case ALLOW_INSIDE_RETREAT: return "兵可以在宫内后退";
-            case INTERNATIONAL_ADVISOR: return "国际象棋风格的仕";
-            case ALLOW_ELEPHANT_CROSS_RIVER: return "象可以过河";
-            case ALLOW_ADVISOR_CROSS_RIVER: return "仕可以过河";
-            case ALLOW_KING_CROSS_RIVER: return "王可以过河";
-            case LEFT_RIGHT_CONNECTED: return "左右相连";
-            case LEFT_RIGHT_CONNECTED_HORSE: return "左右相连(仅马)";
-            case LEFT_RIGHT_CONNECTED_ELEPHANT: return "左右相连(仅象)";
-            case UNBLOCK_PIECE: return "通用取消卡子";
-            case UNBLOCK_HORSE_LEG: return "马脚可以被跳过";
-            case UNBLOCK_ELEPHANT_EYE: return "象眼可以被跳过";
-            case ALLOW_CAPTURE_OWN_PIECE: return "允许吃自己的棋子";
-            case ALLOW_PIECE_STACKING: return "允许棋子堆叠";
-            case MAX_STACKING_COUNT: return "最大堆叠数量";
-            case ALLOW_CARRY_PIECES_ABOVE: return "允许背负上方棋子";
-            case ALLOW_CAPTURE_CONVERSION: return "允许俘虏";
-            case DEATH_MATCH_UNTIL_VICTORY: return "死战方休";
-            case ALLOW_UNDO: return "允许悔棋";
-            case SHOW_HINTS: return "显示提示";
-            default: return ruleKey;
-        }
-    }
+//    /**
+//     * 获取规则键对应的显示名称
+//     * @param ruleKey 规则键
+//     * @return 显示名称，如果找不到则返回规则键本身
+//     */
+//    public static final RuleInfo ALLOW_FLYING_GENERAL_INFO = new RuleInfo(ALLOW_FLYING_GENERAL, "允许飞将");
+//    public static final RuleInfo DISABLE_FACING_GENERALS_INFO = new RuleInfo(DISABLE_FACING_GENERALS, "取消对将");
+//    public static final RuleInfo PAWN_CAN_RETREAT_INFO = new RuleInfo(PAWN_CAN_RETREAT, "允许兵卒后退");
+//    public static final RuleInfo NO_RIVER_LIMIT_INFO = new RuleInfo(NO_RIVER_LIMIT, "取消河界");
+//    public static final RuleInfo ADVISOR_CAN_LEAVE_INFO = new RuleInfo(ADVISOR_CAN_LEAVE, "允许出仕");
+//    public static final RuleInfo INTERNATIONAL_KING_INFO = new RuleInfo(INTERNATIONAL_KING, "允许国际化将");
+//    public static final RuleInfo PAWN_PROMOTION_INFO = new RuleInfo(PAWN_PROMOTION, "允许兵卒底线晋升");
+//    public static final RuleInfo ALLOW_OWN_BASE_LINE_INFO = new RuleInfo(ALLOW_OWN_BASE_LINE, "允许己方底线晋升");
+//    public static final RuleInfo ALLOW_INSIDE_RETREAT_INFO = new RuleInfo(ALLOW_INSIDE_RETREAT, "允许兵卒境内后退");
+//    public static final RuleInfo INTERNATIONAL_ADVISOR_INFO = new RuleInfo(INTERNATIONAL_ADVISOR, "允许国际化仕");
+//    public static final RuleInfo ALLOW_ELEPHANT_CROSS_RIVER_INFO = new RuleInfo(ALLOW_ELEPHANT_CROSS_RIVER, "象可以过河");
+//    public static final RuleInfo ALLOW_ADVISOR_CROSS_RIVER_INFO = new RuleInfo(ALLOW_ADVISOR_CROSS_RIVER, "仕可以过河");
+//    public static final RuleInfo ALLOW_KING_CROSS_RIVER_INFO = new RuleInfo(ALLOW_KING_CROSS_RIVER, "王可以过河");
+//    public static final RuleInfo LEFT_RIGHT_CONNECTED_INFO = new RuleInfo(LEFT_RIGHT_CONNECTED, "左右相连");
+//    public static final RuleInfo LEFT_RIGHT_CONNECTED_HORSE_INFO = new RuleInfo(LEFT_RIGHT_CONNECTED_HORSE, "额外允许马");
+//    public static final RuleInfo LEFT_RIGHT_CONNECTED_ELEPHANT_INFO = new RuleInfo(LEFT_RIGHT_CONNECTED_ELEPHANT, "额外允许象");
+//    public static final RuleInfo UNBLOCK_PIECE_INFO = new RuleInfo(UNBLOCK_PIECE, "取消卡子");
+//    public static final RuleInfo UNBLOCK_HORSE_LEG_INFO = new RuleInfo(UNBLOCK_HORSE_LEG, "取消卡马脚");
+//    public static final RuleInfo UNBLOCK_ELEPHANT_EYE_INFO = new RuleInfo(UNBLOCK_ELEPHANT_EYE, "取消卡象眼");
+//    public static final RuleInfo ALLOW_CAPTURE_OWN_PIECE_INFO = new RuleInfo(ALLOW_CAPTURE_OWN_PIECE, "允许自己吃自己");
+//    public static final RuleInfo ALLOW_PIECE_STACKING_INFO = new RuleInfo(ALLOW_PIECE_STACKING, "允许堆叠棋子");
+//    public static final RuleInfo MAX_STACKING_COUNT_INFO = new RuleInfo(MAX_STACKING_COUNT, "最大堆叠数量");
+//    public static final RuleInfo ALLOW_CARRY_PIECES_ABOVE_INFO = new RuleInfo(ALLOW_CARRY_PIECES_ABOVE, "允许背负上方棋子");
+//    public static final RuleInfo ALLOW_CAPTURE_CONVERSION_INFO = new RuleInfo(ALLOW_CAPTURE_CONVERSION, "允许俘虏");
+//    public static final RuleInfo DEATH_MATCH_UNTIL_VICTORY_INFO = new RuleInfo(DEATH_MATCH_UNTIL_VICTORY, "死战方休");
+//    /**
+//     * 通过displayName查找RuleInfo，找不到返回null
+//     */
+//    public static RuleInfo getRuleInfoByDisplayName(String displayName) {
+//        for (RuleInfo info : getAllRuleInfos()) {
+//            if (info.displayName.equals(displayName)) {
+//                return info;
+//            }
+//        }
+//        return null;
+//    }
+//
+//    /**
+//     * 通过registryName查找RuleInfo，找不到返回null
+//     */
+//    public static RuleInfo getRuleInfoByRegistryName(String registryName) {
+//        for (RuleInfo info : getAllRuleInfos()) {
+//            if (info.registryName.equals(registryName)) {
+//                return info;
+//            }
+//        }
+//        return null;
+//    }
 
-    /**
-     * 基础玩法结构体，持有规则键名和显示名（显示名需严格与RuleSettingsPane一致）
-     */
-    public static class BasicRuleInfo {
-        public final String key;
-        public final String displayName;
-        public BasicRuleInfo(String key, String displayName) {
-            this.key = key;
-            this.displayName = displayName;
-        }
-    }
+//    /**
+//     * 获取所有基础玩法的RuleInfo（静态方法，便于遍历）
+//     */
+//    public static RuleInfo[] getAllRuleInfos() {
+//        return new RuleInfo[] {
+//            ALLOW_FLYING_GENERAL_INFO,
+//            DISABLE_FACING_GENERALS_INFO,
+//            PAWN_CAN_RETREAT_INFO,
+//            NO_RIVER_LIMIT_INFO,
+//            ADVISOR_CAN_LEAVE_INFO,
+//            INTERNATIONAL_KING_INFO,
+//            PAWN_PROMOTION_INFO,
+//            ALLOW_OWN_BASE_LINE_INFO,
+//            ALLOW_INSIDE_RETREAT_INFO,
+//            INTERNATIONAL_ADVISOR_INFO,
+//            ALLOW_ELEPHANT_CROSS_RIVER_INFO,
+//            ALLOW_ADVISOR_CROSS_RIVER_INFO,
+//            ALLOW_KING_CROSS_RIVER_INFO,
+//            LEFT_RIGHT_CONNECTED_INFO,
+//            LEFT_RIGHT_CONNECTED_HORSE_INFO,
+//            LEFT_RIGHT_CONNECTED_ELEPHANT_INFO,
+//            UNBLOCK_PIECE_INFO,
+//            UNBLOCK_HORSE_LEG_INFO,
+//            UNBLOCK_ELEPHANT_EYE_INFO,
+//            ALLOW_CAPTURE_OWN_PIECE_INFO,
+//            ALLOW_PIECE_STACKING_INFO,
+//            MAX_STACKING_COUNT_INFO,
+//            ALLOW_CARRY_PIECES_ABOVE_INFO,
+//            ALLOW_CAPTURE_CONVERSION_INFO,
+//            DEATH_MATCH_UNTIL_VICTORY_INFO
+//        };
+//    }
+//
+//    /**
+//     * 基础玩法结构体，持有规则键名和显示名（显示名需严格与RuleSettingsPane一致）
+//     */
+//    public static class RuleInfo {
+//        public final String registryName;
+//        public final String displayName;
+//        public RuleInfo(String registryName, String displayName) {
+//            this.registryName = registryName;
+//            this.displayName = displayName;
+//        }
+//    }
 }
+

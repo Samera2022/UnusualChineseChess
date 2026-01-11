@@ -607,6 +607,9 @@ public class GameEngine {
 
     public void clearMoveHistory() {
         moveHistory.clear();
+    }
+
+    public void clearRuleChangeHistory() {
         ruleChangeHistory.clear();
     }
 
@@ -631,11 +634,22 @@ public class GameEngine {
         int moveIndex = 0;
         int ruleIndex = 0;
 
+        // 先插入所有 afterMoveIndex == -1 的规则变动（即走第一颗子前的变动）
+        while (ruleIndex < ruleChangeHistory.size()) {
+            RuleChangeRecord ruleChange = ruleChangeHistory.get(ruleIndex);
+            if (ruleChange.getAfterMoveIndex() == -1) {
+                combined.add(ruleChange);
+                ruleIndex++;
+            } else {
+                break;
+            }
+        }
+
         while (moveIndex < moveHistory.size() || ruleIndex < ruleChangeHistory.size()) {
-            // Add all rule changes that occurred before or at this move index
+            // 插入所有 afterMoveIndex < moveIndex 且 != -1 的规则变动
             while (ruleIndex < ruleChangeHistory.size()) {
                 RuleChangeRecord ruleChange = ruleChangeHistory.get(ruleIndex);
-                if (ruleChange.getAfterMoveIndex() < moveIndex) {
+                if (ruleChange.getAfterMoveIndex() != -1 && ruleChange.getAfterMoveIndex() < moveIndex) {
                     combined.add(ruleChange);
                     ruleIndex++;
                 } else {
@@ -643,14 +657,14 @@ public class GameEngine {
                 }
             }
 
-            // Add the current move if available
+            // 插入当前 move
             if (moveIndex < moveHistory.size()) {
                 combined.add(moveHistory.get(moveIndex));
                 moveIndex++;
             }
         }
 
-        // Add any remaining rule changes
+        // 插入剩余规则变动
         while (ruleIndex < ruleChangeHistory.size()) {
             combined.add(ruleChangeHistory.get(ruleIndex));
             ruleIndex++;
