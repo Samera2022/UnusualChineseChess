@@ -8,6 +8,7 @@ import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -63,7 +64,12 @@ public class GameStateImporter {
             importMoveHistory(gameEngine, root.getAsJsonArray("moveHistory"));
         }
 
-        // 5. 重建初始状态（用于回放）
+        // 5. 导入玩法变更记录
+        if (root.has("ruleChangeHistory")) {
+            importRuleChangeHistory(gameEngine, root.getAsJsonArray("ruleChangeHistory"));
+        }
+
+        // 6. 重建初始状态（用于回放）
         rebuildInitialStateForReplay(gameEngine, root);
     }
 
@@ -82,7 +88,7 @@ public class GameStateImporter {
         List<Move> moves = gameEngine.getMoveHistory();
 
         // 如果有着法记录，需要反推初始状态
-        if (moves.size() > 0) {
+        if (!moves.isEmpty()) {
             // 清空着法记录，临时保存
             List<Move> savedMoves = new ArrayList<>(moves);
             gameEngine.clearMoveHistory();
@@ -263,7 +269,6 @@ public class GameStateImporter {
         // 清空当前着法记录
         gameEngine.clearMoveHistory();
 
-        Board board = gameEngine.getBoard();
 
         // 恢复每一步着法记录
         for (JsonElement element : moveHistory) {
@@ -321,6 +326,23 @@ public class GameStateImporter {
             }
 
             gameEngine.addMoveToHistory(move);
+        }
+    }
+
+    /**
+     * 导入玩法变更记录
+     */
+    private static void importRuleChangeHistory(GameEngine gameEngine, JsonArray ruleChangeHistory) {
+        for (JsonElement element : ruleChangeHistory) {
+            JsonObject changeObj = element.getAsJsonObject();
+
+            String ruleKey = changeObj.get("ruleKey").getAsString();
+            String displayName = changeObj.get("displayName").getAsString();
+            boolean enabled = changeObj.get("enabled").getAsBoolean();
+            int afterMoveIndex = changeObj.get("afterMoveIndex").getAsInt();
+
+            RuleChangeRecord record = new RuleChangeRecord(ruleKey, displayName, enabled, afterMoveIndex);
+            gameEngine.addRuleChangeToHistory(record);
         }
     }
 }

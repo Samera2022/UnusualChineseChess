@@ -8,6 +8,7 @@ import io.github.samera2022.chinese_chess.io.GameStateExporter;
 import io.github.samera2022.chinese_chess.io.GameStateImporter;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
@@ -68,8 +69,25 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
     // named listeners so they can be migrated when provider replaces the instance
     private final GameRulesConfig.RuleChangeListener rulesChangeListener = (key, oldVal, newVal, source) -> {
+        // Record rule changes in history (except UI-related settings)
+        // Record for all sources (UI and NETWORK) so both host and client have the records
+        if (key != null && !RuleConstants.ALLOW_UNDO.equals(key) && !RuleConstants.SHOW_HINTS.equals(key)) {
+            if (newVal instanceof Boolean) {
+                boolean enabled = (Boolean) newVal;
+                String displayName = RuleConstants.getDisplayName(key);
+                int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
+                RuleChangeRecord record = new RuleChangeRecord(key, displayName, enabled, afterMoveIndex);
+                gameEngine.addRuleChangeToHistory(record);
+                // Update the move history panel
+                if (moveHistoryPanel != null) {
+                    moveHistoryPanel.refreshHistory();
+                }
+            }
+        }
+
         // don't forward network-originated changes back to peer
         if (key == null || source == GameRulesConfig.ChangeSource.NETWORK) return;
+
         synchronized (pendingDiffsLock) {
             if (newVal == null) {
                 pendingDiffs.add(key, com.google.gson.JsonNull.INSTANCE);

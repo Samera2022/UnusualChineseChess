@@ -39,4 +39,54 @@ public class RuleConstants {
     // UI相关配置
     public static final String ALLOW_UNDO = "allowUndo";                         // 允许悔棋
     public static final String SHOW_HINTS = "showHints";                         // 显示提示
+
+    /**
+     * 获取规则键对应的显示名称
+     * @param ruleKey 规则键
+     * @return 显示名称，如果找不到则返回规则键本身
+     */
+    public static String getDisplayName(String ruleKey) {
+        switch (ruleKey) {
+            case ALLOW_FLYING_GENERAL: return "允许飞将";
+            case DISABLE_FACING_GENERALS: return "取消对将";
+            case PAWN_CAN_RETREAT: return "兵卒可以后退";
+            case NO_RIVER_LIMIT: return "取消过河限制";
+            case ADVISOR_CAN_LEAVE: return "仕可以离开宫";
+            case INTERNATIONAL_KING: return "国际象棋风格的王";
+            case PAWN_PROMOTION: return "兵卒晋升规则";
+            case ALLOW_OWN_BASE_LINE: return "兵到达己方底线可以晋升";
+            case ALLOW_INSIDE_RETREAT: return "兵可以在宫内后退";
+            case INTERNATIONAL_ADVISOR: return "国际象棋风格的仕";
+            case ALLOW_ELEPHANT_CROSS_RIVER: return "象可以过河";
+            case ALLOW_ADVISOR_CROSS_RIVER: return "仕可以过河";
+            case ALLOW_KING_CROSS_RIVER: return "王可以过河";
+            case LEFT_RIGHT_CONNECTED: return "左右相连";
+            case LEFT_RIGHT_CONNECTED_HORSE: return "左右相连(仅马)";
+            case LEFT_RIGHT_CONNECTED_ELEPHANT: return "左右相连(仅象)";
+            case UNBLOCK_PIECE: return "通用取消卡子";
+            case UNBLOCK_HORSE_LEG: return "马脚可以被跳过";
+            case UNBLOCK_ELEPHANT_EYE: return "象眼可以被跳过";
+            case ALLOW_CAPTURE_OWN_PIECE: return "允许吃自己的棋子";
+            case ALLOW_PIECE_STACKING: return "允许棋子堆叠";
+            case MAX_STACKING_COUNT: return "最大堆叠数量";
+            case ALLOW_CARRY_PIECES_ABOVE: return "允许背负上方棋子";
+            case ALLOW_CAPTURE_CONVERSION: return "允许俘虏";
+            case DEATH_MATCH_UNTIL_VICTORY: return "死战方休";
+            case ALLOW_UNDO: return "允许悔棋";
+            case SHOW_HINTS: return "显示提示";
+            default: return ruleKey;
+        }
+    }
+
+    /**
+     * 基础玩法结构体，持有规则键名和显示名（显示名需严格与RuleSettingsPane一致）
+     */
+    public static class BasicRuleInfo {
+        public final String key;
+        public final String displayName;
+        public BasicRuleInfo(String key, String displayName) {
+            this.key = key;
+            this.displayName = displayName;
+        }
+    }
 }

@@ -1,7 +1,9 @@
 package io.github.samera2022.chinese_chess.ui;
 
 import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.model.HistoryItem;
 import io.github.samera2022.chinese_chess.model.Move;
+import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -164,13 +166,19 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
      */
     private void updateMoveHistory() {
         StringBuilder sb = new StringBuilder();
-        List<Move> moves = gameEngine.getMoveHistory();
+        List<HistoryItem> history = gameEngine.getCombinedHistory();
 
-        for (int i = 0; i < moves.size(); i++) {
-            Move move = moves.get(i);
-            // 单步编号：每一步（半回合）都独立编号
-            sb.append(i + 1).append(". ");
-            sb.append(move.toString()).append("\n");
+        int moveNumber = 0;
+        for (HistoryItem item : history) {
+            if (item instanceof Move) {
+                moveNumber++;
+                // 单步编号：每一步（半回合）都独立编号
+                sb.append(moveNumber).append(". ");
+                sb.append(item.toString()).append("\n");
+            } else if (item instanceof RuleChangeRecord) {
+                // 玩法变更不编号，直接显示
+                sb.append(item.toString()).append("\n");
+            }
         }
 
         moveTextArea.setText(sb.toString());

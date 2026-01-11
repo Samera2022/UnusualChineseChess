@@ -1,9 +1,11 @@
 package io.github.samera2022.chinese_chess.engine;
 
 import com.google.gson.JsonObject;
+import io.github.samera2022.chinese_chess.model.HistoryItem;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.model.Piece;
 
+import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 import io.github.samera2022.chinese_chess.rules.CheckDetector;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
@@ -29,6 +31,7 @@ public class GameEngine {
         } catch (Throwable ignored) {}
     };
     private List<Move> moveHistory;
+    private List<RuleChangeRecord> ruleChangeHistory;
     private boolean isRedTurn;
     private GameState gameState;
     private List<GameStateListener> listeners;
@@ -62,6 +65,7 @@ public class GameEngine {
         // register provider-level listener to support hot-replace
         RulesConfigProvider.addInstanceChangeListener(providerListener);
         this.moveHistory = new ArrayList<>();
+        this.ruleChangeHistory = new ArrayList<>();
         this.isRedTurn = true;
         this.gameState = GameState.RUNNING;
         this.listeners = new ArrayList<>();
@@ -582,6 +586,7 @@ public class GameEngine {
     public void restart() {
         board.reset();
         moveHistory.clear();
+        ruleChangeHistory.clear();
         isRedTurn = true;
         gameState = GameState.RUNNING;
         // 清理回放相关缓存，避免回放残留影响新对局
@@ -602,10 +607,56 @@ public class GameEngine {
 
     public void clearMoveHistory() {
         moveHistory.clear();
+        ruleChangeHistory.clear();
     }
 
     public void addMoveToHistory(Move move) {
         moveHistory.add(move);
+    }
+
+    public void addRuleChangeToHistory(RuleChangeRecord ruleChange) {
+        ruleChangeHistory.add(ruleChange);
+    }
+
+    public List<RuleChangeRecord> getRuleChangeHistory() {
+        return new ArrayList<>(ruleChangeHistory);
+    }
+
+    /**
+     * 获取合并的历史记录（着法和玩法变更）
+     * @return 合并后的历史记录列表，按时间顺序排列
+     */
+    public List<HistoryItem> getCombinedHistory() {
+        List<HistoryItem> combined = new ArrayList<>();
+        int moveIndex = 0;
+        int ruleIndex = 0;
+
+        while (moveIndex < moveHistory.size() || ruleIndex < ruleChangeHistory.size()) {
+            // Add all rule changes that occurred before or at this move index
+            while (ruleIndex < ruleChangeHistory.size()) {
+                RuleChangeRecord ruleChange = ruleChangeHistory.get(ruleIndex);
+                if (ruleChange.getAfterMoveIndex() < moveIndex) {
+                    combined.add(ruleChange);
+                    ruleIndex++;
+                } else {
+                    break;
+                }
+            }
+
+            // Add the current move if available
+            if (moveIndex < moveHistory.size()) {
+                combined.add(moveHistory.get(moveIndex));
+                moveIndex++;
+            }
+        }
+
+        // Add any remaining rule changes
+        while (ruleIndex < ruleChangeHistory.size()) {
+            combined.add(ruleChangeHistory.get(ruleIndex));
+            ruleIndex++;
+        }
+
+        return combined;
     }
 
     /**

@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * 着法记录 - 记录一步棋的信息
  */
-public class Move {
+public class Move implements HistoryItem {
     private int fromRow;
     private int fromCol;
     private int toRow;

@@ -8,6 +8,7 @@ import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -50,7 +51,11 @@ public class GameStateExporter {
         JsonArray moveHistory = exportMoveHistory(gameEngine.getMoveHistory());
         root.add("moveHistory", moveHistory);
 
-        // 5. 玩法设置（包含特殊规则和游戏配置）
+        // 5. 玩法变更记录
+        JsonArray ruleChangeHistory = exportRuleChangeHistory(gameEngine.getRuleChangeHistory());
+        root.add("ruleChangeHistory", ruleChangeHistory);
+
+        // 6. 玩法设置（包含特殊规则和游戏配置）
         JsonObject settings = exportSettings(gameEngine);
         root.add("settings", settings);
 
@@ -134,6 +139,24 @@ public class GameStateExporter {
         }
 
         return moves;
+    }
+
+    /**
+     * 导出玩法变更记录
+     */
+    private static JsonArray exportRuleChangeHistory(List<RuleChangeRecord> ruleChangeHistory) {
+        JsonArray ruleChanges = new JsonArray();
+
+        for (RuleChangeRecord record : ruleChangeHistory) {
+            JsonObject changeObj = new JsonObject();
+            changeObj.addProperty("ruleKey", record.getRuleKey());
+            changeObj.addProperty("displayName", record.getDisplayName());
+            changeObj.addProperty("enabled", record.isEnabled());
+            changeObj.addProperty("afterMoveIndex", record.getAfterMoveIndex());
+            ruleChanges.add(changeObj);
+        }
+
+        return ruleChanges;
     }
 
     /**
