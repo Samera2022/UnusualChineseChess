@@ -199,7 +199,6 @@ public class BoardPanel extends JPanel {
      * 处理左键点击 - 点击交点附近时选中棋子
      */
     private void handleLeftClick(MouseEvent e) {
-        boolean onlyCurrentSide = !ChineseChessFrame.isNetSessionActive();
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
         int[] logical = displayToLogic(displayRow, displayCol);
@@ -218,13 +217,13 @@ public class BoardPanel extends JPanel {
             return;
         }
         Piece piece = board.getPiece(row, col);
-        System.out.println(isStackedPiece(piece));
-//         本地联机且只允许当前回合方操作自己的棋子：无论初次选中还是重新选中都必须严格限制
-        System.out.println("---PRECHECK---");
-        System.out.println("Only Current Side: "+onlyCurrentSide);
-        System.out.println("Piece is Red: "+piece.isRed());
-        System.out.println("Game Engine: "+gameEngine.isRedTurn());
-        System.out.println("---PRECHECK---");
+//        System.out.println(isStackedPiece(piece));
+////         本地联机且只允许当前回合方操作自己的棋子：无论初次选中还是重新选中都必须严格限制
+//        System.out.println("---PRECHECK---");
+//        System.out.println("Only Current Side: "+onlyCurrentSide);
+//        System.out.println("Piece is Red: "+piece.isRed());
+//        System.out.println("Game Engine: "+gameEngine.isRedTurn());
+//        System.out.println("---PRECHECK---");
         if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && isStackedPiece(piece)) {
             // 己方棋子
             if (piece.isRed() == gameEngine.isRedTurn() && piece.isRed() == localControlsRed) showStackSelectionForSourceDialog(row, col);
@@ -232,7 +231,6 @@ public class BoardPanel extends JPanel {
         } else {
             if ((!ChineseChessFrame.isNetSessionActive() && (piece == null || piece.isRed() != gameEngine.isRedTurn())) ||
                     ChineseChessFrame.isNetSessionActive() && (piece == null || !(localControlsRed == gameEngine.isRedTurn() && localControlsRed == piece.isRed())))
-                //   不是当前回合方棋子，直接 return，不允许选中
                 return;
             else {
                 selectedRow = row;
@@ -241,66 +239,6 @@ public class BoardPanel extends JPanel {
                 calculateValidMoves();
             }
         }
-//        // 初次选中
-//        if (selectedRow == -1) {
-//            if (ChineseChessFrame.isNetSessionActive() && localControlsRed != null) {
-//                if (gameEngine.isRedTurn() != localControlsRed) {
-//                    repaint();
-//                    return;
-//                }
-//            }
-//            if (piece != null && (ChineseChessFrame.isNetSessionActive()
-//                    ? (piece.isRed() == gameEngine.isRedTurn() && (localControlsRed == null || piece.isRed() == localControlsRed))
-//                    : (!onlyCurrentSide || piece.isRed() == gameEngine.isRedTurn()))) {
-//                // 检查是否有堆栈
-//                java.util.List<Piece> stack = board.getStack(row, col);
-//                if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
-//                    // 显示堆栈选择对话框
-//                    showStackSelectionForSourceDialog(row, col);
-//                } else {
-//                    // 普通选择
-//                    selectedRow = row;
-//                    selectedCol = col;
-//                    selectedStackIndex = -1;
-//                    calculateValidMoves();
-//                }
-//            } else if (piece != null && (ChineseChessFrame.isNetSessionActive() ? (piece.isRed() != gameEngine.isRedTurn()) : false)) {
-//                // 点击的是对方的棋子，检查是否有堆栈
-//                java.util.List<Piece> stack = board.getStack(row, col);
-//                if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
-//                    // 显示对方堆栈信息对话框
-//                    showStackInfoDialog(row, col);
-//                }
-//            }
-//            repaint();
-//            return;
-//        }
-//        selectedRow = row;
-//        selectedCol = col;
-//        if (piece == null || (ChineseChessFrame.isNetSessionActive() ? (piece.isRed() != gameEngine.isRedTurn() || (localControlsRed != null && piece.isRed() != localControlsRed)) : false)) {
-//            if (piece != null && piece.isRed() != gameEngine.isRedTurn()) {
-//                java.util.List<Piece> stack = board.getStack(row, col);
-//                if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
-//                    // 显示对方堆叠信息对话框
-//                    showStackInfoDialog(row, col);
-//                }
-//            }
-//            selectedRow = -1;
-//            selectedCol = -1;
-//            selectedStackIndex = -1;
-//            validMoves.clear();
-//        } else {
-//            // 检查是否有堆栈
-//            java.util.List<Piece> stack = board.getStack(row, col);
-//            if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
-//                // 显示堆栈选择对话框
-//                showStackSelectionForSourceDialog(row, col);
-//            } else {
-//                // 普通选择
-//                selectedStackIndex = -1;
-//                calculateValidMoves();
-//            }
-//        }
         repaint();
     }
 
