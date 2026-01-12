@@ -541,36 +541,26 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 SwingUtilities.invokeLater(() -> {
                     try {
                         System.out.println("[SYNC] 收到对局状态，开始恢复...");
-
                         // 调用修改后的 GameEngine 方法
-                        // 如果出错，这里会直接抛出异常，进入 catch 块
-                        // 不会再误报“同步成功”
                         gameEngine.loadSyncState(state);
-
                         // 强制刷新所有 UI 组件
                         boardPanel.clearSelection();
                         boardPanel.clearForceMoveIndicator();
                         boardPanel.clearRemotePieceHighlight();
-
                         boardPanel.repaint();
                         updateStatus();
-
                         if (ruleSettingsPanel != null) ruleSettingsPanel.refreshFromBinder();
-
-                        // 刷新历史记录面板
                         moveHistoryPanel.refreshHistory();
-                        // 关键：确保历史记录面板没有选中“第0步”，否则可能会触发 rebuildBoardToStep(0)
-                        // 这取决于 MoveHistoryPanel 的实现，通常 refreshHistory 后保持默认状态即可
-                        // 如果你发现同步后棋盘变成了初始状态，可以在这里加一句：
-                        // moveHistoryPanel.selectLastMove(); // (如果你的 Panel 有这个方法)
                         moveHistoryPanel.showNavigation();
-
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
                                 "已成功加入对局并同步当前状态！", "同步成功", JOptionPane.INFORMATION_MESSAGE);
-
                     } catch (Exception ex) {
-                        // 这样我们就能看到真正的错误原因了
+                        // 详细打印异常堆栈
                         ex.printStackTrace();
+                        System.err.println("[SYNC][ERROR] 对局同步失败: " + ex.getMessage());
+                        for (StackTraceElement ste : ex.getStackTrace()) {
+                            System.err.println("    at " + ste);
+                        }
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
                                 "对局同步失败: " + ex.getMessage() + "\n请查看控制台获取详细错误堆栈。",
                                 "同步错误", JOptionPane.ERROR_MESSAGE);

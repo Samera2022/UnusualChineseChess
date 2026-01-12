@@ -586,6 +586,62 @@ public class GameEngine {
     }
 
     /**
+     * 撤销最近一步棋（悔棋），支持堆叠和吃子恢复
+     */
+    public boolean undoMove() {
+        if (moveHistory == null || moveHistory.isEmpty()) return false;
+        Move lastMove = moveHistory.remove(moveHistory.size() - 1);
+        int fromRow = lastMove.getFromRow();
+        int fromCol = lastMove.getFromCol();
+        int toRow = lastMove.getToRow();
+        int toCol = lastMove.getToCol();
+        Piece movedPiece = lastMove.getPiece();
+        Piece capturedPiece = lastMove.getCapturedPiece();
+        boolean isStacking = lastMove.isStacking();
+        List<Piece> stackBefore = lastMove.getStackBefore();
+        int selectedStackIndex = lastMove.getSelectedStackIndex();
+        List<Piece> movedStack = lastMove.getMovedStack();
+        boolean captureConversion = lastMove.isCaptureConversion();
+        Piece convertedPiece = lastMove.getConvertedPiece();
+
+        // 1. 移除目标位置的棋子（包括堆叠/转换后的棋子）
+        board.clearStack(toRow, toCol);
+
+        // 2. 恢复堆叠状态
+        if (isStacking && stackBefore != null) {
+            for (Piece p : stackBefore) {
+                board.pushToStack(toRow, toCol, new Piece(p.getType(), toRow, toCol));
+            }
+        } else if (captureConversion && convertedPiece != null && capturedPiece != null) {
+            // 恢复被吃棋子（俘虏转换）
+            board.setPiece(toRow, toCol, capturedPiece.copyAt(toRow, toCol));
+        } else if (capturedPiece != null) {
+            // 恢复被吃棋子
+            board.setPiece(toRow, toCol, capturedPiece.copyAt(toRow, toCol));
+        }
+
+        // 3. 恢复源位置的棋子（包括堆叠/背负）
+        if (selectedStackIndex >= 0 && movedStack != null && !movedStack.isEmpty()) {
+            // 恢复背负棋子
+            board.pushToStack(fromRow, fromCol, movedPiece.copyAt(fromRow, fromCol));
+            for (Piece p : movedStack) {
+                board.pushToStack(fromRow, fromCol, p.copyAt(fromRow, fromCol));
+            }
+        } else {
+            board.setPiece(fromRow, fromCol, movedPiece.copyAt(fromRow, fromCol));
+        }
+
+        // 4. 切换回合
+        isRedTurn = !isRedTurn;
+
+        // 5. 通知监听器
+        for (GameStateListener listener : listeners) {
+            listener.onMoveExecuted(null); // 可自定义撤销通知
+        }
+        return true;
+    }
+
+    /**
      * 重新开始游戏
      */
     public void restart() {

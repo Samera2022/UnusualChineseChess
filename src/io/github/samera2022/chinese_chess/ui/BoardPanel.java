@@ -217,18 +217,19 @@ public class BoardPanel extends JPanel {
             return;
         }
         Piece piece = board.getPiece(row, col);
-//        System.out.println(isStackedPiece(piece));
-////         本地联机且只允许当前回合方操作自己的棋子：无论初次选中还是重新选中都必须严格限制
 //        System.out.println("---PRECHECK---");
-//        System.out.println("Only Current Side: "+onlyCurrentSide);
 //        System.out.println("Piece is Red: "+piece.isRed());
 //        System.out.println("Game Engine: "+gameEngine.isRedTurn());
+//        System.out.println("Local Controls Red: "+localControlsRed);
 //        System.out.println("---PRECHECK---");
-        if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && isStackedPiece(piece)) {
-            // 己方棋子
-            if (piece.isRed() == gameEngine.isRedTurn() && piece.isRed() == localControlsRed) showStackSelectionForSourceDialog(row, col);
+        if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && isStackedPiece(piece))
+            if (piece.isRed() == gameEngine.isRedTurn())
+                if (ChineseChessFrame.isNetSessionActive())
+                    if (gameEngine.isRedTurn()==localControlsRed) showStackSelectionForSourceDialog(row, col);
+                    else showStackInfoDialog(row, col);
+                else showStackSelectionForSourceDialog(row, col);
             else showStackInfoDialog(row, col);
-        } else {
+         else {
             if ((!ChineseChessFrame.isNetSessionActive() && (piece == null || piece.isRed() != gameEngine.isRedTurn())) ||
                     ChineseChessFrame.isNetSessionActive() && (piece == null || !(localControlsRed == gameEngine.isRedTurn() && localControlsRed == piece.isRed())))
                 return;
@@ -246,11 +247,11 @@ public class BoardPanel extends JPanel {
      * 处理右键点击 - 在选中棋子后，右键尝试移动到该位置（会触发堆叠检查）
      */
     private void handleRightClick(MouseEvent e) {
-        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
-        boolean onlyCurrentSide =  !ChineseChessFrame.isNetSessionActive();
-        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
-            return;
-        }
+//        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
+//        boolean onlyCurrentSide =  !ChineseChessFrame.isNetSessionActive();
+//        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+//            return;
+//        }
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
@@ -268,22 +269,26 @@ public class BoardPanel extends JPanel {
         }
         int fromR = selectedRow;
         int fromC = selectedCol;
-        // 联机模式下的回合检查（右键移动时）
-        if (restrictBySide && localControlsRed != null && ChineseChessFrame.isNetSessionActive()) {
-            if (gameEngine.isRedTurn() != localControlsRed) {
-                return;
-            }
-        }
-        // 新增：本地联机且只允许当前回合方操作自己的棋子
-        Piece sourcePiece = selectedStackIndex >= 0 ?
-            board.getStack(fromR, fromC).get(selectedStackIndex) :
+//        // 联机模式下的回合检查（右键移动时）
+//        if (restrictBySide && localControlsRed != null && ChineseChessFrame.isNetSessionActive()) {
+//            if (gameEngine.isRedTurn() != localControlsRed) {
+//                return;
+//            }
+//        }
+        if (selectedStackIndex >= 0) {
+            board.getStack(fromR, fromC);
+        } else {
             board.getPiece(fromR, fromC);
-        if (onlyCurrentSide && (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn())) {
-            return;
         }
+//        Piece sourcePiece;
+        //        // 新增：本地联机且只允许当前回合方操作自己的棋子
+
+//        if (onlyCurrentSide && (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn())) {
+//            return;
+//        }
         // 检查目标位置是否是己方棋子（堆叠情况）
         Piece targetPiece = board.getPiece(toRow, toCol);
-        sourcePiece = selectedStackIndex >= 0 ?
+        Piece sourcePiece = selectedStackIndex >= 0 ?
             board.getStack(fromR, fromC).get(selectedStackIndex) :
             board.getPiece(fromR, fromC);
 

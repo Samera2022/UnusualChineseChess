@@ -71,6 +71,8 @@ public class NetworkSession {
 
     public void startServer(int port) throws IOException {
         close();
+        localToken = null;
+        peerToken = null;
         System.out.println("[DEBUG] Server: 准备监听端口 " + port);
         serverSocket = new ServerSocket(port);
         ioThread = new Thread(() -> {
@@ -96,6 +98,8 @@ public class NetworkSession {
 
     public void connect(String host, int port) throws IOException {
         close();
+        localToken = null;
+        peerToken = null;
         System.out.println("[DEBUG][Client] 尝试连接到 " + host + ":" + port);
         socket = new Socket();
         socket.connect(new InetSocketAddress(host, port), 5000);
@@ -235,16 +239,13 @@ public class NetworkSession {
                     String cmd = jo.has("cmd") ? jo.get("cmd").getAsString() : null;
                     // HELLO
                     if ("HELLO".equals(cmd) && jo.has("token")) {
+                        // token 可能变化（如断线重连/换设备），每次收到都重置 peerToken
                         peerToken = jo.get("token").getAsString();
-                        System.out.println("[DEBUG] Received HELLO token from peer");
-                        // don't require signature for HELLO
+                        System.out.println("[DEBUG] Received HELLO token from peer (reset peerToken): " + peerToken);
+                        // 清空所有与 token 相关的缓存帧，避免老 token 的帧被重放
+                        pendingJsonFrame = null;
                         if (listener != null && jo.has("version")) listener.onPeerVersion(jo.get("version").getAsString());
-                        // 新增：收到 HELLO 后尝试处理 pendingJsonFrame
-                        if (pendingJsonFrame != null) {
-                            String frame = pendingJsonFrame;
-                            pendingJsonFrame = null;
-                            handleLine(frame);
-                        }
+                        // 可选：收到 HELLO 后可主动请求对方同步 SYNC_GAME_STATE
                         // stop handling this line
                         return;
                     }
@@ -259,17 +260,22 @@ public class NetworkSession {
                     JsonObject payload = jo.deepCopy();
                     if (sig != null) { payload.remove("sig"); }
                     if (sig != null && localToken != null && peerToken != null) {
-                        // 发送端用 localToken + peerToken 计算签名
-                        // 接收端的 localToken 是发送端的 peerToken，接收端的 peerToken 是发送端的 localToken
-                        // 所以接收端应该用 peerToken + localToken 来验证
                         String computed = computeHmacWithKey(payload.toString(), peerToken + localToken);
                         System.out.println("[DEBUG] 签名验证: 收到=" + sig);
                         System.out.println("[DEBUG] 签名验证: 计算=" + computed);
                         System.out.println("[DEBUG] 签名验证: localToken=" + localToken);
                         System.out.println("[DEBUG] 签名验证: peerToken=" + peerToken);
+                        System.out.println("[DEBUG] isServer=" + (serverSocket != null));
                         if (computed == null || !computed.equals(sig)) {
                             System.out.println("[DEBUG] Signature mismatch, ignoring frame");
-                            // ignore this frame
+                            System.out.println("[DEBUG] --- 签名校验详细信息 ---");
+                            System.out.println("[DEBUG] payload=" + payload.toString());
+                            System.out.println("[DEBUG] sig (received)=" + sig);
+                            System.out.println("[DEBUG] computed (local)=" + computed);
+                            System.out.println("[DEBUG] localToken=" + localToken);
+                            System.out.println("[DEBUG] peerToken=" + peerToken);
+                            System.out.println("[DEBUG] isServer=" + (serverSocket != null));
+                            // 重要：签名校验失败时不要缓存帧，直接丢弃，等待新 token/HELLO
                             return;
                         }
                         System.out.println("[DEBUG] 签名验证通过");
