@@ -27,7 +27,7 @@ public class InfoSidePanel extends JPanel {
     private final JButton hostBtn = new JButton("创建联机");
     private final JButton joinBtn = new JButton("加入联机");
     private final JButton disconnectBtn = new JButton("断开联机");
-    private final JCheckBox allowLocalFlipCheck = new JCheckBox();
+    private static final JCheckBox allowLocalFlipCheck = new JCheckBox();
     private final JToggleButton localRedBtn = new JToggleButton("本地红方", true);
     private final JButton exportBtn = new JButton("导出残局");
     private final JButton importBtn = new JButton("导入残局");
@@ -56,6 +56,7 @@ public class InfoSidePanel extends JPanel {
 
     // 持方切换权：true=本地有权，false=对方有权
     private boolean hasSideAuth = false;
+
     // 仅主机端调用：根据当前状态计算并同步切换权
     private void updateAndSyncSideAuth() {
         boolean allowFlip = allowLocalFlipCheck.isSelected();

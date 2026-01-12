@@ -39,7 +39,7 @@ public class RuleConstants {
     // UI相关配置
     public static final String ALLOW_UNDO = "allow_undo";                         // 允许悔棋
     public static final String SHOW_HINTS = "show_hints";                         // 显示提示
-
+    public static final String ALLOW_FORCE_MOVE = "allow_force_move";             // 允许强制移动
 //    /**
 //     * 获取规则键对应的显示名称
 //     * @param ruleKey 规则键

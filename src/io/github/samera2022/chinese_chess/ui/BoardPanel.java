@@ -92,7 +92,7 @@ public class BoardPanel extends JPanel {
                     handleRightClick(e);
                 } else if (e.getButton() == MouseEvent.BUTTON2) {
                     // 中键：尝试强制走子
-                    handleMiddleClick(e);
+                    if (rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE)) handleMiddleClick(e);
                 }
             }
         });
@@ -193,34 +193,22 @@ public class BoardPanel extends JPanel {
         }
         return new int[]{logicRow, logicCol};
     }
-
+    // 左键，中键和右键应该采用相同的逻辑。但是实际操作时，发现只要保证左键正确工作就可以了……
+    // 而且，并不建议将判断是否可行单独抽出来变成一个新的方法。新的这个方法本身就依赖大量的变量（而且这些变量在左中右键里都要继续用），反倒不如放在方法里简单。
     /**
      * 处理左键点击 - 点击交点附近时选中棋子
      */
     private void handleLeftClick(MouseEvent e) {
-        // 修正：只在联机且不是己方回合时禁止操作
-        System.out.println("Local Controls Red != null: "+(localControlsRed != null));
-        System.out.println("gameEngine is Red Turn: "+gameEngine.isRedTurn());
-        System.out.println("local Controls Red: "+localControlsRed);
-        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
-            return;
-        }
-
-        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
+        boolean onlyCurrentSide = !ChineseChessFrame.isNetSessionActive();
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-
-        // 转换为逻辑坐标
         int[] logical = displayToLogic(displayRow, displayCol);
         int row = logical[0];
         int col = logical[1];
-
         Board board = gameEngine.getBoard();
         if (!board.isValid(row, col)) {
             return;
         }
-
-        // 如果点击的是已选择的格子，取消选择
         if (row == selectedRow && col == selectedCol) {
             selectedRow = -1;
             selectedCol = -1;
@@ -229,23 +217,31 @@ public class BoardPanel extends JPanel {
             repaint();
             return;
         }
-
-        // 如果没有选择棋子，选择点击的棋子
+        Piece piece = board.getPiece(row, col);
+//         本地联机且只允许当前回合方操作自己的棋子：无论初次选中还是重新选中都必须严格限制
+        System.out.println("---PRECHECK---");
+        System.out.println("Only Current Side: "+onlyCurrentSide);
+        System.out.println("Piece is Red: "+piece.isRed());
+        System.out.println("Game Engine: "+gameEngine.isRedTurn());
+        System.out.println("---PRECHECK---");
+        if (!ChineseChessFrame.isNetSessionActive() && (piece == null || piece.isRed() != gameEngine.isRedTurn())) {
+//             不是当前回合方棋子，直接 return，不允许选中
+            return;
+        }
+        if (ChineseChessFrame.isNetSessionActive() && (piece == null || !(localControlsRed == gameEngine.isRedTurn() && localControlsRed == piece.isRed()))) {
+            return;
+        }
+        // 初次选中
         if (selectedRow == -1) {
-            Piece piece = board.getPiece(row, col);
-
-            // 联机模式下的回合检查
-            if (localControlsRed != null) {
-                // 联机模式：只能在己方回合选择己方棋子
+            if (ChineseChessFrame.isNetSessionActive() && localControlsRed != null) {
                 if (gameEngine.isRedTurn() != localControlsRed) {
-                    System.out.println("[DEBUG] 联机模式：当前不是己方回合，无法选择棋子");
                     repaint();
                     return;
                 }
             }
-
-            if (piece != null && piece.isRed() == gameEngine.isRedTurn()
-                    && (localControlsRed == null || piece.isRed() == localControlsRed)) {
+            if (piece != null && (ChineseChessFrame.isNetSessionActive()
+                    ? (piece.isRed() == gameEngine.isRedTurn() && (localControlsRed == null || piece.isRed() == localControlsRed))
+                    : (!onlyCurrentSide || piece.isRed() == gameEngine.isRedTurn()))) {
                 // 检查是否有堆栈
                 java.util.List<Piece> stack = board.getStack(row, col);
                 if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
@@ -258,7 +254,7 @@ public class BoardPanel extends JPanel {
                     selectedStackIndex = -1;
                     calculateValidMoves();
                 }
-            } else if (piece != null && piece.isRed() != gameEngine.isRedTurn()) {
+            } else if (piece != null && (ChineseChessFrame.isNetSessionActive() ? (piece.isRed() != gameEngine.isRedTurn()) : false)) {
                 // 点击的是对方的棋子，检查是否有堆栈
                 java.util.List<Piece> stack = board.getStack(row, col);
                 if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
@@ -269,23 +265,21 @@ public class BoardPanel extends JPanel {
             repaint();
             return;
         }
-
-        // 已有选择的棋子，左键点击其他棋子时：重新选择
+        // 重新选中
+        if (onlyCurrentSide && (piece == null || piece.isRed() != gameEngine.isRedTurn())) {
+            // 不是当前回合方棋子，直接 return，不允许选中
+            return;
+        }
         selectedRow = row;
         selectedCol = col;
-        Piece piece = board.getPiece(row, col);
-        if (piece == null || piece.isRed() != gameEngine.isRedTurn()
-                || (localControlsRed != null && piece.isRed() != localControlsRed)) {
-            // 点击的不是己方棋子（空位或对方棋子）
-            // 如果点击的是对方的堆叠棋子，显示堆叠信息
+        if (piece == null || (ChineseChessFrame.isNetSessionActive() ? (piece.isRed() != gameEngine.isRedTurn() || (localControlsRed != null && piece.isRed() != localControlsRed)) : false)) {
             if (piece != null && piece.isRed() != gameEngine.isRedTurn()) {
                 java.util.List<Piece> stack = board.getStack(row, col);
                 if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1 && stack.size() > 1) {
-                    // 显示对方堆栈信息对话框
+                    // 显示对方堆叠信息对话框
                     showStackInfoDialog(row, col);
                 }
             }
-            // 清除选择
             selectedRow = -1;
             selectedCol = -1;
             selectedStackIndex = -1;
@@ -309,45 +303,44 @@ public class BoardPanel extends JPanel {
      * 处理右键点击 - 在选中棋子后，右键尝试移动到该位置（会触发堆叠检查）
      */
     private void handleRightClick(MouseEvent e) {
-        // 修正：只在联机且不是己方回合时禁止操作
-        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
+        boolean onlyCurrentSide =  !ChineseChessFrame.isNetSessionActive();
+        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
             return;
         }
-
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-
         // 转换为逻辑坐标
         int[] logical = displayToLogic(displayRow, displayCol);
         int toRow = logical[0];
         int toCol = logical[1];
-
         Board board = gameEngine.getBoard();
         if (!board.isValid(toRow, toCol)) {
             return;
         }
-
         // 如果没有选择棋子，不处理右键
         if (selectedRow == -1 || selectedCol == -1) {
             return;
         }
-
         int fromR = selectedRow;
         int fromC = selectedCol;
-
         // 联机模式下的回合检查（右键移动时）
-        if (localControlsRed != null) {
-            // 联机模式：只能在己方回合移动棋子
+        if (restrictBySide && localControlsRed != null && ChineseChessFrame.isNetSessionActive()) {
             if (gameEngine.isRedTurn() != localControlsRed) {
-                System.out.println("[DEBUG] 联机模式：当前不是己方回合，无法移动棋子");
                 return;
             }
         }
-
+        // 新增：本地联机且只允许当前回合方操作自己的棋子
+        Piece sourcePiece = selectedStackIndex >= 0 ?
+            board.getStack(fromR, fromC).get(selectedStackIndex) :
+            board.getPiece(fromR, fromC);
+        if (onlyCurrentSide && (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn())) {
+            return;
+        }
         // 检查目标位置是否是己方棋子（堆叠情况）
         Piece targetPiece = board.getPiece(toRow, toCol);
-        Piece sourcePiece = selectedStackIndex >= 0 ?
+        sourcePiece = selectedStackIndex >= 0 ?
             board.getStack(fromR, fromC).get(selectedStackIndex) :
             board.getPiece(fromR, fromC);
 
@@ -418,16 +411,15 @@ public class BoardPanel extends JPanel {
      * 处理中键点击 - 在选中棋子后，中键点击目标位置申请强制走子
      */
     private void handleMiddleClick(MouseEvent e) {
-        // 修正：只在联机且不是己方回合时禁止操作
-        if (localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
+        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
+        boolean onlyCurrentSide = !ChineseChessFrame.isNetSessionActive();
+        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
             return;
         }
-
         System.out.println("[DEBUG] [BoardPanel] 中键被点击");
         // 将鼠标点击位置转换回显示坐标（考虑偏移量）
         int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
         int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-
         // 转换为逻辑坐标
         int[] logical = displayToLogic(displayRow, displayCol);
         int toRow = logical[0];
@@ -439,25 +431,35 @@ public class BoardPanel extends JPanel {
             System.out.println("[DEBUG] [BoardPanel] 目标坐标无效");
             return;
         }
-
         // 如果没有选择棋子，不处理中键
         if (selectedRow == -1 || selectedCol == -1) {
             System.out.println("[DEBUG] [BoardPanel] 没有选择棋子");
             return;
         }
-
         System.out.println("[DEBUG] [BoardPanel] 选中棋子: " + selectedRow + "," + selectedCol);
 
-        // 检查选中的棋子是否是己方的
+        // 检查选中的棋子是否是己方的（仅在 restrictBySide==true 时检查）
         Piece sourcePiece = selectedStackIndex >= 0 ?
             board.getStack(selectedRow, selectedCol).get(selectedStackIndex) :
             board.getPiece(selectedRow, selectedCol);
-
-        if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn() ||
-            (localControlsRed != null && sourcePiece.isRed() != localControlsRed)) {
-            // 不是己方棋子，不能进行强制走子
-            System.out.println("[DEBUG] [BoardPanel] 选中的不是己方棋子");
-            return;
+        if (restrictBySide) {
+            if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn() ||
+                (localControlsRed != null && sourcePiece.isRed() != localControlsRed)) {
+                // 不是己方棋子，不能进行强制走子
+                System.out.println("[DEBUG] [BoardPanel] 选中的不是己方棋子");
+                return;
+            }
+        } else if (onlyCurrentSide) {
+            if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn()) {
+                // 不是当前回合方的棋子，不能进行强制走子
+                System.out.println("[DEBUG] [BoardPanel] 选中的不是当前回合方的棋子");
+                return;
+            }
+        } else {
+            if (sourcePiece == null) {
+                System.out.println("[DEBUG] [BoardPanel] 选中的不是有效棋子");
+                return;
+            }
         }
 
         System.out.println("[DEBUG] [BoardPanel] 显示强制走子指示器和弹出确认窗体");

@@ -82,6 +82,8 @@ public class GameRulesConfig {
     private boolean allowUndo = true;                // 允许悔棋
     @RuleKey(RuleConstants.SHOW_HINTS)
     private boolean showHints = true;                // 显示提示
+    @RuleKey(RuleConstants.ALLOW_FORCE_MOVE)
+    private boolean allowForceMove = true;
 
     // reflection-backed mapping from rule constant name -> Field
     private static final Map<String, Field> RULE_FIELDS;

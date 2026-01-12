@@ -54,7 +54,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     private JButton restartButton;
 
     // 新的右侧网络面板
-    private NetModeController netController = new NetModeController();
+    private static NetModeController netController = new NetModeController();
     private InfoSidePanel infoSidePanel;
     private RuleSettingsPanel ruleSettingsPanel;
     private boolean ruleSettingsLocked = false;
@@ -180,30 +180,34 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 设置强制走子请求监听：用户中键点击后发送强制走子请求
         boardPanel.setForceMoveRequestListener((fromRow, fromCol, toRow, toCol) -> {
             System.out.println("[DEBUG] 用户申请强制走子: " + fromRow + "," + fromCol + " -> " + toRow + "," + toCol);
-            if (netController.isActive()) {
-                long seq = forceSeqGenerator.incrementAndGet();
-                int historyLen = gameEngine.getMoveHistory().size();
-                System.out.println("[DEBUG] 生成序列号: " + seq + ", 历史长度: " + historyLen);
-                try {
-                    netController.getSession().sendForceMoveRequest(fromRow, fromCol, toRow, toCol, seq, historyLen);
-                    System.out.println("[DEBUG] 已发送FORCE_MOVE_REQUEST");
-                    // 记录待确认的强制走子请求
-                    RequestInfo info = new RequestInfo(fromRow, fromCol, toRow, toCol, seq, historyLen);
-                    pendingForceRequests.put(seq, info);
-                    // 启动超时重试机制
-                    sendForceRequestWithRetry(seq);
-                    System.out.println("[DEBUG] 已启动重试机制");
-                    // 清除红色指示器
-                    boardPanel.clearForceMoveIndicator();
-                } catch (Throwable t) {
-                    System.out.println("[DEBUG] 发送强制走子请求失败: " + t);
-                    logError(t);
-                    JOptionPane.showMessageDialog(ChineseChessFrame.this, "发送强制走子请求失败：" + t.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            if (rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE)) {
+                if (netController.isActive()) {
+                    long seq = forceSeqGenerator.incrementAndGet();
+                    int historyLen = gameEngine.getMoveHistory().size();
+                    System.out.println("[DEBUG] 生成序列号: " + seq + ", 历史长度: " + historyLen);
+                    try {
+                        netController.getSession().sendForceMoveRequest(fromRow, fromCol, toRow, toCol, seq, historyLen);
+                        System.out.println("[DEBUG] 已发送FORCE_MOVE_REQUEST");
+                        // 记录待确认的强制走子请求
+                        RequestInfo info = new RequestInfo(fromRow, fromCol, toRow, toCol, seq, historyLen);
+                        pendingForceRequests.put(seq, info);
+                        // 启动超时重试机制
+                        sendForceRequestWithRetry(seq);
+                        System.out.println("[DEBUG] 已启动重试机制");
+                        // 清除红色指示器
+                        boardPanel.clearForceMoveIndicator();
+                    } catch (Throwable t) {
+                        System.out.println("[DEBUG] 发送强制走子请求失败: " + t);
+                        logError(t);
+                        JOptionPane.showMessageDialog(ChineseChessFrame.this, "发送强制走子请求失败：" + t.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                        boardPanel.clearForceMoveIndicator();
+                    }
+                } else {
+                    gameEngine.forceApplyMove(fromRow, fromCol, toRow, toCol);
                     boardPanel.clearForceMoveIndicator();
                 }
-            } else {
-                System.out.println("[DEBUG] 非联机模式，无法进行强制走子");
-                JOptionPane.showMessageDialog(ChineseChessFrame.this, "强制走子仅在联机模式下可用", "提示", JOptionPane.INFORMATION_MESSAGE);
+            }else {
+                JOptionPane.showMessageDialog(ChineseChessFrame.this, "强制走子已被禁用！", "提示", JOptionPane.INFORMATION_MESSAGE);
                 boardPanel.clearForceMoveIndicator();
             }
         });
@@ -226,12 +230,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         ruleSettingsPanel.setVisible(true);
         ruleSettingsPanel.bindSettings(new RuleSettingsPanel.SettingsBinder() {
             @Override public void setAllowUndo(boolean allowUndo) {
-                if (ruleSettingsLocked) return;
-                rulesConfig.set(RuleConstants.ALLOW_UNDO, allowUndo, GameRulesConfig.ChangeSource.UI);
+                if (!ruleSettingsLocked) rulesConfig.set(RuleConstants.ALLOW_UNDO, allowUndo, GameRulesConfig.ChangeSource.UI);
                 // 联机时不直接禁用，由 updateStatus 按规则和回合判断
                 updateStatus();
             }
             @Override public boolean isAllowUndo() { return rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO); }
+            @Override public void setAllowForceMove(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_FORCE_MOVE, allow, GameRulesConfig.ChangeSource.UI);}}
+            @Override public boolean isAllowForceMove() { return rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE);}
             // 特殊玩法的设置：对每个 setter 应用更改并在是主机时同步给客户端
             @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_FLYING_GENERAL, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
             @Override public void setDisableFacingGenerals(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.DISABLE_FACING_GENERALS, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
@@ -917,5 +922,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 options[0]);
         if (choice >= 0 && choice < types.length) return types[choice];
         return null;
+    }
+    public static boolean isNetSessionActive(){
+        return netController.isActive();
     }
 }

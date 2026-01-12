@@ -17,6 +17,8 @@ public class RuleSettingsPanel extends JPanel {
     public interface SettingsBinder {
         void setAllowUndo(boolean allowUndo);
         boolean isAllowUndo();
+        void setAllowForceMove(boolean allowForceMove);
+        boolean isAllowForceMove();
         // 特殊玩法
         void setAllowFlyingGeneral(boolean allow);
         void setDisableFacingGenerals(boolean allow);
@@ -87,6 +89,12 @@ public class RuleSettingsPanel extends JPanel {
         chkAllowUndo.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         form.add(chkAllowUndo);
+        form.add(Box.createVerticalStrut(6));
+
+        // 新增：允许强制移动勾选框
+        JCheckBox chkAllowForceMove = new JCheckBox("允许强制移动");
+        chkAllowForceMove.setAlignmentX(Component.LEFT_ALIGNMENT);
+        form.add(chkAllowForceMove);
         form.add(Box.createVerticalStrut(6));
 
         // 延申玩法分组（可折叠）
@@ -467,6 +475,10 @@ public class RuleSettingsPanel extends JPanel {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setAllowUndo(chkAllowUndo.isSelected());
         });
+        chkAllowForceMove.addActionListener(e -> {
+            SettingsBinder b = (SettingsBinder) getClientProperty("binder");
+            if (b != null) b.setAllowForceMove(chkAllowForceMove.isSelected());
+        });
         chkFlyingGeneral.addActionListener(e -> {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) b.setAllowFlyingGeneral(chkFlyingGeneral.isSelected());
@@ -587,6 +599,8 @@ public class RuleSettingsPanel extends JPanel {
         // 复制配置：构造 JSON 并写入剪贴板
         copyBtn.addActionListener(e -> {
             JsonObject obj = new JsonObject();
+            obj.addProperty("allowUndo", chkAllowUndo.isSelected());
+            obj.addProperty("allowForceMove", chkAllowForceMove.isSelected());
             obj.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
             obj.addProperty("disableFacingGenerals", chkDisableFacingGenerals.isSelected());
             obj.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
@@ -631,6 +645,8 @@ public class RuleSettingsPanel extends JPanel {
             area.setWrapStyleWord(true);
             // 预填当前配置，方便修改
             JsonObject current = new JsonObject();
+            current.addProperty("allowUndo", chkAllowUndo.isSelected());
+            current.addProperty("allowForceMove", chkAllowForceMove.isSelected());
             current.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
             current.addProperty("disableFacingGenerals", chkDisableFacingGenerals.isSelected());
             current.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
@@ -670,7 +686,9 @@ public class RuleSettingsPanel extends JPanel {
 
             try {
                 JsonObject obj = JsonParser.parseString(area.getText().trim()).getAsJsonObject();
-                boolean allowFG = obj.has("allowFlyingGeneral") && obj.get("allowFlyingGeneral").getAsBoolean();
+                boolean allowUndo = obj.has("allowUndo") && obj.get("allowUndo").getAsBoolean();
+                boolean allowForceMove = obj.has("allowForceMove") && obj.get("allowForceMove").getAsBoolean();
+                boolean allowFlyingGeneral = obj.has("allowFlyingGeneral") && obj.get("allowFlyingGeneral").getAsBoolean();
                 boolean disableFacing = obj.has("disableFacingGenerals") && obj.get("disableFacingGenerals").getAsBoolean();
                 boolean pawnBack = obj.has("pawnCanRetreat") && obj.get("pawnCanRetreat").getAsBoolean();
                 boolean noRiver = obj.has("noRiverLimit") && obj.get("noRiverLimit").getAsBoolean();
@@ -698,7 +716,9 @@ public class RuleSettingsPanel extends JPanel {
                 // 验证范围：只允许 1-16 之间的正整数
                 maxStackingCount = Math.max(1, Math.min(16, maxStackingCount));
 
-                chkFlyingGeneral.setSelected(allowFG);
+                chkAllowUndo.setSelected(allowUndo);
+                chkAllowForceMove.setSelected(allowForceMove);
+                chkFlyingGeneral.setSelected(allowFlyingGeneral);
                 chkDisableFacingGenerals.setSelected(disableFacing);
                 chkPawnBack.setSelected(pawnBack);
                 chkNoRiverLimit.setSelected(noRiver);
@@ -759,7 +779,7 @@ public class RuleSettingsPanel extends JPanel {
                 updateMutualExclusion.run();
                 SettingsBinder b = (SettingsBinder) getClientProperty("binder");
                 if (b != null) {
-                    b.setAllowFlyingGeneral(allowFG);
+                    b.setAllowFlyingGeneral(allowFlyingGeneral);
                     b.setPawnCanRetreat(pawnBack);
                     b.setNoRiverLimit(noRiver);
                     b.setAdvisorCanLeave(advisorLeave);
@@ -793,6 +813,7 @@ public class RuleSettingsPanel extends JPanel {
             SettingsBinder b = (SettingsBinder) getClientProperty("binder");
             if (b != null) {
                 chkAllowUndo.setSelected(b.isAllowUndo());
+                chkAllowForceMove.setSelected(b.isAllowForceMove());
                 chkFlyingGeneral.setSelected(b.isAllowFlyingGeneral());
                 chkDisableFacingGenerals.setSelected(b.isDisableFacingGenerals());
                 chkPawnBack.setSelected(b.isPawnCanRetreat());
