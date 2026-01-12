@@ -58,6 +58,9 @@ public class NetworkSession {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Listener listener;
 
+    // 新增：待处理的 JSON 帧
+    private String pendingJsonFrame = null;
+
     public void setListener(Listener listener) {
         this.listener = listener;
     }
@@ -236,12 +239,23 @@ public class NetworkSession {
                         System.out.println("[DEBUG] Received HELLO token from peer");
                         // don't require signature for HELLO
                         if (listener != null && jo.has("version")) listener.onPeerVersion(jo.get("version").getAsString());
+                        // 新增：收到 HELLO 后尝试处理 pendingJsonFrame
+                        if (pendingJsonFrame != null) {
+                            String frame = pendingJsonFrame;
+                            pendingJsonFrame = null;
+                            handleLine(frame);
+                        }
                         // stop handling this line
                         return;
                     }
-
                     // verify signature when present (and when both tokens are available)
                     String sig = jo.has("sig") ? jo.get("sig").getAsString() : null;
+                    if (sig != null && (localToken == null || peerToken == null)) {
+                        // token 未就绪，缓存该帧，等待 token 就绪后重放
+                        System.out.println("[DEBUG] Token not ready, caching JSON frame for later: " + line);
+                        pendingJsonFrame = line;
+                        return;
+                    }
                     JsonObject payload = jo.deepCopy();
                     if (sig != null) { payload.remove("sig"); }
                     if (sig != null && localToken != null && peerToken != null) {
