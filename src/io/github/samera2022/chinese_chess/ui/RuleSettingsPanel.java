@@ -3,6 +3,7 @@ package io.github.samera2022.chinese_chess.ui;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.samera2022.chinese_chess.filter.DocumentInputFilter;
+import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -599,39 +600,39 @@ public class RuleSettingsPanel extends JPanel {
         // 复制配置：构造 JSON 并写入剪贴板
         copyBtn.addActionListener(e -> {
             JsonObject obj = new JsonObject();
-            obj.addProperty("allowUndo", chkAllowUndo.isSelected());
-            obj.addProperty("allowForceMove", chkAllowForceMove.isSelected());
-            obj.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
-            obj.addProperty("disableFacingGenerals", chkDisableFacingGenerals.isSelected());
-            obj.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
-            obj.addProperty("internationalKing", chkInternationalKing.isSelected());
-            obj.addProperty("internationalAdvisor", chkInternationalAdvisor.isSelected());
-            obj.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
-            obj.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
-            obj.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
-            obj.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
-            obj.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
-            obj.addProperty("leftRightConnectedHorse", chkLeftRightConnectedHorse.isSelected());
-            obj.addProperty("leftRightConnectedElephant", chkLeftRightConnectedElephant.isSelected());
-            obj.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
-            obj.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
-            obj.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
-            obj.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
-            obj.addProperty("unblockPiece", chkUnblockPiece.isSelected());
-            obj.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
-            obj.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
-            obj.addProperty("allowCaptureOwnPiece", chkAllowCaptureOwnPiece.isSelected());
-            obj.addProperty("allowCaptureConversion", chkAllowCaptureConversion.isSelected());
-            obj.addProperty("deathMatchUntilVictory", chkDeathMatchUntilVictory.isSelected());
-            obj.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_UNDO, chkAllowUndo.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_FORCE_MOVE, chkAllowForceMove.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_FLYING_GENERAL, chkFlyingGeneral.isSelected());
+            obj.addProperty(RuleConstants.DISABLE_FACING_GENERALS, chkDisableFacingGenerals.isSelected());
+            obj.addProperty(RuleConstants.ADVISOR_CAN_LEAVE, chkAdvisorCanLeave.isSelected());
+            obj.addProperty(RuleConstants.INTERNATIONAL_KING, chkInternationalKing.isSelected());
+            obj.addProperty(RuleConstants.INTERNATIONAL_ADVISOR, chkInternationalAdvisor.isSelected());
+            obj.addProperty(RuleConstants.NO_RIVER_LIMIT, chkNoRiverLimit.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, chkAllowElephantCrossRiver.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, chkAllowAdvisorCrossRiver.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_KING_CROSS_RIVER, chkAllowKingCrossRiver.isSelected());
+            obj.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED, chkLeftRightConnected.isSelected());
+            obj.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, chkLeftRightConnectedHorse.isSelected());
+            obj.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, chkLeftRightConnectedElephant.isSelected());
+            obj.addProperty(RuleConstants.PAWN_CAN_RETREAT, chkPawnBack.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_INSIDE_RETREAT, chkAllowInsideRetreat.isSelected());
+            obj.addProperty(RuleConstants.PAWN_PROMOTION, chkPawnPromotion.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_OWN_BASE_LINE, chkAllowOwnBaseLine.isSelected());
+            obj.addProperty(RuleConstants.UNBLOCK_PIECE, chkUnblockPiece.isSelected());
+            obj.addProperty(RuleConstants.UNBLOCK_HORSE_LEG, chkUnblockHorseLeg.isSelected());
+            obj.addProperty(RuleConstants.UNBLOCK_ELEPHANT_EYE, chkUnblockElephantEye.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, chkAllowCaptureOwnPiece.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_CAPTURE_CONVERSION, chkAllowCaptureConversion.isSelected());
+            obj.addProperty(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, chkDeathMatchUntilVictory.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_PIECE_STACKING, chkAllowPieceStacking.isSelected());
             // 确保允许背负也被导出
-            obj.addProperty("allowCarryPiecesAbove", chkAllowCarryPiecesAbove.isSelected());
+            obj.addProperty(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, chkAllowCarryPiecesAbove.isSelected());
             try {
                 String stackText = txtStackingCount.getText();
                 int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);
-                obj.addProperty("maxStackingCount", count);
+                obj.addProperty(RuleConstants.MAX_STACKING_COUNT, count);
             } catch (NumberFormatException e2) {
-                obj.addProperty("maxStackingCount", 2);
+                obj.addProperty(RuleConstants.MAX_STACKING_COUNT, 2);
             }
             StringSelection sel = new StringSelection(obj.toString());
             Clipboard cb = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -645,38 +646,38 @@ public class RuleSettingsPanel extends JPanel {
             area.setWrapStyleWord(true);
             // 预填当前配置，方便修改
             JsonObject current = new JsonObject();
-            current.addProperty("allowUndo", chkAllowUndo.isSelected());
-            current.addProperty("allowForceMove", chkAllowForceMove.isSelected());
-            current.addProperty("allowFlyingGeneral", chkFlyingGeneral.isSelected());
-            current.addProperty("disableFacingGenerals", chkDisableFacingGenerals.isSelected());
-            current.addProperty("advisorCanLeave", chkAdvisorCanLeave.isSelected());
-            current.addProperty("internationalKing", chkInternationalKing.isSelected());
-            current.addProperty("internationalAdvisor", chkInternationalAdvisor.isSelected());
-            current.addProperty("noRiverLimit", chkNoRiverLimit.isSelected());
-            current.addProperty("allowElephantCrossRiver", chkAllowElephantCrossRiver.isSelected());
-            current.addProperty("allowAdvisorCrossRiver", chkAllowAdvisorCrossRiver.isSelected());
-            current.addProperty("allowKingCrossRiver", chkAllowKingCrossRiver.isSelected());
-            current.addProperty("leftRightConnected", chkLeftRightConnected.isSelected());
-            current.addProperty("leftRightConnectedHorse", chkLeftRightConnectedHorse.isSelected());
-            current.addProperty("leftRightConnectedElephant", chkLeftRightConnectedElephant.isSelected());
-            current.addProperty("pawnCanRetreat", chkPawnBack.isSelected());
-            current.addProperty("allowInsideRetreat", chkAllowInsideRetreat.isSelected());
-            current.addProperty("pawnPromotion", chkPawnPromotion.isSelected());
-            current.addProperty("allowOwnBaseLine", chkAllowOwnBaseLine.isSelected());
-            current.addProperty("unblockPiece", chkUnblockPiece.isSelected());
-            current.addProperty("unblockHorseLeg", chkUnblockHorseLeg.isSelected());
-            current.addProperty("unblockElephantEye", chkUnblockElephantEye.isSelected());
-            current.addProperty("allowCaptureOwnPiece", chkAllowCaptureOwnPiece.isSelected());
-            current.addProperty("allowCaptureConversion", chkAllowCaptureConversion.isSelected());
-            current.addProperty("deathMatchUntilVictory", chkDeathMatchUntilVictory.isSelected());
-            current.addProperty("allowPieceStacking", chkAllowPieceStacking.isSelected());
-            current.addProperty("allowCarryPiecesAbove", chkAllowCarryPiecesAbove.isSelected());
+            current.addProperty(RuleConstants.ALLOW_UNDO, chkAllowUndo.isSelected());
+            current.addProperty(RuleConstants.ALLOW_FORCE_MOVE, chkAllowForceMove.isSelected());
+            current.addProperty(RuleConstants.ALLOW_FLYING_GENERAL, chkFlyingGeneral.isSelected());
+            current.addProperty(RuleConstants.DISABLE_FACING_GENERALS, chkDisableFacingGenerals.isSelected());
+            current.addProperty(RuleConstants.ADVISOR_CAN_LEAVE, chkAdvisorCanLeave.isSelected());
+            current.addProperty(RuleConstants.INTERNATIONAL_KING, chkInternationalKing.isSelected());
+            current.addProperty(RuleConstants.INTERNATIONAL_ADVISOR, chkInternationalAdvisor.isSelected());
+            current.addProperty(RuleConstants.NO_RIVER_LIMIT, chkNoRiverLimit.isSelected());
+            current.addProperty(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, chkAllowElephantCrossRiver.isSelected());
+            current.addProperty(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, chkAllowAdvisorCrossRiver.isSelected());
+            current.addProperty(RuleConstants.ALLOW_KING_CROSS_RIVER, chkAllowKingCrossRiver.isSelected());
+            current.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED, chkLeftRightConnected.isSelected());
+            current.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, chkLeftRightConnectedHorse.isSelected());
+            current.addProperty(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, chkLeftRightConnectedElephant.isSelected());
+            current.addProperty(RuleConstants.PAWN_CAN_RETREAT, chkPawnBack.isSelected());
+            current.addProperty(RuleConstants.ALLOW_INSIDE_RETREAT, chkAllowInsideRetreat.isSelected());
+            current.addProperty(RuleConstants.PAWN_PROMOTION, chkPawnPromotion.isSelected());
+            current.addProperty(RuleConstants.ALLOW_OWN_BASE_LINE, chkAllowOwnBaseLine.isSelected());
+            current.addProperty(RuleConstants.UNBLOCK_PIECE, chkUnblockPiece.isSelected());
+            current.addProperty(RuleConstants.UNBLOCK_HORSE_LEG, chkUnblockHorseLeg.isSelected());
+            current.addProperty(RuleConstants.UNBLOCK_ELEPHANT_EYE, chkUnblockElephantEye.isSelected());
+            current.addProperty(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, chkAllowCaptureOwnPiece.isSelected());
+            current.addProperty(RuleConstants.ALLOW_CAPTURE_CONVERSION, chkAllowCaptureConversion.isSelected());
+            current.addProperty(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, chkDeathMatchUntilVictory.isSelected());
+            current.addProperty(RuleConstants.ALLOW_PIECE_STACKING, chkAllowPieceStacking.isSelected());
+            current.addProperty(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, chkAllowCarryPiecesAbove.isSelected());
             try {
                 String stackText = txtStackingCount.getText();
                 int count = stackText.isEmpty() ? 2 : Integer.parseInt(stackText);
-                current.addProperty("maxStackingCount", count);
+                current.addProperty(RuleConstants.MAX_STACKING_COUNT, count);
             } catch (NumberFormatException e2) {
-                current.addProperty("maxStackingCount", 2);
+                current.addProperty(RuleConstants.MAX_STACKING_COUNT, 2);
             }
             area.setText(current.toString());
 
@@ -686,33 +687,33 @@ public class RuleSettingsPanel extends JPanel {
 
             try {
                 JsonObject obj = JsonParser.parseString(area.getText().trim()).getAsJsonObject();
-                boolean allowUndo = obj.has("allowUndo") && obj.get("allowUndo").getAsBoolean();
-                boolean allowForceMove = obj.has("allowForceMove") && obj.get("allowForceMove").getAsBoolean();
-                boolean allowFlyingGeneral = obj.has("allowFlyingGeneral") && obj.get("allowFlyingGeneral").getAsBoolean();
-                boolean disableFacing = obj.has("disableFacingGenerals") && obj.get("disableFacingGenerals").getAsBoolean();
-                boolean pawnBack = obj.has("pawnCanRetreat") && obj.get("pawnCanRetreat").getAsBoolean();
-                boolean noRiver = obj.has("noRiverLimit") && obj.get("noRiverLimit").getAsBoolean();
-                boolean advisorLeave = obj.has("advisorCanLeave") && obj.get("advisorCanLeave").getAsBoolean();
-                boolean intlKing = obj.has("internationalKing") && obj.get("internationalKing").getAsBoolean();
-                boolean pawnProm = obj.has("pawnPromotion") && obj.get("pawnPromotion").getAsBoolean();
-                boolean ownBase = obj.has("allowOwnBaseLine") && obj.get("allowOwnBaseLine").getAsBoolean();
-                boolean insideRetreat = obj.has("allowInsideRetreat") && obj.get("allowInsideRetreat").getAsBoolean();
-                boolean intlAdvisor = obj.has("internationalAdvisor") && obj.get("internationalAdvisor").getAsBoolean();
-                boolean elephantCross = obj.has("allowElephantCrossRiver") && obj.get("allowElephantCrossRiver").getAsBoolean();
-                boolean advisorCross = obj.has("allowAdvisorCrossRiver") && obj.get("allowAdvisorCrossRiver").getAsBoolean();
-                boolean kingCross = obj.has("allowKingCrossRiver") && obj.get("allowKingCrossRiver").getAsBoolean();
-                boolean leftRight = obj.has("leftRightConnected") && obj.get("leftRightConnected").getAsBoolean();
-                boolean leftRightHorse = obj.has("leftRightConnectedHorse") && obj.get("leftRightConnectedHorse").getAsBoolean();
-                boolean leftRightElephant = obj.has("leftRightConnectedElephant") && obj.get("leftRightConnectedElephant").getAsBoolean();
-                boolean unblockPiece = obj.has("unblockPiece") && obj.get("unblockPiece").getAsBoolean();
-                boolean unblockHorseLeg = obj.has("unblockHorseLeg") && obj.get("unblockHorseLeg").getAsBoolean();
-                boolean unblockElephantEye = obj.has("unblockElephantEye") && obj.get("unblockElephantEye").getAsBoolean();
-                boolean allowCaptureOwnPiece = obj.has("allowCaptureOwnPiece") && obj.get("allowCaptureOwnPiece").getAsBoolean();
-                boolean allowCaptureConversion = obj.has("allowCaptureConversion") && obj.get("allowCaptureConversion").getAsBoolean();
-                boolean deathMatchUntilVictory = obj.has("deathMatchUntilVictory") && obj.get("deathMatchUntilVictory").getAsBoolean();
-                boolean allowPieceStacking = obj.has("allowPieceStacking") && obj.get("allowPieceStacking").getAsBoolean();
-                boolean allowCarryPiecesAbove = obj.has("allowCarryPiecesAbove") && obj.get("allowCarryPiecesAbove").getAsBoolean();
-                int maxStackingCount = obj.has("maxStackingCount") ? obj.get("maxStackingCount").getAsInt() : 2;
+                boolean allowUndo = obj.has(RuleConstants.ALLOW_UNDO) && obj.get(RuleConstants.ALLOW_UNDO).getAsBoolean();
+                boolean allowForceMove = obj.has(RuleConstants.ALLOW_FORCE_MOVE) && obj.get(RuleConstants.ALLOW_FORCE_MOVE).getAsBoolean();
+                boolean allowFlyingGeneral = obj.has(RuleConstants.ALLOW_FLYING_GENERAL) && obj.get(RuleConstants.ALLOW_FLYING_GENERAL).getAsBoolean();
+                boolean disableFacing = obj.has(RuleConstants.DISABLE_FACING_GENERALS) && obj.get(RuleConstants.DISABLE_FACING_GENERALS).getAsBoolean();
+                boolean pawnBack = obj.has(RuleConstants.PAWN_CAN_RETREAT) && obj.get(RuleConstants.PAWN_CAN_RETREAT).getAsBoolean();
+                boolean noRiver = obj.has(RuleConstants.NO_RIVER_LIMIT) && obj.get(RuleConstants.NO_RIVER_LIMIT).getAsBoolean();
+                boolean advisorLeave = obj.has(RuleConstants.ADVISOR_CAN_LEAVE) && obj.get(RuleConstants.ADVISOR_CAN_LEAVE).getAsBoolean();
+                boolean intlKing = obj.has(RuleConstants.INTERNATIONAL_KING) && obj.get(RuleConstants.INTERNATIONAL_KING).getAsBoolean();
+                boolean pawnProm = obj.has(RuleConstants.PAWN_PROMOTION) && obj.get(RuleConstants.PAWN_PROMOTION).getAsBoolean();
+                boolean ownBase = obj.has(RuleConstants.ALLOW_OWN_BASE_LINE) && obj.get(RuleConstants.ALLOW_OWN_BASE_LINE).getAsBoolean();
+                boolean insideRetreat = obj.has(RuleConstants.ALLOW_INSIDE_RETREAT) && obj.get(RuleConstants.ALLOW_INSIDE_RETREAT).getAsBoolean();
+                boolean intlAdvisor = obj.has(RuleConstants.INTERNATIONAL_ADVISOR) && obj.get(RuleConstants.INTERNATIONAL_ADVISOR).getAsBoolean();
+                boolean elephantCross = obj.has(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER) && obj.get(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER).getAsBoolean();
+                boolean advisorCross = obj.has(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER) && obj.get(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER).getAsBoolean();
+                boolean kingCross = obj.has(RuleConstants.ALLOW_KING_CROSS_RIVER) && obj.get(RuleConstants.ALLOW_KING_CROSS_RIVER).getAsBoolean();
+                boolean leftRight = obj.has(RuleConstants.LEFT_RIGHT_CONNECTED) && obj.get(RuleConstants.LEFT_RIGHT_CONNECTED).getAsBoolean();
+                boolean leftRightHorse = obj.has(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE) && obj.get(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE).getAsBoolean();
+                boolean leftRightElephant = obj.has(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT) && obj.get(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT).getAsBoolean();
+                boolean unblockPiece = obj.has(RuleConstants.UNBLOCK_PIECE) && obj.get(RuleConstants.UNBLOCK_PIECE).getAsBoolean();
+                boolean unblockHorseLeg = obj.has(RuleConstants.UNBLOCK_HORSE_LEG) && obj.get(RuleConstants.UNBLOCK_HORSE_LEG).getAsBoolean();
+                boolean unblockElephantEye = obj.has(RuleConstants.UNBLOCK_ELEPHANT_EYE) && obj.get(RuleConstants.UNBLOCK_ELEPHANT_EYE).getAsBoolean();
+                boolean allowCaptureOwnPiece = obj.has(RuleConstants.ALLOW_CAPTURE_OWN_PIECE) && obj.get(RuleConstants.ALLOW_CAPTURE_OWN_PIECE).getAsBoolean();
+                boolean allowCaptureConversion = obj.has(RuleConstants.ALLOW_CAPTURE_CONVERSION) && obj.get(RuleConstants.ALLOW_CAPTURE_CONVERSION).getAsBoolean();
+                boolean deathMatchUntilVictory = obj.has(RuleConstants.DEATH_MATCH_UNTIL_VICTORY) && obj.get(RuleConstants.DEATH_MATCH_UNTIL_VICTORY).getAsBoolean();
+                boolean allowPieceStacking = obj.has(RuleConstants.ALLOW_PIECE_STACKING) && obj.get(RuleConstants.ALLOW_PIECE_STACKING).getAsBoolean();
+                boolean allowCarryPiecesAbove = obj.has(RuleConstants.ALLOW_CARRY_PIECES_ABOVE) && obj.get(RuleConstants.ALLOW_CARRY_PIECES_ABOVE).getAsBoolean();
+                int maxStackingCount = obj.has(RuleConstants.MAX_STACKING_COUNT) ? obj.get(RuleConstants.MAX_STACKING_COUNT).getAsInt() : 2;
                 // 验证范围：只允许 1-16 之间的正整数
                 maxStackingCount = Math.max(1, Math.min(16, maxStackingCount));
 
@@ -853,12 +854,12 @@ public class RuleSettingsPanel extends JPanel {
                 boolean unblock = chkUnblockPiece.isSelected();
                 chkUnblockHorseLeg.setEnabled(unblock);
                 chkUnblockElephantEye.setEnabled(unblock);
-                if (!unblock) {
-                    chkUnblockHorseLeg.setSelected(false);
-                    chkUnblockElephantEye.setSelected(false);
-                }
-                txtStackingCount.setEnabled(chkAllowPieceStacking.isSelected());
-                chkAllowCarryPiecesAbove.setEnabled(chkAllowPieceStacking.isSelected());
+                // 修正：联机时主选项被禁用，子选项也必须禁用
+                chkUnblockHorseLeg.setEnabled(chkUnblockPiece.isEnabled() && chkUnblockPiece.isSelected());
+                chkUnblockElephantEye.setEnabled(chkUnblockPiece.isEnabled() && chkUnblockPiece.isSelected());
+                chkLeftRightConnectedHorse.setEnabled(chkLeftRightConnected.isEnabled() && chkLeftRightConnected.isSelected());
+                chkLeftRightConnectedElephant.setEnabled(chkLeftRightConnected.isEnabled() && chkLeftRightConnected.isSelected());
+                chkAllowCarryPiecesAbove.setEnabled(chkAllowPieceStacking.isEnabled() && chkAllowPieceStacking.isSelected());
                 if (chkAllowCaptureOwnPiece.isSelected()) {
                     chkAllowPieceStacking.setEnabled(false);
                     txtStackingCount.setEnabled(false);

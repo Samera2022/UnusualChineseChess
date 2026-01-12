@@ -174,7 +174,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 设置本地走子监听：若在联机中，发送到对端
         boardPanel.setLocalMoveListener((fr, fc, tr, tc) -> {
             if (netController.isActive()) {
-                netController.getSession().sendMove(fr, fc, tr, tc);
+                int selectedStackIndex = boardPanel.getSelectedStackIndex(); // 新增：获取当前选中的堆叠索引
+                netController.getSession().sendMove(fr, fc, tr, tc, selectedStackIndex);
             }
         });
         // 设置强制走子请求监听：用户中键点击后发送强制走子请求
@@ -184,17 +185,15 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                 if (netController.isActive()) {
                     long seq = forceSeqGenerator.incrementAndGet();
                     int historyLen = gameEngine.getMoveHistory().size();
+                    int selectedStackIndex = boardPanel.getSelectedStackIndex();
                     System.out.println("[DEBUG] 生成序列号: " + seq + ", 历史长度: " + historyLen);
                     try {
-                        netController.getSession().sendForceMoveRequest(fromRow, fromCol, toRow, toCol, seq, historyLen);
+                        netController.getSession().sendForceMoveRequest(fromRow, fromCol, toRow, toCol, seq, historyLen, selectedStackIndex);
                         System.out.println("[DEBUG] 已发送FORCE_MOVE_REQUEST");
-                        // 记录待确认的强制走子请求
                         RequestInfo info = new RequestInfo(fromRow, fromCol, toRow, toCol, seq, historyLen);
                         pendingForceRequests.put(seq, info);
-                        // 启动超时重试机制
                         sendForceRequestWithRetry(seq);
                         System.out.println("[DEBUG] 已启动重试机制");
-                        // 清除红色指示器
                         boardPanel.clearForceMoveIndicator();
                     } catch (Throwable t) {
                         System.out.println("[DEBUG] 发送强制走子请求失败: " + t);
@@ -330,16 +329,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 调整 NetworkSidePanel 内部监听以包含设置同步/锁定
         netController.getSession().setListener(new NetworkSession.SyncGameStateListener() {
             @Override
-            public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol) {
+            public void onPeerMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex) {
                 SwingUtilities.invokeLater(() -> {
                     try {
-                        // 1. 获取被移动的棋子对象
                         Piece piece = gameEngine.getBoard().getPiece(fromRow, fromCol);
-
-                        // 如果位置上没棋子（可能是同步延迟导致的幽灵操作），直接忽略
                         if (piece == null) return;
-
-                        if (gameEngine.makeMove(fromRow, fromCol, toRow, toCol)) {
+                        if (gameEngine.makeMove(fromRow, fromCol, toRow, toCol, null, selectedStackIndex)) {
                             boardPanel.clearSelection();
                             boardPanel.repaint();
                             updateStatus();
@@ -399,7 +394,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             }
             @Override public void onPong(long sentMillis, long rttMillis) { SwingUtilities.invokeLater(() -> infoSidePanel.onPong(sentMillis, rttMillis)); }
             @Override public void onPeerVersion(String version) { SwingUtilities.invokeLater(() -> infoSidePanel.setPeerVersion(version)); }
-            @Override public void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen) { SwingUtilities.invokeLater(() -> {
+            @Override public void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen, int selectedStackIndex) { SwingUtilities.invokeLater(() -> {
                         System.out.println("[DEBUG] 收到强制走子请求: " + fromRow + "," + fromCol + " -> " + toRow + "," + toCol + " (seq=" + seq + ", historyLen=" + historyLen + ")");
 
                         // 检查是否已经处理过这个请求（防止重复弹窗）
@@ -442,53 +437,42 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         System.out.println("[DEBUG] 用户选择: " + (ans == JOptionPane.YES_OPTION ? "是" : "否"));
 
                         if (ans == JOptionPane.YES_OPTION) {
-                            System.out.println("[DEBUG] 发送 FORCE_MOVE_CONFIRM");
-                            try { netController.getSession().sendForceMoveConfirm(fromRow, fromCol, toRow, toCol, seq); } catch (Throwable ignored) {}
-                            // 接收方不执行晋升选择，也不在本地应用（等待对端最终应用/广播）
+                            try { netController.getSession().sendForceMoveConfirm(fromRow, fromCol, toRow, toCol, seq, selectedStackIndex); } catch (Throwable ignored) {}
                         } else {
-                            System.out.println("[DEBUG] 发送 FORCE_MOVE_REJECT");
                             try { netController.getSession().sendForceMoveReject(fromRow, fromCol, toRow, toCol, seq, "user_rejected"); } catch (Throwable ignored) {}
                         }
                         boardPanel.clearRemotePieceHighlight();
                         boardPanel.clearForceMoveIndicator();
                     }); }
-            @Override public void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq) { SwingUtilities.invokeLater(() -> {
+            @Override public void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq, int selectedStackIndex) { SwingUtilities.invokeLater(() -> {
                          System.out.println("[DEBUG] 收到强制走子确认: " + fromRow + "," + fromCol + " -> " + toRow + "," + toCol + " (seq=" + seq + ")");
 
                          // Peer confirmed our force request. Find pending and apply.
                          RequestInfo info = pendingForceRequests.remove(seq);
                          if (info != null && info.timer != null) { info.timer.stop(); }
                          try {
-                             // 先告知用户对方已同意
                              JOptionPane.showMessageDialog(ChineseChessFrame.this, "对方已同意你的强制走子", "强制走子成功", JOptionPane.INFORMATION_MESSAGE);
-
-                             // 仅强制走子发起方决定晋升（兵的所有者）
                              Piece.Type promotionType = resolveForcePromotionType(fromRow, fromCol, toRow, toCol);
-
                              boolean applied = false;
                              try {
                                  java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class, Piece.Type.class, int.class);
-                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promotionType, -1);
+                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promotionType, selectedStackIndex);
                                  if (res instanceof Boolean) applied = (Boolean) res;
                              } catch (NoSuchMethodException nsme) {
-                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promotionType, -1);
+                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promotionType, selectedStackIndex);
                              }
-                             System.out.println("[DEBUG] 强制移动应用结果: " + applied);
                              if (applied) {
-                                 // 清除选中状态和移动指示器（申请方）
                                  boardPanel.clearSelection();
                                  boardPanel.repaint();
                                  updateStatus();
-                                 // 通知对端已应用，带晋升信息
                                  try {
                                      String promoName = promotionType != null ? promotionType.name() : null;
-                                     netController.getSession().sendForceMoveApplied(fromRow, fromCol, toRow, toCol, seq, promoName);
+                                     netController.getSession().sendForceMoveApplied(fromRow, fromCol, toRow, toCol, seq, promoName, selectedStackIndex);
                                  } catch (Throwable ignored) {}
                              }
                          } catch (Throwable t) { logError(t); }
                      }); }
-            @Override public void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionTypeName) { SwingUtilities.invokeLater(() -> {
-                         // Peer reports that a force move was applied. Ensure we stop any retry timer and apply locally if needed.
+            @Override public void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionTypeName, int selectedStackIndex) { SwingUtilities.invokeLater(() -> {
                          RequestInfo info = pendingForceRequests.remove(seq);
                          if (info != null && info.timer != null) { info.timer.stop(); }
                          try {
@@ -497,13 +481,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                              boolean applied = false;
                              try {
                                  java.lang.reflect.Method m = gameEngine.getClass().getMethod("forceApplyMove", int.class, int.class, int.class, int.class, Piece.Type.class, int.class);
-                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promoType, -1);
+                                 Object res = m.invoke(gameEngine, fromRow, fromCol, toRow, toCol, promoType, selectedStackIndex);
                                  if (res instanceof Boolean) applied = (Boolean) res;
                              } catch (NoSuchMethodException nsme) {
-                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promoType, -1);
+                                 applied = gameEngine.makeMove(fromRow, fromCol, toRow, toCol, promoType, selectedStackIndex);
                              }
                              if (applied) {
-                                 // 清除选中状态和移动指示器（非申请方同步状态）
                                  boardPanel.clearSelection();
                                  boardPanel.repaint();
                                  updateStatus();
@@ -873,7 +856,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
         // send the request
         try {
-            netController.getSession().sendForceMoveRequest(info.fr, info.fc, info.tr, info.tc, seq, gameEngine.getMoveHistory().size());
+            int selectedStackIndex = boardPanel.getSelectedStackIndex();
+            netController.getSession().sendForceMoveRequest(info.fr, info.fc, info.tr, info.tc, seq, gameEngine.getMoveHistory().size(), selectedStackIndex);
         } catch (Throwable ignored) {}
 
         // install a timeout

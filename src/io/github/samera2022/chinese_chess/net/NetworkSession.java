@@ -17,7 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class NetworkSession {
     public interface Listener {
-        void onPeerMove(int fromRow, int fromCol, int toRow, int toCol);
+        void onPeerMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex);
         void onPeerRestart();
         void onDisconnected(String reason);
         void onConnected(String peerInfo);
@@ -28,13 +28,13 @@ public class NetworkSession {
         // 新增：收到对端版本信息
         void onPeerVersion(String version);
         // 新增：收到对端强制走子请求（包含 seq 与 historyLen）
-        void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen);
+        void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen, int selectedStackIndex);
         // 新增：收到对端对强制走子的确认（包含 seq）
-        void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq);
+        void onForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq, int selectedStackIndex);
         // 新增：对端请求撤销一步
         void onPeerUndo();
 
-        void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType);
+        void onForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType, int selectedStackIndex);
 
         // 新增：收到对端对强制走子的拒绝（包含 seq 与原因）
         void onForceMoveReject(int fromRow, int fromCol, int toRow, int toCol, long seq, String reason);
@@ -189,7 +189,8 @@ public class NetworkSession {
                 int fc = Integer.parseInt(parts[2]);
                 int tr = Integer.parseInt(parts[3]);
                 int tc = Integer.parseInt(parts[4]);
-                if (listener != null) listener.onPeerMove(fr, fc, tr, tc);
+                int selectedStackIndex = parts.length >= 6 ? Integer.parseInt(parts[5]) : -1;
+                if (listener != null) listener.onPeerMove(fr, fc, tr, tc, selectedStackIndex);
             } else if (line.equals("RESTART")) {
                 System.out.println("[DEBUG] 处理 RESTART 指令");
                 if (listener != null) listener.onPeerRestart();
@@ -267,40 +268,16 @@ public class NetworkSession {
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
                         int history = jo.has("historyLen") ? jo.get("historyLen").getAsInt() : -1;
-                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_REQUEST: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", historyLen=" + history + ")");
-                        if (listener != null) {
-                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveRequest");
-                            listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
-                        } else {
-                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
-                        }
+                        int selectedStackIndex = jo.has("selectedStackIndex") ? jo.get("selectedStackIndex").getAsInt() : -1;
+                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history, selectedStackIndex);
                     } else if ("FORCE_MOVE_CONFIRM".equals(cmd)) {
                         int fr = jo.getAsJsonArray("from").get(0).getAsInt();
                         int fc = jo.getAsJsonArray("from").get(1).getAsInt();
                         int tr = jo.getAsJsonArray("to").get(0).getAsInt();
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
-                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_CONFIRM: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ")");
-                        if (listener != null) {
-                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveConfirm");
-                            listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
-                        } else {
-                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
-                        }
-                    } else if ("FORCE_MOVE_REJECT".equals(cmd)) {
-                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
-                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
-                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
-                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
-                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
-                        String reason = jo.has("reason") ? jo.get("reason").getAsString() : "rejected";
-                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_REJECT: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", reason=" + reason + ")");
-                        if (listener != null) {
-                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveReject");
-                            listener.onForceMoveReject(fr, fc, tr, tc, seq, reason);
-                        } else {
-                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
-                        }
+                        int selectedStackIndex = jo.has("selectedStackIndex") ? jo.get("selectedStackIndex").getAsInt() : -1;
+                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq, selectedStackIndex);
                     } else if ("FORCE_MOVE_APPLIED".equals(cmd)) {
                         int fr = jo.getAsJsonArray("from").get(0).getAsInt();
                         int fc = jo.getAsJsonArray("from").get(1).getAsInt();
@@ -308,13 +285,8 @@ public class NetworkSession {
                         int tc = jo.getAsJsonArray("to").get(1).getAsInt();
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
                         String promo = jo.has("promotion") ? jo.get("promotion").getAsString() : null;
-                        System.out.println("[DEBUG] [NetworkSession] 收到JSON FORCE_MOVE_APPLIED: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", promo=" + promo + ")");
-                        if (listener != null) {
-                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveApplied");
-                            listener.onForceMoveApplied(fr, fc, tr, tc, seq, promo);
-                        } else {
-                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
-                        }
+                        int selectedStackIndex = jo.has("selectedStackIndex") ? jo.get("selectedStackIndex").getAsInt() : -1;
+                        if (listener != null) listener.onForceMoveApplied(fr, fc, tr, tc, seq, promo, selectedStackIndex);
                     } else if ("SYNC_GAME_STATE".equals(cmd)) {
                         if (jo.has("state")) {
                             JsonObject state = jo.getAsJsonObject("state");
@@ -343,15 +315,10 @@ public class NetworkSession {
                         int tc = Integer.parseInt(parts[4]);
                         long seq = parts.length >= 6 ? Long.parseLong(parts[5]) : 0L;
                         int history = parts.length >= 7 ? Integer.parseInt(parts[6]) : -1;
-                        System.out.println("[DEBUG] [NetworkSession] 解析legacy FORCE_MOVE_REQUEST: " + fr + "," + fc + " -> " + tr + "," + tc + " (seq=" + seq + ", historyLen=" + history + ")");
-                        if (listener != null) {
-                            System.out.println("[DEBUG] [NetworkSession] 调用listener.onForceMoveRequest");
-                            listener.onForceMoveRequest(fr, fc, tr, tc, seq, history);
-                        } else {
-                            System.out.println("[DEBUG] [NetworkSession] listener为空！");
-                        }
+                        int selectedStackIndex = parts.length >= 8 ? Integer.parseInt(parts[7]) : -1;
+                        if (listener != null) listener.onForceMoveRequest(fr, fc, tr, tc, seq, history, selectedStackIndex);
                     } catch (NumberFormatException e) {
-                        System.out.println("[DEBUG] [NetworkSession] legacy FORCE_MOVE_REQUEST解析异常: " + e);
+                        System.out.println("[DEBUG] legacy FORCE_MOVE_REQUEST解析异常: " + e);
                     }
                 }
             } else if (line.startsWith("FORCE_MOVE_CONFIRM ")) {
@@ -365,10 +332,11 @@ public class NetworkSession {
                         int tr = Integer.parseInt(parts[3]);
                         int tc = Integer.parseInt(parts[4]);
                         long seq = Long.parseLong(parts[5]);
-                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq);
+                        int selectedStackIndex = parts.length >= 7 ? Integer.parseInt(parts[6]) : -1;
+                        if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq, selectedStackIndex);
                     } catch (NumberFormatException ignored) {}
                 }
-              }
+            }
          } catch (Exception ex) {
              System.out.println("[DEBUG] 处理指令异常: " + ex);
          }
@@ -420,14 +388,15 @@ public class NetworkSession {
         }
     }
 
-    public void sendMove(int fromRow, int fromCol, int toRow, int toCol) {
+    public void sendMove(int fromRow, int fromCol, int toRow, int toCol, int selectedStackIndex) {
         if (out != null) {
             if (serverSocket != null) {
                 System.out.println("[DEBUG][Server] 发送 MOVE 指令");
             } else {
                 System.out.println("[DEBUG][Client] 发送 MOVE 指令");
             }
-            out.println("MOVE " + fromRow + " " + fromCol + " " + toRow + " " + toCol);
+            // 新增：文本消息增加 selectedStackIndex
+            out.println("MOVE " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + selectedStackIndex);
         }
     }
 
@@ -521,7 +490,7 @@ public class NetworkSession {
      * Request the peer to allow forcing a move: used when client cannot validate a move
      * produced by server's newer features. Only send from client to server.
      */
-    public void sendForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen) {
+    public void sendForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol, long seq, int historyLen, int selectedStackIndex) {
         if (out == null) return;
         try {
             JsonObject jo = new JsonObject();
@@ -532,19 +501,20 @@ public class NetworkSession {
             jo.add("to", toArr);
             jo.addProperty("seq", seq);
             jo.addProperty("historyLen", historyLen);
+            jo.addProperty("selectedStackIndex", selectedStackIndex); // 新增
             sendJsonEnvelope(jo);
             System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_REQUEST: " + jo);
         } catch (Throwable t) {
             // fallback to legacy
             System.out.println("[DEBUG] sendForceMoveRequest fallback legacy");
-            out.println("FORCE_MOVE_REQUEST " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + historyLen);
+            out.println("FORCE_MOVE_REQUEST " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + historyLen + " " + selectedStackIndex);
         }
     }
 
     /**
      * Send confirm frame so the requester will force-apply the move.
      */
-    public void sendForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq) {
+    public void sendForceMoveConfirm(int fromRow, int fromCol, int toRow, int toCol, long seq, int selectedStackIndex) {
         if (out == null) return;
         try {
             JsonObject jo = new JsonObject();
@@ -554,11 +524,12 @@ public class NetworkSession {
             jo.add("from", fromA);
             jo.add("to", toA);
             jo.addProperty("seq", seq);
+            jo.addProperty("selectedStackIndex", selectedStackIndex); // 新增
             sendJsonEnvelope(jo);
             System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_CONFIRM: " + jo);
         } catch (Throwable t) {
             System.out.println("[DEBUG] sendForceMoveConfirm fallback legacy");
-            out.println("FORCE_MOVE_CONFIRM " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq);
+            out.println("FORCE_MOVE_CONFIRM " + fromRow + " " + fromCol + " " + toRow + " " + toCol + " " + seq + " " + selectedStackIndex);
         }
     }
 
@@ -587,7 +558,7 @@ public class NetworkSession {
     /**
      * Notify peer that a force move has been applied, with optional promotion.
      */
-    public void sendForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType) {
+    public void sendForceMoveApplied(int fromRow, int fromCol, int toRow, int toCol, long seq, String promotionType, int selectedStackIndex) {
         if (out == null) return;
         try {
             JsonObject jo = new JsonObject();
@@ -598,6 +569,7 @@ public class NetworkSession {
             jo.add("to", toA);
             jo.addProperty("seq", seq);
             if (promotionType != null) jo.addProperty("promotion", promotionType);
+            jo.addProperty("selectedStackIndex", selectedStackIndex); // 新增
             sendJsonEnvelope(jo);
             System.out.println("[DEBUG] 发送 JSON FORCE_MOVE_APPLIED: " + jo);
         } catch (Throwable t) {

@@ -936,7 +936,7 @@ public class BoardPanel extends JPanel {
     @Override
     public Dimension getPreferredSize() {
         Board board = gameEngine.getBoard();
-        // 棋子在交点上，需要为左右和上下都留出棋子半径的空间
+        // 棚子在交点上，需要为左右和上下都留出棋子半径的空间
         int pieceRadius = cellSize / 2 - 2;
         int boardWidth = (board.getCols() - 1) * cellSize;
         int boardHeight = (board.getRows() - 1) * cellSize;
@@ -961,5 +961,9 @@ public class BoardPanel extends JPanel {
             validator.setRulesConfig(this.rulesConfig);
             // optional: we don't replace engine's validator here; BoardPanel only uses validator for hints
         } catch (Throwable ignored) {}
+    }
+
+    public int getSelectedStackIndex() {
+        return selectedStackIndex;
     }
 }
