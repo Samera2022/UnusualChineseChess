@@ -37,6 +37,13 @@ public class BoardPanel extends JPanel {
     private int forceMoveToRow = -1;
     private int forceMoveToCol = -1;
 
+    // 新增：强制走子指示器样式切换
+    private boolean style = true; // false=红色空心圆圈，true=紫色移动指示器样式
+    public void setForceMoveIndicatorStyle(boolean style) {
+        this.style = style;
+        repaint();
+    }
+
     // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
     private Boolean localControlsRed = null;
 
@@ -775,15 +782,22 @@ public class BoardPanel extends JPanel {
             g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
         }
 
-        // 绘制强制走子指示器 - 红色圆圈
+        // 绘制强制走子指示器
         if (forceMoveToRow != -1 && forceMoveToCol != -1) {
             int[] display = logicToDisplay(forceMoveToRow, forceMoveToCol);
             int moveX = display[1] * cellSize;
             int moveY = display[0] * cellSize;
-            g2d.setColor(new Color(255, 0, 0)); // 红色
-            g2d.setStroke(new BasicStroke(3));
-            int radius = cellSize / 2;
-            g2d.drawOval(moveX - radius, moveY - radius, radius * 2, radius * 2);
+            if (!style) {
+                // 原红色空心圆圈
+                g2d.setColor(new Color(255, 0, 0)); // 红色
+                g2d.setStroke(new BasicStroke(3));
+                int radius = cellSize / 2;
+                g2d.drawOval(moveX - radius, moveY - radius, radius * 2, radius * 2);
+            } else {
+                // 紫色移动指示器样式（与正常移动指示器相同，但颜色为紫色）
+                g2d.setColor(new Color(0, 38, 255)); // 紫色
+                g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
+            }
         }
     }
 
