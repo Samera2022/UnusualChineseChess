@@ -2,8 +2,8 @@ package io.github.samera2022.chinese_chess.rules;
 
 import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.model.Piece;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
+import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 
 import static io.github.samera2022.chinese_chess.ui.RuleSettingsPanel.isEnabled;
 
@@ -32,32 +32,31 @@ public class MoveValidator {
 
     // ========== Setter方法（直接修改rulesConfig） ==========
 
-    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_FLYING_GENERAL, allow, GameRulesConfig.ChangeSource.API); }
-    public void setDisableFacingGenerals(boolean allow) { rulesConfig.set(RuleConstants.DISABLE_FACING_GENERALS, allow, GameRulesConfig.ChangeSource.API); }
-    public void setPawnCanRetreat(boolean allow) { rulesConfig.set(RuleConstants.PAWN_CAN_RETREAT, allow, GameRulesConfig.ChangeSource.API); }
-    public void setNoRiverLimit(boolean allow) { rulesConfig.set(RuleConstants.NO_RIVER_LIMIT, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAdvisorCanLeave(boolean allow) { rulesConfig.set(RuleConstants.ADVISOR_CAN_LEAVE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setInternationalKing(boolean allow) { rulesConfig.set(RuleConstants.INTERNATIONAL_KING, allow, GameRulesConfig.ChangeSource.API); }
-    public void setPawnPromotion(boolean allow) { rulesConfig.set(RuleConstants.PAWN_PROMOTION, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_OWN_BASE_LINE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowInsideRetreat(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_INSIDE_RETREAT, allow, GameRulesConfig.ChangeSource.API); }
-    public void setInternationalAdvisor(boolean allow) { rulesConfig.set(RuleConstants.INTERNATIONAL_ADVISOR, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnected(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_FLYING_GENERAL.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setDisableFacingGenerals(boolean allow) { rulesConfig.set(RuleRegistry.DISABLE_FACING_GENERALS.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setPawnCanRetreat(boolean allow) { rulesConfig.set(RuleRegistry.PAWN_CAN_RETREAT.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setNoRiverLimit(boolean allow) { rulesConfig.set(RuleRegistry.NO_RIVER_LIMIT.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAdvisorCanLeave(boolean allow) { rulesConfig.set(RuleRegistry.ADVISOR_CAN_LEAVE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setInternationalKing(boolean allow) { rulesConfig.set(RuleRegistry.INTERNATIONAL_KING.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setPawnPromotion(boolean allow) { rulesConfig.set(RuleRegistry.PAWN_PROMOTION.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowInsideRetreat(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setInternationalAdvisor(boolean allow) { rulesConfig.set(RuleRegistry.INTERNATIONAL_ADVISOR.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnected(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName, allow, GameRulesConfig.ChangeSource.API); }
 
-    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_PIECE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_HORSE_LEG, allow, GameRulesConfig.ChangeSource.API); }
-    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleConstants.UNBLOCK_ELEPHANT_EYE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleConstants.ALLOW_PIECE_STACKING, allow, GameRulesConfig.ChangeSource.API); }
-    public void setMaxStackingCount(int count) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, Math.max(1, count), GameRulesConfig.ChangeSource.API); }
+    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_PIECE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_HORSE_LEG.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_ELEPHANT_EYE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_CAPTURE_OWN_PIECE.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_PIECE_STACKING.registryName, allow, GameRulesConfig.ChangeSource.API); }
+    public void setMaxStackingCount(int count) { rulesConfig.set(RuleRegistry.MAX_STACKING_COUNT.registryName, Math.max(1, count), GameRulesConfig.ChangeSource.API); }
 
     // 动态访问帮助方法，统一使用通用Getter
-    private boolean r(String key) { return rulesConfig != null && rulesConfig.getBoolean(key); }
     private int ri(String key) { return rulesConfig != null ? rulesConfig.getInt(key) : 0; }
 
     /**
@@ -108,13 +107,13 @@ public class MoveValidator {
         // 检查目标位置是否是己方棋子
         Piece targetPiece = board.getPiece(toRow, toCol);
         if (targetPiece != null && targetPiece.isRed() == piece.isRed()) {
-            if (r(RuleConstants.ALLOW_PIECE_STACKING) && ri(RuleConstants.MAX_STACKING_COUNT) > 1) {
+            if (isEnabled(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && ri(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1) {
                 int stackSize = board.getStackSize(toRow, toCol);
-                if (stackSize >= ri(RuleConstants.MAX_STACKING_COUNT)) {
+                if (stackSize >= ri(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                     return false;
                 }
                 // 堆栈未满，允许堆叠
-            } else if (!r(RuleConstants.ALLOW_CAPTURE_OWN_PIECE)) {
+            } else if (!isEnabled(RuleRegistry.ALLOW_CAPTURE_OWN_PIECE.registryName)) {
                 return false;
             }
         }
@@ -162,7 +161,7 @@ public class MoveValidator {
      * index 1: 环绕路径（Wrap Path）中间的棋子数
      */
     private int[] countHorizontalObstacles(int row, int col1, int col2) {
-        if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+        if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)) {
             // 在左右联通模式下使用扩展棋盘逻辑
             return countHorizontalObstaclesWithWrap(row, col1, col2);
         } else {
@@ -300,7 +299,7 @@ public class MoveValidator {
         }
 
         // 如果启用左右连通，检查环绕路径
-        if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+        if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)) {
             wrapPathClear = true;
             // 环绕路径是绕过棋盘另一端的路径
             // 计算环绕路径上的棋子数
@@ -353,7 +352,7 @@ public class MoveValidator {
             boolean directPathValid = (directObs == 0);
             boolean wrapPathValid = (wrapObs == 0);
 
-            if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+            if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)) {
                 // 如果开启左右联通，任一路径通畅即可
                 return directPathValid || wrapPathValid;
             } else {
@@ -407,7 +406,7 @@ public class MoveValidator {
                 wrapPathValid = (wrapObs == 0);
             }
 
-            if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+            if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)) {
                 // 左右联通：任一路径满足条件即可
                 return directPathValid || wrapPathValid;
             } else {
@@ -435,7 +434,7 @@ public class MoveValidator {
 
     // --- 象（相）- 修正版 ---
     private boolean isValidElephantMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        if (!r(RuleConstants.NO_RIVER_LIMIT)) {
+        if (!isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName)) {
             if (piece.isRed() && toRow < 5) return false;
             if (!piece.isRed() && toRow > 4) return false;
         }
@@ -443,14 +442,14 @@ public class MoveValidator {
         int colDiff = Math.abs(toCol - fromCol);
         boolean isStandardMove = rowDiff == 2 && colDiff == 2;
         boolean isWrapMove = false;
-        if (r(RuleConstants.LEFT_RIGHT_CONNECTED) && r(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT) && colDiff > 4) {
+        if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) && isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName) && colDiff > 4) {
             int wrappedColDiff = 9 - colDiff;
             isWrapMove = rowDiff == 2 && wrappedColDiff == 2;
         }
         if (!isStandardMove && !isWrapMove) return false;
         int midRow = (fromRow + toRow) / 2;
         int midCol = isWrapMove ? ((fromCol + toCol + 9) / 2) % 9 : (fromCol + toCol) / 2;
-        if (r(RuleConstants.UNBLOCK_PIECE) && r(RuleConstants.UNBLOCK_ELEPHANT_EYE)) return true;
+        if (isEnabled(RuleRegistry.UNBLOCK_PIECE.registryName) && isEnabled(RuleRegistry.UNBLOCK_ELEPHANT_EYE.registryName)) return true;
         return board.getPiece(midRow, midCol) == null;
     }
 
@@ -460,7 +459,7 @@ public class MoveValidator {
         int colDiff = Math.abs(toCol - fromCol);
         boolean isStandardMove = (rowDiff == 1 && colDiff == 2) || (rowDiff == 2 && colDiff == 1);
         boolean isWrapMove = false;
-        if (r(RuleConstants.LEFT_RIGHT_CONNECTED) && r(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE) && colDiff > 4) {
+        if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) && isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName) && colDiff > 4) {
             int wrappedColDiff = 9 - colDiff;
             isWrapMove = (rowDiff == 1 && wrappedColDiff == 2) || (rowDiff == 2 && wrappedColDiff == 1);
         }
@@ -468,7 +467,7 @@ public class MoveValidator {
         int midRow, midCol;
         if (rowDiff == 1) { midRow = fromRow; midCol = (fromCol + toCol) / 2; }
         else { midRow = (fromRow + toRow) / 2; midCol = fromCol; }
-        if (r(RuleConstants.UNBLOCK_PIECE) && r(RuleConstants.UNBLOCK_HORSE_LEG)) return true;
+        if (isEnabled(RuleRegistry.UNBLOCK_PIECE.registryName) && isEnabled(RuleRegistry.UNBLOCK_HORSE_LEG.registryName)) return true;
         return board.getPiece(midRow, midCol) == null;
     }
 
@@ -480,7 +479,7 @@ public class MoveValidator {
         if (target != null && target.isRed() != piece.isRed()) {
             boolean targetIsKing = target.getType() == Piece.Type.RED_KING || target.getType() == Piece.Type.BLACK_KING;
             // 取消对将规则：启用时不允许王见王（飞将）
-            if (r(RuleConstants.DISABLE_FACING_GENERALS) && targetIsKing) {
+            if (isEnabled(RuleRegistry.DISABLE_FACING_GENERALS.registryName) && targetIsKing) {
                 return false; // 禁止王见王
             }
             // 王不见王：同列或同行无阻挡，允许直接吃对方王（飞将吃王 / 将吃帥）
@@ -492,14 +491,14 @@ public class MoveValidator {
                 boolean directPathClear = pathResults[0];
                 boolean wrapPathClear = pathResults[1];
                 // 同行：直接路径清晰或（左右连通模式下）环绕路径清晰
-                if (r(RuleConstants.LEFT_RIGHT_CONNECTED)) {
+                if (isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)) {
                     return directPathClear || wrapPathClear;
                 } else {
                     return directPathClear;
                 }
             }
         }
-        if (!r(RuleConstants.NO_RIVER_LIMIT) && !isEnabled(RuleRegistry.ALLOW_FLYING_GENERAL.registryName) && !r(RuleConstants.ALLOW_KING_CROSS_RIVER)) {
+        if (!isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName) && !isEnabled(RuleRegistry.ALLOW_FLYING_GENERAL.registryName) && !isEnabled(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName)) {
             int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;
@@ -507,8 +506,8 @@ public class MoveValidator {
         }
         int rowDiff = Math.abs(toRow - fromRow);
         int rawColDiff = Math.abs(toCol - fromCol);
-        int colDiff = r(RuleConstants.LEFT_RIGHT_CONNECTED) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
-        if (r(RuleConstants.INTERNATIONAL_KING)) {
+        int colDiff = isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
+        if (isEnabled(RuleRegistry.INTERNATIONAL_KING.registryName)) {
             return rowDiff <= 1 && colDiff <= 1 && (rowDiff + colDiff) > 0;
         } else {
             return (rowDiff + colDiff) == 1;
@@ -520,7 +519,7 @@ public class MoveValidator {
      * 采用了"三倍宽棋盘"的逻辑思路来处理左右联通的斜线移动
      */
     private boolean isValidAdvisorMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
-        if (!r(RuleConstants.ADVISOR_CAN_LEAVE)) {
+        if (!isEnabled(RuleRegistry.ADVISOR_CAN_LEAVE.registryName)) {
             int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;
@@ -528,12 +527,12 @@ public class MoveValidator {
         }
         int rowDiff = Math.abs(toRow - fromRow);
         int colDiff = Math.abs(toCol - fromCol);
-        if (!r(RuleConstants.INTERNATIONAL_ADVISOR)) {
+        if (!isEnabled(RuleRegistry.INTERNATIONAL_ADVISOR.registryName)) {
             return rowDiff == 1 && colDiff == 1;
         }
         if (rowDiff == 0 && colDiff > 0) {
             int[] obstacles = countHorizontalObstacles(fromRow, fromCol, toCol);
-            return r(RuleConstants.LEFT_RIGHT_CONNECTED) ? (obstacles[0] == 0 || obstacles[1] == 0) : obstacles[0] == 0;
+            return isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) ? (obstacles[0] == 0 || obstacles[1] == 0) : obstacles[0] == 0;
         }
         if (colDiff == 0 && rowDiff > 0) {
             int step = toRow > fromRow ? 1 : -1;
@@ -542,7 +541,7 @@ public class MoveValidator {
             }
             return true;
         }
-        int[] potentialTargetCols = r(RuleConstants.LEFT_RIGHT_CONNECTED)
+        int[] potentialTargetCols = isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName)
             ? new int[]{toCol, toCol - 9, toCol + 9}
             : new int[]{toCol};
         for (int virtualToCol : potentialTargetCols) {
@@ -600,30 +599,30 @@ public class MoveValidator {
     private boolean isValidSoldierMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
         int rowDiff = toRow - fromRow;
         int rawColDiff = Math.abs(toCol - fromCol);
-        int colDiff = r(RuleConstants.LEFT_RIGHT_CONNECTED) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
+        int colDiff = isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
         boolean isRed = piece.isRed();
         boolean hasCrossedRiver;
         if (isRed) {
             hasCrossedRiver = fromRow < 5;
-            if (!hasCrossedRiver && !r(RuleConstants.NO_RIVER_LIMIT)) {
+            if (!hasCrossedRiver && !isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName)) {
                 if (rowDiff == -1 && colDiff == 0) return true;
-                if (r(RuleConstants.ALLOW_INSIDE_RETREAT) && r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == 1 && colDiff == 0) return true;
+                if (isEnabled(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName) && isEnabled(RuleRegistry.PAWN_CAN_RETREAT.registryName) && rowDiff == 1 && colDiff == 0) return true;
                 return false;
             } else {
                 if (rowDiff == -1 && colDiff == 0) return true;
                 if (rowDiff == 0 && colDiff == 1) return true;
-                if (r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == 1 && colDiff == 0) return true;
+                if (isEnabled(RuleRegistry.PAWN_CAN_RETREAT.registryName) && rowDiff == 1 && colDiff == 0) return true;
             }
         } else {
             hasCrossedRiver = fromRow > 4;
-            if (!hasCrossedRiver && !r(RuleConstants.NO_RIVER_LIMIT)) {
+            if (!hasCrossedRiver && !isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName)) {
                 if (rowDiff == 1 && colDiff == 0) return true;
-                if (r(RuleConstants.ALLOW_INSIDE_RETREAT) && r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == -1 && colDiff == 0) return true;
+                if (isEnabled(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName) && isEnabled(RuleRegistry.PAWN_CAN_RETREAT.registryName) && rowDiff == -1 && colDiff == 0) return true;
                 return false;
             } else {
                 if (rowDiff == 1 && colDiff == 0) return true;
                 if (rowDiff == 0 && colDiff == 1) return true;
-                if (r(RuleConstants.PAWN_CAN_RETREAT) && rowDiff == -1 && colDiff == 0) return true;
+                if (isEnabled(RuleRegistry.PAWN_CAN_RETREAT.registryName) && rowDiff == -1 && colDiff == 0) return true;
             }
         }
         return false;

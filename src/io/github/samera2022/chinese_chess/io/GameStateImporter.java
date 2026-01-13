@@ -9,13 +9,13 @@ import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Move;
 import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
+import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.samera2022.chinese_chess.rules.RuleConstants.*;
 import static io.github.samera2022.chinese_chess.rules.GameRulesConfig.ChangeSource.API;
 
 /**
@@ -289,13 +289,13 @@ public class GameStateImporter {
     private static void importSettings(GameEngine gameEngine, JsonObject settings) {
         // 基本设置
         if (settings.has("allowUndo")) {
-            gameEngine.getRulesConfig().set(ALLOW_UNDO,
+            gameEngine.getRulesConfig().set(RuleRegistry.ALLOW_UNDO.registryName,
                     settings.get("allowUndo").getAsBoolean(),
                     API);
         }
 
         if (settings.has("showHints")) {
-            gameEngine.getRulesConfig().set(SHOW_HINTS,
+            gameEngine.getRulesConfig().set(RuleRegistry.SHOW_HINTS.registryName,
                     settings.get("showHints").getAsBoolean(),
                     API);
         }

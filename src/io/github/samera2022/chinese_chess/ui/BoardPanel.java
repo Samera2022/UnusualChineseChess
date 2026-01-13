@@ -5,9 +5,9 @@ import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
+import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 
 import javax.swing.*;
 import java.awt.*;
@@ -99,7 +99,7 @@ public class BoardPanel extends JPanel {
                     handleRightClick(e);
                 } else if (e.getButton() == MouseEvent.BUTTON2) {
                     // 中键：尝试强制走子
-                    if (rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE)) handleMiddleClick(e);
+                    if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) handleMiddleClick(e);
                 }
             }
         });
@@ -229,7 +229,7 @@ public class BoardPanel extends JPanel {
 //        System.out.println("Game Engine: "+gameEngine.isRedTurn());
 //        System.out.println("Local Controls Red: "+localControlsRed);
 //        System.out.println("---PRECHECK---");
-        if (rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && isStackedPiece(piece))
+        if (rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && isStackedPiece(piece))
             if (piece.isRed() == gameEngine.isRedTurn())
                 if (ChineseChessFrame.isNetSessionActive())
                     if (gameEngine.isRedTurn()==localControlsRed) showStackSelectionForSourceDialog(row, col);
@@ -302,7 +302,7 @@ public class BoardPanel extends JPanel {
         if (sourcePiece != null && targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
             targetPiece.isRed() == sourcePiece.isRed()) {
             // 目标是己方棋子，检查是否启用堆叠
-            if (gameEngine.getRulesConfig().getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && gameEngine.getRulesConfig().getInt(RuleConstants.MAX_STACKING_COUNT) > 1) {
+            if (gameEngine.getRulesConfig().getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && gameEngine.getRulesConfig().getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1) {
                 // 直接执行堆叠移动（保留堆栈）
                 if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null, selectedStackIndex)) {
                     if (localMoveListener != null) {
@@ -325,14 +325,14 @@ public class BoardPanel extends JPanel {
         Piece.Type promotionType = null;
 
         // 检查是否需要晋升：首先验证这是一个有效的移动
-        if (movingPiece != null && rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
+        if (movingPiece != null && rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)) {
             boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
                                movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
             boolean isAtOpponentBaseLine = (movingPiece.isRed() && toRow == 0) ||
                                           (!movingPiece.isRed() && toRow == 9);
             boolean isAtOwnBaseLine = (movingPiece.isRed() && toRow == 9) ||
                                      (!movingPiece.isRed() && toRow == 0);
-            boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE);
+            boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName);
 
             // 只有在兵卒到达底线 且 移动是有效的情况下才弹出晋升对话框
             if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
@@ -517,9 +517,9 @@ public class BoardPanel extends JPanel {
         }
 
         // 根据组合条件动态调整提示文案：启用堆叠 + 最大堆叠数>1 + 允许背负
-        boolean carryEnabled = rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
-                && rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
+        boolean carryEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
+                && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
+                && rulesConfig.getBoolean(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
         String message = carryEnabled
                 ? "选择要移动的棋子（选择某个棋子后，该棋子及其上方的所有棋子都会一起移动）："
                 : "选择要移动的棋子（选择某个棋子后，仅该棋子会移动；其上方的棋子将留在原位置）：";
@@ -627,33 +627,33 @@ public class BoardPanel extends JPanel {
         Board board = gameEngine.getBoard();
         MoveValidator validator = new MoveValidator(board);
         // 将特殊玩法开关同步到临时校验器，确保指示与实际规则一致
-        validator.setAllowFlyingGeneral(rulesConfig.getBoolean(RuleConstants.ALLOW_FLYING_GENERAL));
-        validator.setDisableFacingGenerals(rulesConfig.getBoolean(RuleConstants.DISABLE_FACING_GENERALS));
-        validator.setPawnCanRetreat(rulesConfig.getBoolean(RuleConstants.PAWN_CAN_RETREAT));
-        validator.setNoRiverLimit(rulesConfig.getBoolean(RuleConstants.NO_RIVER_LIMIT));
-        validator.setAdvisorCanLeave(rulesConfig.getBoolean(RuleConstants.ADVISOR_CAN_LEAVE));
-        validator.setInternationalKing(rulesConfig.getBoolean(RuleConstants.INTERNATIONAL_KING));
-        validator.setPawnPromotion(rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION));
-        validator.setAllowOwnBaseLine(rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE));
-        validator.setAllowInsideRetreat(rulesConfig.getBoolean(RuleConstants.ALLOW_INSIDE_RETREAT));
-        validator.setInternationalAdvisor(rulesConfig.getBoolean(RuleConstants.INTERNATIONAL_ADVISOR));
-        validator.setAllowElephantCrossRiver(rulesConfig.getBoolean(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER));
-        validator.setAllowAdvisorCrossRiver(rulesConfig.getBoolean(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER));
-        validator.setAllowKingCrossRiver(rulesConfig.getBoolean(RuleConstants.ALLOW_KING_CROSS_RIVER));
-        validator.setLeftRightConnected(rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED));
-        validator.setLeftRightConnectedHorse(rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE));
-        validator.setLeftRightConnectedElephant(rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT));
+        validator.setAllowFlyingGeneral(rulesConfig.getBoolean(RuleRegistry.ALLOW_FLYING_GENERAL.registryName));
+        validator.setDisableFacingGenerals(rulesConfig.getBoolean(RuleRegistry.DISABLE_FACING_GENERALS.registryName));
+        validator.setPawnCanRetreat(rulesConfig.getBoolean(RuleRegistry.PAWN_CAN_RETREAT.registryName));
+        validator.setNoRiverLimit(rulesConfig.getBoolean(RuleRegistry.NO_RIVER_LIMIT.registryName));
+        validator.setAdvisorCanLeave(rulesConfig.getBoolean(RuleRegistry.ADVISOR_CAN_LEAVE.registryName));
+        validator.setInternationalKing(rulesConfig.getBoolean(RuleRegistry.INTERNATIONAL_KING.registryName));
+        validator.setPawnPromotion(rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName));
+        validator.setAllowOwnBaseLine(rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName));
+        validator.setAllowInsideRetreat(rulesConfig.getBoolean(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName));
+        validator.setInternationalAdvisor(rulesConfig.getBoolean(RuleRegistry.INTERNATIONAL_ADVISOR.registryName));
+        validator.setAllowElephantCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName));
+        validator.setAllowAdvisorCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName));
+        validator.setAllowKingCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName));
+        validator.setLeftRightConnected(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName));
+        validator.setLeftRightConnectedHorse(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName));
+        validator.setLeftRightConnectedElephant(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName));
 
         // 如果启用了堆叠，则需要启用自己吃自己来显示堆叠目标
-        boolean stackingEnabled = rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING) && rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1;
-        validator.setAllowCaptureOwnPiece(rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_OWN_PIECE) || stackingEnabled);
-        validator.setAllowPieceStacking(rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING));
-        validator.setMaxStackingCount(rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT));
+        boolean stackingEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1;
+        validator.setAllowCaptureOwnPiece(rulesConfig.getBoolean(RuleRegistry.ALLOW_CAPTURE_OWN_PIECE.registryName) || stackingEnabled);
+        validator.setAllowPieceStacking(rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName));
+        validator.setMaxStackingCount(rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName));
 
         // 新增：调试输出，确保同步到validator
-        validator.setUnblockPiece(rulesConfig.getBoolean(RuleConstants.UNBLOCK_PIECE));
-        validator.setUnblockHorseLeg(rulesConfig.getBoolean(RuleConstants.UNBLOCK_HORSE_LEG));
-        validator.setUnblockElephantEye(rulesConfig.getBoolean(RuleConstants.UNBLOCK_ELEPHANT_EYE));
+        validator.setUnblockPiece(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_PIECE.registryName));
+        validator.setUnblockHorseLeg(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_HORSE_LEG.registryName));
+        validator.setUnblockElephantEye(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_ELEPHANT_EYE.registryName));
 
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {

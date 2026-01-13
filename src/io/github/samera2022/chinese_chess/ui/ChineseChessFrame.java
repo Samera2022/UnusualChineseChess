@@ -11,17 +11,20 @@ import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.net.NetworkSession;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
+import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 
 import javax.swing.*;
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import java.awt.*;
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Objects;
 
 /**
@@ -44,21 +47,19 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         RequestInfo(int fr, int fc, int tr, int tc, long seq, int historyLen) { this.fr=fr;this.fc=fc;this.tr=tr;this.tc=tc;this.seq=seq;this.historyLen=historyLen; }
     }
 
-    private GameEngine gameEngine;
-    private GameRulesConfig rulesConfig;
-    private BoardPanel boardPanel;
-    private MoveHistoryPanel moveHistoryPanel;
-    private JPanel rightPanel;
-    private JToggleButton togglePanelButton;
-    private JButton undoButton;
-    private JButton restartButton;
+    public static GameEngine gameEngine;
+    public GameRulesConfig rulesConfig;
+    public BoardPanel boardPanel;
+    public static MoveHistoryPanel moveHistoryPanel;
+    public JPanel rightPanel;
+    public JToggleButton togglePanelButton;
+    public JButton undoButton;
+    public JButton restartButton;
 
     // 新的右侧网络面板
-    private static NetModeController netController = new NetModeController();
-    private InfoSidePanel infoSidePanel;
-    private RuleSettingsPanel ruleSettingsPanel;
-    private boolean ruleSettingsLocked = false;
-    private JPanel westDock;
+    public static NetModeController netController = new NetModeController();
+    private final InfoSidePanel infoSidePanel;
+    private final RuleSettingsPanel ruleSettingsPanel;
 
     // 状态标签（左侧）
     private JLabel statusLabel;
@@ -70,39 +71,20 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     // named listeners so they can be migrated when provider replaces the instance
     private final GameRulesConfig.RuleChangeListener rulesChangeListener = (key, oldVal, newVal, source) -> {
         // Record rule changes in history (except UI-related settings)
-        // Record for all sources (UI and NETWORK) so both host and client have the records
-        if (key != null && !RuleConstants.ALLOW_UNDO.equals(key) && !RuleConstants.SHOW_HINTS.equals(key)) {
-            if (newVal instanceof Boolean) {
-                boolean enabled = (Boolean) newVal;
-                int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
-                RuleChangeRecord record = new RuleChangeRecord(key, key, enabled, afterMoveIndex);
-                gameEngine.addRuleChangeToHistory(record);
-                // Update the move history panel
-                if (moveHistoryPanel != null) {
-                    moveHistoryPanel.refreshHistory();
-                }
+        if (key != null && !RuleRegistry.ALLOW_UNDO.registryName.equals(key) && !RuleRegistry.SHOW_HINTS.registryName.equals(key)) {
+            int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
+            RuleChangeRecord record = new RuleChangeRecord(key, key, newVal, afterMoveIndex);
+            gameEngine.addRuleChangeToHistory(record);
+            if (moveHistoryPanel != null) {
+                moveHistoryPanel.refreshHistory();
             }
         }
-
         // don't forward network-originated changes back to peer
         if (key == null || source == GameRulesConfig.ChangeSource.NETWORK) return;
-
         synchronized (pendingDiffsLock) {
-            if (newVal == null) {
-                pendingDiffs.add(key, com.google.gson.JsonNull.INSTANCE);
-            } else if (newVal instanceof Boolean) {
-                pendingDiffs.addProperty(key, (Boolean) newVal);
-            } else if (newVal instanceof Number) {
-                Number n = (Number) newVal;
-                if (n instanceof Integer || n.intValue() == n.doubleValue()) pendingDiffs.addProperty(key, n.intValue());
-                else pendingDiffs.addProperty(key, n.doubleValue());
-            } else if (newVal instanceof String) {
-                pendingDiffs.addProperty(key, (String) newVal);
-            } else {
-                pendingDiffs.addProperty(key, newVal.toString());
-            }
+            // 只允许 Boolean 类型，其他类型全部转为字符串
+                pendingDiffs.addProperty(key, newVal);
         }
-        // schedule debounced send on EDT
         SwingUtilities.invokeLater(this::sendSettingsSnapshotToClient);
     };
     private final RulesConfigProvider.InstanceChangeListener providerInstanceListener = (oldInst, newInst) -> {
@@ -181,7 +163,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 设置强制走子请求监听：用户中键点击后发送强制走子请求
         boardPanel.setForceMoveRequestListener((fromRow, fromCol, toRow, toCol) -> {
             System.out.println("[DEBUG] 用户申请强制走子: " + fromRow + "," + fromCol + " -> " + toRow + "," + toCol);
-            if (rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE)) {
+            if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) {
                 if (netController.isActive()) {
                     long seq = forceSeqGenerator.incrementAndGet();
                     int historyLen = gameEngine.getMoveHistory().size();
@@ -227,67 +209,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 左侧停靠：最左是设置，右边是“面板”
         ruleSettingsPanel = new RuleSettingsPanel();
         ruleSettingsPanel.setVisible(true);
-//        ruleSettingsPanel.bindSettings(new RuleSettingsPanel.SettingsBinder() {
-//            @Override public void setAllowUndo(boolean allowUndo) {
-//                if (!ruleSettingsLocked) rulesConfig.set(RuleConstants.ALLOW_UNDO, allowUndo, GameRulesConfig.ChangeSource.UI);
-//                // 联机时不直接禁用，由 updateStatus 按规则和回合判断
-//                updateStatus();
-//            }
-//            @Override public boolean isAllowUndo() { return rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO); }
-//            @Override public void setAllowForceMove(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_FORCE_MOVE, allow, GameRulesConfig.ChangeSource.UI);}}
-//            @Override public boolean isAllowForceMove() { return rulesConfig.getBoolean(RuleConstants.ALLOW_FORCE_MOVE);}
-//            // 特殊玩法的设置：对每个 setter 应用更改并在是主机时同步给客户端
-//            @Override public void setAllowFlyingGeneral(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_FLYING_GENERAL, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setDisableFacingGenerals(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.DISABLE_FACING_GENERALS, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setPawnCanRetreat(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.PAWN_CAN_RETREAT, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setNoRiverLimit(boolean noLimit) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.NO_RIVER_LIMIT, noLimit, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAdvisorCanLeave(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ADVISOR_CAN_LEAVE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setInternationalKing(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.INTERNATIONAL_KING, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setPawnPromotion(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.PAWN_PROMOTION, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAllowOwnBaseLine(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_OWN_BASE_LINE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAllowInsideRetreat(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_INSIDE_RETREAT, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setInternationalAdvisor(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.INTERNATIONAL_ADVISOR, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAllowElephantCrossRiver(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAllowAdvisorCrossRiver(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setAllowKingCrossRiver(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_KING_CROSS_RIVER, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setLeftRightConnected(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setLeftRightConnectedHorse(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setLeftRightConnectedElephant(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isAllowFlyingGeneral() { return rulesConfig.getBoolean(RuleConstants.ALLOW_FLYING_GENERAL); }
-//            @Override public boolean isDisableFacingGenerals() { return rulesConfig.getBoolean(RuleConstants.DISABLE_FACING_GENERALS); }
-//            @Override public boolean isPawnCanRetreat() { return rulesConfig.getBoolean(RuleConstants.PAWN_CAN_RETREAT); }
-//            @Override public boolean isNoRiverLimit() { return rulesConfig.getBoolean(RuleConstants.NO_RIVER_LIMIT); }
-//            @Override public boolean isAdvisorCanLeave() { return rulesConfig.getBoolean(RuleConstants.ADVISOR_CAN_LEAVE); }
-//            @Override public boolean isInternationalKing() { return rulesConfig.getBoolean(RuleConstants.INTERNATIONAL_KING); }
-//            @Override public boolean isPawnPromotion() { return rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION); }
-//            @Override public boolean isAllowOwnBaseLine() { return rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE); }
-//            @Override public boolean isAllowInsideRetreat() { return rulesConfig.getBoolean(RuleConstants.ALLOW_INSIDE_RETREAT); }
-//            @Override public boolean isInternationalAdvisor() { return rulesConfig.getBoolean(RuleConstants.INTERNATIONAL_ADVISOR); }
-//            @Override public boolean isAllowElephantCrossRiver() { return rulesConfig.getBoolean(RuleConstants.ALLOW_ELEPHANT_CROSS_RIVER); }
-//            @Override public boolean isAllowAdvisorCrossRiver() { return rulesConfig.getBoolean(RuleConstants.ALLOW_ADVISOR_CROSS_RIVER); }
-//            @Override public boolean isAllowKingCrossRiver() { return rulesConfig.getBoolean(RuleConstants.ALLOW_KING_CROSS_RIVER); }
-//            @Override public boolean isLeftRightConnected() { return rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED); }
-//            @Override public boolean isLeftRightConnectedHorse() { return rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED_HORSE); }
-//            @Override public boolean isLeftRightConnectedElephant() { return rulesConfig.getBoolean(RuleConstants.LEFT_RIGHT_CONNECTED_ELEPHANT); }
-//            @Override public void setUnblockPiece(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.UNBLOCK_PIECE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setUnblockHorseLeg(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.UNBLOCK_HORSE_LEG, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public void setUnblockElephantEye(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.UNBLOCK_ELEPHANT_EYE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isUnblockPiece() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_PIECE); }
-//            @Override public boolean isUnblockHorseLeg() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_HORSE_LEG); }
-//            @Override public boolean isUnblockElephantEye() { return rulesConfig.getBoolean(RuleConstants.UNBLOCK_ELEPHANT_EYE); }
-//            @Override public void setAllowCaptureOwnPiece(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_OWN_PIECE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isAllowCaptureOwnPiece() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_OWN_PIECE); }
-//            @Override public void setAllowCaptureConversion(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_CAPTURE_CONVERSION, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isAllowCaptureConversion() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION); }
-//            @Override public void setDeathMatchUntilVictory(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.DEATH_MATCH_UNTIL_VICTORY, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isDeathMatchUntilVictory() { return rulesConfig.getBoolean(RuleConstants.DEATH_MATCH_UNTIL_VICTORY); }
-//            @Override public void setAllowPieceStacking(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_PIECE_STACKING, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isAllowPieceStacking() { return rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING); }
-//            @Override public void setMaxStackingCount(int count) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.MAX_STACKING_COUNT, count, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public int getMaxStackingCount() { return rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT); }
-//            @Override public void setAllowCarryPiecesAbove(boolean allow) { if (!ruleSettingsLocked) { rulesConfig.set(RuleConstants.ALLOW_CARRY_PIECES_ABOVE, allow, GameRulesConfig.ChangeSource.UI); boardPanel.repaint(); } }
-//            @Override public boolean isAllowCarryPiecesAbove() { return rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE); }
-//        });
+        ruleSettingsPanel.bindConfig(rulesConfig);
 
         // 面板，带"玩法设置"按钮，点击后切换左侧设置组件
         infoSidePanel = new InfoSidePanel(
@@ -311,7 +233,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             togglePanelButton.setText("隐藏面板");
         }
 
-        westDock = new JPanel(new BorderLayout());
+        JPanel westDock = new JPanel(new BorderLayout());
         westDock.add(ruleSettingsPanel, BorderLayout.WEST);
         westDock.add(infoSidePanel, BorderLayout.CENTER);
 
@@ -359,7 +281,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
             }); }
             @Override public void onDisconnected(String reason) {
                 SwingUtilities.invokeLater(() -> {
-                    ruleSettingsLocked = false;
                     setRuleSettingsEnabled(true);
                     // 清除已处理请求记录
                     processedPeerRequests.clear();
@@ -386,9 +307,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         }
                     }
 
-                    ruleSettingsLocked = !netController.isHost();
-                    setRuleSettingsEnabled(netController.isHost());
-                    ruleSettingsPanel.refreshFromBinder();
+                    setRuleSettingsEnabled(!netController.isHost());
+                    ruleSettingsPanel.refreshUI();
                     updateStatus();
                 });
             }
@@ -501,13 +421,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         if (info != null && info.timer != null) info.timer.stop();
                         // 清除指示器
                         boardPanel.clearForceMoveIndicator();
-                        // 翻译原因
-                        String reasonMsg = reason;
-                        if ("history_mismatch".equals(reason)) {
-                            reasonMsg = "历史记录不匹配";
-                        } else if ("user_rejected".equals(reason)) {
-                            reasonMsg = "对方拒绝";
-                        }
                         // notify user
                         JOptionPane.showMessageDialog(ChineseChessFrame.this, "对方已拒绝你的强制走子", "强制走子被拒绝", JOptionPane.WARNING_MESSAGE);
                     }); }
@@ -519,7 +432,6 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     if (!netController.isHost()) {
                         gameEngine.applySettingsSnapshot(settings);
                         // 在线状态下撤销按钮权限交由 updateStatus 判断
-                        ruleSettingsPanel.refreshFromBinder();
                         updateStatus();
                     }
                  });
@@ -549,7 +461,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         boardPanel.clearRemotePieceHighlight();
                         boardPanel.repaint();
                         updateStatus();
-                        if (ruleSettingsPanel != null) ruleSettingsPanel.refreshFromBinder();
+                        if (ruleSettingsPanel != null) ruleSettingsPanel.refreshUI();
                         moveHistoryPanel.refreshHistory();
                         moveHistoryPanel.showNavigation();
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
@@ -564,6 +476,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         JOptionPane.showMessageDialog(ChineseChessFrame.this,
                                 "对局同步失败: " + ex.getMessage() + "\n请查看控制台获取详细错误堆栈。",
                                 "同步错误", JOptionPane.ERROR_MESSAGE);
+                        // 将异常堆栈复制到剪贴板
+                        StringWriter sw = new StringWriter();
+                        PrintWriter pw = new PrintWriter(sw);
+                        ex.printStackTrace(pw);
+                        String exceptionText = sw.toString();
+                        StringSelection selection = new StringSelection(exceptionText);
+                        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
                         logError(ex);
                     }
                 });
@@ -679,7 +598,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // 统一控制撤销按钮的可用性：
         // 离线：按设置开关启用/禁用；
         // 联机：当轮到本地一方时启用（可撤销对方上一步），否则禁用。
-        boolean allowUndo = rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO);
+        boolean allowUndo = rulesConfig.getBoolean(RuleRegistry.ALLOW_UNDO.registryName);
         if (!netController.isActive()) {
             undoButton.setEnabled(allowUndo);
         } else {
@@ -774,7 +693,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
                 // 刷新规则设置面板
                 if (ruleSettingsPanel != null) {
-                    ruleSettingsPanel.refreshFromBinder();
+                    ruleSettingsPanel.refreshUI();
                 }
 
                 // 刷新着法记录显示并显示导航
@@ -872,12 +791,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         if (!board.isValid(fromRow, fromCol) || !board.isValid(toRow, toCol)) return null;
         Piece p = board.getPiece(fromRow, fromCol);
         if (p == null) return null;
-        if (!rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) return null;
+        if (!rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)) return null;
         boolean isSoldier = p.getType() == Piece.Type.RED_SOLDIER || p.getType() == Piece.Type.BLACK_SOLDIER;
         if (!isSoldier) return null;
         boolean isAtOpponentBaseLine = (p.isRed() && toRow == 0) || (!p.isRed() && toRow == 9);
         boolean isAtOwnBaseLine = (p.isRed() && toRow == 9) || (!p.isRed() && toRow == 0);
-        boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleConstants.ALLOW_OWN_BASE_LINE);
+        boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName);
         if (!(isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) return null;
 
         // prompt user for promotion choice

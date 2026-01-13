@@ -12,7 +12,7 @@ import io.github.samera2022.chinese_chess.model.RuleChangeRecord;
 import io.github.samera2022.chinese_chess.rules.CheckDetector;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
+import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 import io.github.samera2022.chinese_chess.ui.RuleSettingsPanel;
 
@@ -129,7 +129,7 @@ public class GameEngine {
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
         // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
-        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
                 && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
@@ -169,11 +169,11 @@ public class GameEngine {
 
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
-        if (this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+        if (this.rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
+                && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
                 && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
-            if (stackSize < this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
+            if (stackSize < this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                 isStackingMove = true;
                 capturedPiece = null; // 堆叠时不吃子，只堆叠
             }
@@ -181,7 +181,7 @@ public class GameEngine {
 
         // 允许俘虏：吃子改为转换归己方，原棋子保持不动
         Piece convertedPiece = null;
-        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
+        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleRegistry.ALLOW_CAPTURE_CONVERSION.registryName)) {
             Piece.Type targetType = capturedPiece.getType();
             convertedPiece = new Piece(convertPieceTypeToSide(targetType, piece.isRed()), toRow, toCol);
             convertedCapture = true;
@@ -247,7 +247,7 @@ public class GameEngine {
         }
 
         // 检查兵卒晋升（仅在棋子实际移动时处理）
-        if (movedPiece && this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION) &&
+        if (movedPiece && this.rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName) &&
                 (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) {
@@ -328,7 +328,7 @@ public class GameEngine {
 
         Piece piece;
         List<Piece> movedStack = new ArrayList<>();
-        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
                 && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
@@ -347,17 +347,17 @@ public class GameEngine {
         Piece convertedPiece = null;
 
         boolean isStackingMove = false;
-        if (this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+        if (this.rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
+                && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
                 && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
-            if (stackSize < this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT)) {
+            if (stackSize < this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                 isStackingMove = true;
                 capturedPiece = null;
             }
         }
 
-        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CAPTURE_CONVERSION)) {
+        if (capturedPiece != null && !isStackingMove && this.rulesConfig.getBoolean(RuleRegistry.ALLOW_CAPTURE_CONVERSION.registryName)) {
             Piece.Type targetType = capturedPiece.getType();
             convertedPiece = new Piece(convertPieceTypeToSide(targetType, piece.isRed()), toRow, toCol);
             convertedCapture = true;
@@ -395,7 +395,7 @@ public class GameEngine {
             }
         }
 
-        if (movedPiece && this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)
+        if (movedPiece && this.rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)
                 && (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
             boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
             if (isAtBaseLine && promotionType != null) board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
@@ -418,7 +418,7 @@ public class GameEngine {
      * 检查兵卒是否需要晋升
      */
     public boolean needsPromotion(int row, int col) {
-        if (!this.rulesConfig.getBoolean(RuleConstants.PAWN_PROMOTION)) {
+        if (!this.rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)) {
             return false;
         }
         Piece piece = board.getPiece(row, col);
@@ -477,7 +477,7 @@ public class GameEngine {
      * 撤销上一步棋
      */
     public boolean undoLastMove() {
-        if (!this.rulesConfig.getBoolean(RuleConstants.ALLOW_UNDO)) {
+        if (!this.rulesConfig.getBoolean(RuleRegistry.ALLOW_UNDO.registryName)) {
             return false;
         }
         if (moveHistory.isEmpty()) {
@@ -611,7 +611,7 @@ public class GameEngine {
             for (Piece p : stackBefore) {
                 board.pushToStack(toRow, toCol, new Piece(p.getType(), toRow, toCol));
             }
-        } else if (captureConversion && convertedPiece != null && capturedPiece != null) {
+        } else if (captureConversion && convertedPiece != null && convertedPiece != null) {
             // 恢复被吃棋子（俘虏转换）
             board.setPiece(toRow, toCol, capturedPiece.copyAt(toRow, toCol));
         } else if (capturedPiece != null) {

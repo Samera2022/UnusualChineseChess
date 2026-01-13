@@ -4,8 +4,6 @@ import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.net.NetModeController;
-import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -229,7 +227,7 @@ public class InfoSidePanel extends JPanel {
         String versionLine = "";
         String compatLine = "";
         if (localVersion != null || peerVersion != null) {
-            versionLine = "<b>本机版本:</b> " + (localVersion == null ? "未知" : localVersion) + "<br>" +
+            versionLine = "<br><b>本机版本:</b> " + (localVersion == null ? "未知" : localVersion) + "<br>" +
                     "<b>对端版本:</b> " + (peerVersion == null ? "未知" : peerVersion) + "<br>";
             // compatibility indicator
             if (localVersion != null && peerVersion != null) {

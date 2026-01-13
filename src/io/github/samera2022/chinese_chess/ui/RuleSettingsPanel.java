@@ -1,93 +1,25 @@
 package io.github.samera2022.chinese_chess.ui;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import io.github.samera2022.chinese_chess.filter.DocumentInputFilter;
-import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 
 /**
  * 玩法设置面板：在左侧展开显示，配置项会接入 GameEngine。
  */
 public class RuleSettingsPanel extends JPanel {
-    public interface SettingsBinder {
-        void setAllowUndo(boolean allowUndo);
-        boolean isAllowUndo();
-        void setAllowForceMove(boolean allowForceMove);
-        boolean isAllowForceMove();
-        // 特殊玩法
-        void setAllowFlyingGeneral(boolean allow);
-        void setDisableFacingGenerals(boolean allow);
-        void setPawnCanRetreat(boolean allow);
-        void setNoRiverLimit(boolean noLimit);
-        void setAdvisorCanLeave(boolean allow);
-        void setInternationalKing(boolean allow);
-        void setPawnPromotion(boolean allow);
-        void setAllowOwnBaseLine(boolean allow);
-        void setAllowInsideRetreat(boolean allow);
-        void setInternationalAdvisor(boolean allow);
-        void setAllowElephantCrossRiver(boolean allow);
-        void setAllowAdvisorCrossRiver(boolean allow);
-        void setAllowKingCrossRiver(boolean allow);
-        void setLeftRightConnected(boolean allow);
-        void setLeftRightConnectedHorse(boolean allow);
-        void setLeftRightConnectedElephant(boolean allow);
-        void setUnblockPiece(boolean allow);
-        void setUnblockHorseLeg(boolean allow);
-        void setUnblockElephantEye(boolean allow);
-        void setAllowCaptureOwnPiece(boolean allow);
-        void setAllowCaptureConversion(boolean allow);
-        void setDeathMatchUntilVictory(boolean allow);
-        boolean isAllowFlyingGeneral();
-        boolean isAllowCaptureOwnPiece();
-        boolean isDisableFacingGenerals();
-        boolean isPawnCanRetreat();
-        boolean isNoRiverLimit();
-        boolean isAdvisorCanLeave();
-        boolean isInternationalKing();
-        boolean isPawnPromotion();
-        boolean isAllowOwnBaseLine();
-        boolean isAllowInsideRetreat();
-        boolean isInternationalAdvisor();
-        boolean isAllowElephantCrossRiver();
-        boolean isAllowAdvisorCrossRiver();
-        boolean isAllowKingCrossRiver();
-        boolean isLeftRightConnected();
-        boolean isLeftRightConnectedHorse();
-        boolean isLeftRightConnectedElephant();
-        boolean isUnblockPiece();
-        boolean isUnblockHorseLeg();
-        boolean isUnblockElephantEye();
-        boolean isDeathMatchUntilVictory();
-        void setAllowPieceStacking(boolean allow);
-        boolean isAllowPieceStacking();
-        void setMaxStackingCount(int count);
-        int getMaxStackingCount();
-        void setAllowCarryPiecesAbove(boolean allow);
-        boolean isAllowCarryPiecesAbove();
-        boolean isAllowCaptureConversion();
-    }
-
-    public void refreshFromBinder() {
-        Runnable apply = (Runnable) getClientProperty("applyState");
-        if (apply != null) apply.run();
-    }
 
     private static final Map<String, JCheckBox> registryNameToCheckBox = new HashMap<>();
     private GameRulesConfig config;
+
+    private final GameRulesConfig.RuleChangeListener configListener = (key, oldVal, newVal, source) -> {
+        SwingUtilities.invokeLater(this::refreshUI);
+    };
 
     public RuleSettingsPanel() {
         setLayout(new BorderLayout(6,6));
@@ -128,17 +60,26 @@ public class RuleSettingsPanel extends JPanel {
     }
 
     public void bindConfig(GameRulesConfig config) {
+        if (this.config != null) {
+            this.config.removeRuleChangeListener(configListener);
+        }
         this.config = config;
-        refreshUIFromConfig();
+        if (this.config != null) {
+            this.config.addRuleChangeListener(configListener);
+            refreshUI();
+        }
     }
 
-    private void refreshUIFromConfig() {
+    public void refreshUI() {
         if (config == null) return;
         Map<String, Boolean> enabledMap = config.getAllRuleEnabledStates();
         for (RuleRegistry rule : RuleRegistry.values()) {
             JCheckBox box = registryNameToCheckBox.get(rule.registryName);
             if (box != null) {
-                box.setSelected(config.isRuleEnabled(rule.registryName));
+                boolean target = config.isRuleEnabled(rule.registryName);
+                if (box.isSelected() != target) {
+                    box.setSelected(target);
+                }
                 box.setEnabled(rule.canBeEnabled(enabledMap));
             }
         }
@@ -149,22 +90,27 @@ public class RuleSettingsPanel extends JPanel {
             if (!rule.displayOnUI) continue;
             JCheckBox box = new JCheckBox(rule.displayName);
             box.setName(rule.registryName);
-            box.addActionListener(e -> {
-                JCheckBox jcb = (JCheckBox) e.getSource();
-
-                System.out.println(jcb.getName()+"当前状态："+jcb.isSelected());
-            });
-            registryNameToCheckBox.put(rule.registryName, box);
-            box.setAlignmentX(Component.LEFT_ALIGNMENT);
+            
             box.addActionListener(e -> {
                 if (config != null) {
-                    boolean success = config.setRuleEnabled(rule.registryName, box.isSelected());
-                    if (!success) {
-                        box.setSelected(config.isRuleEnabled(rule.registryName));
+                    boolean newValue = box.isSelected();
+                    // 触发主类的规则更改监听，Type为UI
+                    config.set(rule.registryName, newValue, GameRulesConfig.ChangeSource.UI);
+                    
+                    // 检查是否实际更改成功（处理依赖/冲突限制）
+                    boolean actualValue = config.isRuleEnabled(rule.registryName);
+                    if (actualValue != newValue) {
+                        box.setSelected(actualValue);
                     }
-                    refreshUIFromConfig();
+                    
+                    // 刷新 UI 以更新其他复选框的启用/禁用状态（依赖关系）
+                    refreshUI();
                 }
             });
+
+            registryNameToCheckBox.put(rule.registryName, box);
+            box.setAlignmentX(Component.LEFT_ALIGNMENT);
+
             JPanel targetPanel = null;
             switch (rule.targetComponent) {
                 case "outside": targetPanel = outsidePanel; break;
