@@ -14,6 +14,7 @@ import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
+import io.github.samera2022.chinese_chess.ui.RuleSettingsPanel;
 
 import java.util.*;
 
@@ -128,9 +129,8 @@ public class GameEngine {
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
         // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
-        boolean carryEnabled = this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
-                && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
+        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
@@ -328,9 +328,8 @@ public class GameEngine {
 
         Piece piece;
         List<Piece> movedStack = new ArrayList<>();
-        boolean carryEnabled = this.rulesConfig.getBoolean(RuleConstants.ALLOW_PIECE_STACKING)
-                && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
-                && this.rulesConfig.getBoolean(RuleConstants.ALLOW_CARRY_PIECES_ABOVE);
+        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleConstants.MAX_STACKING_COUNT) > 1
+                && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             piece = fromStack.get(selectedStackIndex);

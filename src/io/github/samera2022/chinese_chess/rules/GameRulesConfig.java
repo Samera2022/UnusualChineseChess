@@ -20,6 +20,7 @@ import java.util.concurrent.TimeoutException;
  * 游戏规则配置 - 统一管理所有游戏规则
  * 该类作为单一数据源，避免规则在多处重复定义
  */
+@SuppressWarnings("unused")
 public class GameRulesConfig {
     // 基础玩法规则
     @RuleKey(RuleConstants.ALLOW_FLYING_GENERAL)
@@ -99,6 +100,13 @@ public class GameRulesConfig {
             }
         }
         RULE_FIELDS = Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * 获取所有规则名（自动收集，无需手动维护常量）
+     */
+    public static java.util.Set<String> getAllRuleKeys() {
+        return RULE_FIELDS.keySet();
     }
 
     /**
@@ -417,6 +425,76 @@ public class GameRulesConfig {
              throw new RuntimeException(ex);
          }
      }
+
+    // ========== 新玩法注册与启用状态维护 ==========
+    private final Map<String, Boolean> ruleEnabledMap = new HashMap<>();
+
+    /**
+     * 获取玩法当前启用状态
+     */
+    public boolean isRuleEnabled(String registryName) {
+        Boolean v = ruleEnabledMap.get(registryName);
+        return v != null ? v : false;
+    }
+
+    /**
+     * 设置玩法启用状态，自动校验依赖与冲突
+     * @return 是否设置成功（依赖/冲突校验未通过则失败）
+     */
+    public boolean setRuleEnabled(String registryName, boolean enabled) {
+        RuleRegistry rule = RuleRegistry.getByRegistryName(registryName);
+        if (rule == null) return false;
+        if (enabled) {
+            // 检查依赖
+            for (String dep : rule.dependentRegistryNames) {
+                if (!Boolean.TRUE.equals(ruleEnabledMap.get(dep))) return false;
+            }
+            // 检查冲突
+            for (String conf : rule.conflictRegistryNames) {
+                if (Boolean.TRUE.equals(ruleEnabledMap.get(conf))) return false;
+            }
+        }
+        ruleEnabledMap.put(registryName, enabled);
+        return true;
+    }
+
+    /**
+     * 获取所有玩法的当前启用状态快照
+     */
+    public Map<String, Boolean> getAllRuleEnabledStates() {
+        return new HashMap<>(ruleEnabledMap);
+    }
+
+    /**
+     * 批量设置玩法启用状态（不校验依赖/冲突，适合反序列化）
+     */
+    public void setAllRuleEnabledStates(Map<String, Boolean> states) {
+        if (states == null) return;
+        ruleEnabledMap.clear();
+        ruleEnabledMap.putAll(states);
+    }
+
+    /**
+     * 初始化所有玩法为默认禁用（或部分默认启用）
+     */
+    public void initAllRulesDefault() {
+        for (RuleRegistry rule : RuleRegistry.values()) {
+            ruleEnabledMap.put(rule.registryName, false);
+        }
+        // 可在此处设置部分玩法默认启用
+        ruleEnabledMap.put("allowUndo", true);
+    }
+
+    // 自动注册规则：根据 RuleRegistry 枚举自动初始化所有规则的 isEnabled 状态
+    public void autoRegisterRules() {
+        for (RuleRegistry rule : RuleRegistry.values()) {
+            if (!ruleEnabledMap.containsKey(rule.registryName)) {
+                ruleEnabledMap.put(rule.registryName, false);
+            }
+        }
+    }
+
+    // 构造函数或初始化流程中调用 autoRegisterRules()
 
     // Shutdown helpers: close executors when the config is GC'd (defensive)
     @Override

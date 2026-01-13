@@ -5,6 +5,8 @@ import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.rules.RuleConstants;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 
+import static io.github.samera2022.chinese_chess.ui.RuleSettingsPanel.isEnabled;
+
 /**
  * 移动规则检查器 - 验证棋子的合法移动
  * 包含中国象棋的所有棋子移动规则
@@ -497,7 +499,7 @@ public class MoveValidator {
                 }
             }
         }
-        if (!r(RuleConstants.NO_RIVER_LIMIT) && !r(RuleConstants.ALLOW_FLYING_GENERAL) && !r(RuleConstants.ALLOW_KING_CROSS_RIVER)) {
+        if (!r(RuleConstants.NO_RIVER_LIMIT) && !isEnabled(RuleRegistry.ALLOW_FLYING_GENERAL.registryName) && !r(RuleConstants.ALLOW_KING_CROSS_RIVER)) {
             int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;

@@ -15,13 +15,12 @@ import java.util.List;
  */
 public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateListener {
     private GameEngine gameEngine;
-    private JTextArea moveTextArea;
-    private JScrollPane scrollPane;
+    private final JTextArea moveTextArea;
 
     // 导航控制
-    private JPanel navigationPanel;
-    private JButton prevButton;
-    private JButton nextButton;
+    private final JPanel navigationPanel;
+    private final JButton prevButton;
+    private final JButton nextButton;
     private JLabel stepLabel;
     private int currentStep = -1; // -1表示显示当前实际状态
     private boolean isInReplayMode = false;
@@ -69,7 +68,7 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
         moveTextArea.setWrapStyleWord(true);
 
         // 创建滚动窗格
-        scrollPane = new JScrollPane(moveTextArea);
+        JScrollPane scrollPane = new JScrollPane(moveTextArea);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
         add(scrollPane, BorderLayout.CENTER);
 
@@ -174,10 +173,10 @@ public class MoveHistoryPanel extends JPanel implements GameEngine.GameStateList
                 moveNumber++;
                 // 单步编号：每一步（半回合）都独立编号
                 sb.append(moveNumber).append(". ");
-                sb.append(item.toString()).append("\n");
+                sb.append(item).append("\n");
             } else if (item instanceof RuleChangeRecord) {
                 // 玩法变更不编号，直接显示
-                sb.append(item.toString()).append("\n");
+                sb.append(item).append("\n");
             }
         }
 
