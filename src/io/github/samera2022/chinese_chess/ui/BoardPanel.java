@@ -302,7 +302,9 @@ public class BoardPanel extends JPanel {
         if (sourcePiece != null && targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
             targetPiece.isRed() == sourcePiece.isRed()) {
             // 目标是己方棋子，检查是否启用堆叠
-            if (gameEngine.getRulesConfig().getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && gameEngine.getRulesConfig().getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1) {
+            if (gameEngine.getRulesConfig().getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
+                    && Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1
+            ) {
                 // 直接执行堆叠移动（保留堆栈）
                 if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null, selectedStackIndex)) {
                     if (localMoveListener != null) {
@@ -626,34 +628,8 @@ public class BoardPanel extends JPanel {
         validMoves.clear();
         Board board = gameEngine.getBoard();
         MoveValidator validator = new MoveValidator(board);
-        // 将特殊玩法开关同步到临时校验器，确保指示与实际规则一致
-        validator.setAllowFlyingGeneral(rulesConfig.getBoolean(RuleRegistry.ALLOW_FLYING_GENERAL.registryName));
-        validator.setDisableFacingGenerals(rulesConfig.getBoolean(RuleRegistry.DISABLE_FACING_GENERALS.registryName));
-        validator.setPawnCanRetreat(rulesConfig.getBoolean(RuleRegistry.PAWN_CAN_RETREAT.registryName));
-        validator.setNoRiverLimit(rulesConfig.getBoolean(RuleRegistry.NO_RIVER_LIMIT.registryName));
-        validator.setAdvisorCanLeave(rulesConfig.getBoolean(RuleRegistry.ADVISOR_CAN_LEAVE.registryName));
-        validator.setInternationalKing(rulesConfig.getBoolean(RuleRegistry.INTERNATIONAL_KING.registryName));
-        validator.setPawnPromotion(rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName));
-        validator.setAllowOwnBaseLine(rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName));
-        validator.setAllowInsideRetreat(rulesConfig.getBoolean(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName));
-        validator.setInternationalAdvisor(rulesConfig.getBoolean(RuleRegistry.INTERNATIONAL_ADVISOR.registryName));
-        validator.setAllowElephantCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName));
-        validator.setAllowAdvisorCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName));
-        validator.setAllowKingCrossRiver(rulesConfig.getBoolean(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName));
-        validator.setLeftRightConnected(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName));
-        validator.setLeftRightConnectedHorse(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName));
-        validator.setLeftRightConnectedElephant(rulesConfig.getBoolean(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName));
-
-        // 如果启用了堆叠，则需要启用自己吃自己来显示堆叠目标
-        boolean stackingEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1;
-        validator.setAllowCaptureOwnPiece(rulesConfig.getBoolean(RuleRegistry.ALLOW_CAPTURE_OWN_PIECE.registryName) || stackingEnabled);
-        validator.setAllowPieceStacking(rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName));
-        validator.setMaxStackingCount(rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName));
-
-        // 新增：调试输出，确保同步到validator
-        validator.setUnblockPiece(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_PIECE.registryName));
-        validator.setUnblockHorseLeg(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_HORSE_LEG.registryName));
-        validator.setUnblockElephantEye(rulesConfig.getBoolean(RuleRegistry.UNBLOCK_ELEPHANT_EYE.registryName));
+        // 移除所有 validator.set... 调用，因为它们会修改全局配置，导致规则冲突（特别是堆叠和自己吃自己）
+        // validator 默认使用全局 rulesConfig，所以它已经拥有最新的规则状态。
 
         for (int row = 0; row < board.getRows(); row++) {
             for (int col = 0; col < board.getCols(); col++) {

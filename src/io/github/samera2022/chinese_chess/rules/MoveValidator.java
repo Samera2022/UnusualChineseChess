@@ -4,6 +4,7 @@ import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 import io.github.samera2022.chinese_chess.rules.RuleRegistry;
+import io.github.samera2022.chinese_chess.ui.RuleSettingsPanel;
 
 import static io.github.samera2022.chinese_chess.ui.RuleSettingsPanel.isEnabled;
 
@@ -42,9 +43,9 @@ public class MoveValidator {
     public void setAllowOwnBaseLine(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName, allow, GameRulesConfig.ChangeSource.API); }
     public void setAllowInsideRetreat(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName, allow, GameRulesConfig.ChangeSource.API); }
     public void setInternationalAdvisor(boolean allow) { rulesConfig.set(RuleRegistry.INTERNATIONAL_ADVISOR.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+//    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+//    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
+//    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
     public void setLeftRightConnected(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName, allow, GameRulesConfig.ChangeSource.API); }
     public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName, allow, GameRulesConfig.ChangeSource.API); }
     public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName, allow, GameRulesConfig.ChangeSource.API); }
@@ -107,9 +108,9 @@ public class MoveValidator {
         // 检查目标位置是否是己方棋子
         Piece targetPiece = board.getPiece(toRow, toCol);
         if (targetPiece != null && targetPiece.isRed() == piece.isRed()) {
-            if (isEnabled(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && ri(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1) {
+            if (isEnabled(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1) {
                 int stackSize = board.getStackSize(toRow, toCol);
-                if (stackSize >= ri(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
+                if (stackSize >= Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName))) {
                     return false;
                 }
                 // 堆栈未满，允许堆叠
@@ -480,7 +481,13 @@ public class MoveValidator {
             boolean targetIsKing = target.getType() == Piece.Type.RED_KING || target.getType() == Piece.Type.BLACK_KING;
             // 取消对将规则：启用时不允许王见王（飞将）
             if (isEnabled(RuleRegistry.DISABLE_FACING_GENERALS.registryName) && targetIsKing) {
-                return false; // 禁止王见王
+                int rowDiff = Math.abs(toRow - fromRow);
+                int rawColDiff = Math.abs(toCol - fromCol);
+                int colDiff = isEnabled(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName) ? Math.min(rawColDiff, 9 - rawColDiff) : rawColDiff;
+
+                if (rowDiff > 1 || colDiff > 1) {
+                    return false; // 禁止远距离吃王
+                }
             }
             // 王不见王：同列或同行无阻挡，允许直接吃对方王（飞将吃王 / 将吃帥）
             if (targetIsKing && fromCol == toCol && isClearVerticalPath(fromRow, toRow, fromCol)) {
@@ -498,7 +505,7 @@ public class MoveValidator {
                 }
             }
         }
-        if (!isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName) && !isEnabled(RuleRegistry.ALLOW_FLYING_GENERAL.registryName) && !isEnabled(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName)) {
+        if (!isEnabled(RuleRegistry.NO_RIVER_LIMIT.registryName) && !isEnabled(RuleRegistry.ALLOW_FLYING_GENERAL.registryName)) {
             int minCol = 3, maxCol = 5;
             int minRow = piece.isRed() ? 7 : 0;
             int maxRow = piece.isRed() ? 9 : 2;

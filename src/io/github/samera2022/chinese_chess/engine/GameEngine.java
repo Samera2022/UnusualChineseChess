@@ -129,8 +129,9 @@ public class GameEngine {
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
         // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
-        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
-                && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
+        boolean carryEnabled = RuleSettingsPanel.isEnabled(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
+                Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1 &&
+                RuleSettingsPanel.isEnabled(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
@@ -170,10 +171,10 @@ public class GameEngine {
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
         if (this.rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
-                && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
+                && Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1
                 && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
-            if (stackSize < this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
+            if (stackSize < Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName))) {
                 isStackingMove = true;
                 capturedPiece = null; // 堆叠时不吃子，只堆叠
             }
@@ -328,8 +329,8 @@ public class GameEngine {
 
         Piece piece;
         List<Piece> movedStack = new ArrayList<>();
-        boolean carryEnabled = RuleSettingsPanel.isEnabled("allowPieceStacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
-                && RuleSettingsPanel.isEnabled("allowCarryPiecesAbove");
+        boolean carryEnabled = RuleSettingsPanel.isEnabled("allow_piece_stacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
+                && RuleSettingsPanel.isEnabled("allow_carry_pieces_above");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             piece = fromStack.get(selectedStackIndex);
