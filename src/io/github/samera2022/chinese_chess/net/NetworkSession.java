@@ -298,6 +298,14 @@ public class NetworkSession {
                         long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
                         int selectedStackIndex = jo.has("selectedStackIndex") ? jo.get("selectedStackIndex").getAsInt() : -1;
                         if (listener != null) listener.onForceMoveConfirm(fr, fc, tr, tc, seq, selectedStackIndex);
+                    } else if ("FORCE_MOVE_REJECT".equals(cmd)) {
+                        int fr = jo.getAsJsonArray("from").get(0).getAsInt();
+                        int fc = jo.getAsJsonArray("from").get(1).getAsInt();
+                        int tr = jo.getAsJsonArray("to").get(0).getAsInt();
+                        int tc = jo.getAsJsonArray("to").get(1).getAsInt();
+                        long seq = jo.has("seq") ? jo.get("seq").getAsLong() : 0L;
+                        String reason = jo.has("reason") ? jo.get("reason").getAsString() : "";
+                        if (listener != null) listener.onForceMoveReject(fr, fc, tr, tc, seq, reason);
                     } else if ("FORCE_MOVE_APPLIED".equals(cmd)) {
                         int fr = jo.getAsJsonArray("from").get(0).getAsInt();
                         int fc = jo.getAsJsonArray("from").get(1).getAsInt();
