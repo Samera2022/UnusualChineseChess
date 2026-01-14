@@ -1,5 +1,9 @@
 package io.github.samera2022.chinese_chess.model;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 玩法变更记录 - 记录游戏过程中的玩法变更
  */
@@ -8,6 +12,8 @@ public class RuleChangeRecord implements HistoryItem {
     private Object oldValue;     // 旧值
     private Object newValue;     // 新值
     private int afterMoveIndex;  // 在哪一步着法之后发生的变更（-1表示游戏开始前）
+
+    private static final Set<String> HIDDEN_KEYS = new HashSet<>(Arrays.asList("cmd", "auth", "side"));
 
     // No-args constructor for GSON
     public RuleChangeRecord() {
@@ -38,6 +44,9 @@ public class RuleChangeRecord implements HistoryItem {
 
     @Override
     public String toString() {
+        if (HIDDEN_KEYS.contains(ruleKey)) {
+            return "";
+        }
         if (oldValue instanceof Boolean && newValue instanceof Boolean) {
             boolean oldBool = (Boolean) oldValue;
             boolean newBool = (Boolean) newValue;
