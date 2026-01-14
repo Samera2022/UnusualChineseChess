@@ -143,7 +143,7 @@ public class MoveValidator {
                 return isValidChariotMove(fromRow, fromCol, toRow, toCol);
             case RED_CANNON:
             case BLACK_CANNON:
-                return isValidCannonMove(fromRow, fromCol, toRow, toCol);
+                return isValidCannonMove(fromRow, fromCol, toRow, toCol, piece);
             case RED_SOLDIER:
             case BLACK_SOLDIER:
                 return isValidSoldierMove(fromRow, fromCol, toRow, toCol, piece);
@@ -377,14 +377,14 @@ public class MoveValidator {
      * 炮（炮）：走棋规则与车相同，但吃棋时必须跳过一个棋子
      * 改进：完美支持左右联通吃子逻辑
      */
-    private boolean isValidCannonMove(int fromRow, int fromCol, int toRow, int toCol) {
+    private boolean isValidCannonMove(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
         // 必须走直线
         if (fromRow != toRow && fromCol != toCol) {
             return false;
         }
 
         Piece targetPiece = board.getPiece(toRow, toCol);
-        boolean isCapture = (targetPiece != null);
+        boolean isCapture = (targetPiece != null && targetPiece.isRed() != piece.isRed());
 
         if (fromRow == toRow) {
             // --- 水平移动 ---
