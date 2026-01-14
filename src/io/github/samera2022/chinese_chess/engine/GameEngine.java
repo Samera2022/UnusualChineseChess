@@ -233,9 +233,53 @@ public class GameEngine {
     }
 
     public boolean forceApplyMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType, int selectedStackIndex) {
-        // This is a simplified version of makeMove without validation.
-        // The full logic from makeMove should be mirrored here if complex rules apply.
-        return makeMove(fromRow, fromCol, toRow, toCol, promotionType, selectedStackIndex);
+        if (gameState != GameState.RUNNING) {
+            return false;
+        }
+
+        List<Piece> fromStack = board.getStack(fromRow, fromCol);
+        if (fromStack.isEmpty()) {
+            return false;
+        }
+
+        Piece piece;
+        if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
+            piece = fromStack.get(selectedStackIndex);
+        } else if (selectedStackIndex == -1) {
+            piece = board.getPiece(fromRow, fromCol);
+        } else {
+            return false;
+        }
+
+        if (piece == null) {
+            return false;
+        }
+
+        Piece capturedPiece = board.getPiece(toRow, toCol);
+        board.removePiece(toRow, toCol); // Remove any piece at the destination
+
+        if (selectedStackIndex >= 0) {
+            board.removeFromStack(fromRow, fromCol, selectedStackIndex);
+        } else {
+            board.removePiece(fromRow, fromCol);
+        }
+
+        piece.move(toRow, toCol);
+        board.setPiece(toRow, toCol, piece);
+
+        if (promotionType != null) {
+            board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
+        }
+
+        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+        moveHistory.add(move);
+
+        isRedTurn = !isRedTurn;
+        for (GameStateListener listener : listeners) {
+            listener.onMoveExecuted(move);
+        }
+        checkGameState();
+        return true;
     }
 
     public boolean needsPromotion(int row, int col) {

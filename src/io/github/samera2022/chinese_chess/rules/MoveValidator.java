@@ -2,8 +2,6 @@ package io.github.samera2022.chinese_chess.rules;
 
 import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.model.Piece;
-import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
-import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 import io.github.samera2022.chinese_chess.ui.RuleSettingsPanel;
 
 import static io.github.samera2022.chinese_chess.ui.RuleSettingsPanel.isEnabled;
@@ -30,35 +28,6 @@ public class MoveValidator {
             this.rulesConfig = rulesConfig;
         }
     }
-
-    // ========== Setter方法（直接修改rulesConfig） ==========
-
-    public void setAllowFlyingGeneral(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_FLYING_GENERAL.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setDisableFacingGenerals(boolean allow) { rulesConfig.set(RuleRegistry.DISABLE_FACING_GENERALS.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setPawnCanRetreat(boolean allow) { rulesConfig.set(RuleRegistry.PAWN_CAN_RETREAT.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setNoRiverLimit(boolean allow) { rulesConfig.set(RuleRegistry.NO_RIVER_LIMIT.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAdvisorCanLeave(boolean allow) { rulesConfig.set(RuleRegistry.ADVISOR_CAN_LEAVE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setInternationalKing(boolean allow) { rulesConfig.set(RuleRegistry.INTERNATIONAL_KING.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setPawnPromotion(boolean allow) { rulesConfig.set(RuleRegistry.PAWN_PROMOTION.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowOwnBaseLine(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowInsideRetreat(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_INSIDE_RETREAT.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setInternationalAdvisor(boolean allow) { rulesConfig.set(RuleRegistry.INTERNATIONAL_ADVISOR.registryName, allow, GameRulesConfig.ChangeSource.API); }
-//    public void setAllowElephantCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ELEPHANT_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
-//    public void setAllowAdvisorCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_ADVISOR_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
-//    public void setAllowKingCrossRiver(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_KING_CROSS_RIVER.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnected(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnectedHorse(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_HORSE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setLeftRightConnectedElephant(boolean allow) { rulesConfig.set(RuleRegistry.LEFT_RIGHT_CONNECTED_ELEPHANT.registryName, allow, GameRulesConfig.ChangeSource.API); }
-
-    public void setUnblockPiece(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_PIECE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setUnblockHorseLeg(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_HORSE_LEG.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setUnblockElephantEye(boolean allow) { rulesConfig.set(RuleRegistry.UNBLOCK_ELEPHANT_EYE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowCaptureOwnPiece(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_CAPTURE_OWN_PIECE.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setAllowPieceStacking(boolean allow) { rulesConfig.set(RuleRegistry.ALLOW_PIECE_STACKING.registryName, allow, GameRulesConfig.ChangeSource.API); }
-    public void setMaxStackingCount(int count) { rulesConfig.set(RuleRegistry.MAX_STACKING_COUNT.registryName, Math.max(1, count), GameRulesConfig.ChangeSource.API); }
-
-    // 动态访问帮助方法，统一使用通用Getter
-    private int ri(String key) { return rulesConfig != null ? rulesConfig.getInt(key) : 0; }
 
     /**
      * 验证着法是否合法
