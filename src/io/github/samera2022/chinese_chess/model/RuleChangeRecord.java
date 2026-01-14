@@ -38,6 +38,15 @@ public class RuleChangeRecord implements HistoryItem {
 
     @Override
     public String toString() {
+        if (oldValue instanceof Boolean && newValue instanceof Boolean) {
+            boolean oldBool = (Boolean) oldValue;
+            boolean newBool = (Boolean) newValue;
+            if (!oldBool && newBool) {
+                return String.format("[Rule] + %s", ruleKey);
+            } else if (oldBool && !newBool) {
+                return String.format("[Rule] - %s", ruleKey);
+            }
+        }
         return String.format("[Rule] %s: %s -> %s", ruleKey, oldValue, newValue);
     }
 }
