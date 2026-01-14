@@ -48,10 +48,10 @@ public class GameRulesConfig {
     });
 
     public GameRulesConfig() {
-        initAllRulesDefault();
+        resetToDefault();
     }
 
-    public void initAllRulesDefault() {
+    public void resetToDefault() {
         ruleValues.clear();
         for (RuleRegistry rule : RuleRegistry.values()) {
             ruleValues.put(rule.registryName, rule.defaultValue);

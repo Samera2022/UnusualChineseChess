@@ -12,11 +12,12 @@ public class Move implements HistoryItem {
     private int toCol;
     private Piece piece;
     private Piece capturedPiece; // 被吃的棋子（可能为null）
+    private List<Piece> capturedStack; // 被吃的整个堆栈
     private boolean isStacking = false; // 是否是堆叠移动
     private List<Piece> stackBefore; // 堆叠前的棋子列表（用于撤销）
     private boolean captureConversion = false; // 是否为俘虏（吃子改为转换）
     private Piece convertedPiece;              // 转换后的己方棋子
-    private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引（-1表示无效或不从堆栈选择）
+    private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引（-1表示无效或不从堆叠选择）
     private List<Piece> movedStack; // 移动时随之移动的堆栈中的其他棋子
     private boolean isForceMove = false; // 是否为强制走子
 
@@ -52,6 +53,9 @@ public class Move implements HistoryItem {
     public Piece getCapturedPiece() {
         return capturedPiece;
     }
+
+    public void setCapturedStack(List<Piece> stack) { this.capturedStack = stack; }
+    public List<Piece> getCapturedStack() { return capturedStack; }
 
     public void setStacking(boolean stacking) {
         this.isStacking = stacking;

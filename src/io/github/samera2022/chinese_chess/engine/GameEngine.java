@@ -129,9 +129,13 @@ public class GameEngine {
         }
 
         Piece capturedPiece = board.getPiece(toRow, toCol);
+        List<Piece> capturedStack = board.getStack(toRow, toCol);
         boolean convertedCapture = false;
         boolean isStackingMove = false;
         Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+        if (capturedStack.size() > 1) {
+            move.setCapturedStack(new ArrayList<>(capturedStack));
+        }
 
         if (rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
                 rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1 &&
@@ -151,7 +155,7 @@ public class GameEngine {
             convertedCapture = true;
             board.setPiece(toRow, toCol, convertedPiece);
         } else if (capturedPiece != null && !isStackingMove) {
-            board.removePiece(toRow, toCol);
+            board.clearStack(toRow, toCol);
         }
 
         if (!convertedCapture) {
@@ -337,25 +341,32 @@ public class GameEngine {
         return true;
     }
 
-    private void undoMoveOnBoard(Move move) {
+    public void undoMoveOnBoard(Move move) {
         if (move == null) return;
         Piece movedPiece = move.getPiece();
         if (movedPiece == null) return;
 
         // 1. Restore destination state
+        board.clearStack(move.getToRow(), move.getToCol()); // Clear the destination first
+
         if (move.isStacking()) {
-            board.clearStack(move.getToRow(), move.getToCol());
+            // If it was a stacking move, restore the stack that was there before
             List<Piece> stackBefore = move.getStackBefore();
             if (stackBefore != null) {
                 for (Piece p : stackBefore) {
                     board.pushToStack(move.getToRow(), move.getToCol(), p);
                 }
             }
-        } else if (move.isCaptureConversion()) {
-            board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
-        } else {
+        } else if (move.getCapturedStack() != null) {
+            // If a whole stack was captured, restore it
+            for (Piece p : move.getCapturedStack()) {
+                board.pushToStack(move.getToRow(), move.getToCol(), p);
+            }
+        } else if (move.getCapturedPiece() != null) {
+            // If a single piece was captured, restore it
             board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
         }
+        // If nothing was captured and it wasn't a stacking move, the destination remains empty.
 
         // 2. Restore source state
         movedPiece.move(move.getFromRow(), move.getFromCol());
