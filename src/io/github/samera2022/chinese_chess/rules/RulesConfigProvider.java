@@ -37,26 +37,14 @@ public final class RulesConfigProvider {
         if (newInstance == null) throw new IllegalArgumentException("newInstance cannot be null");
         GameRulesConfig old = INSTANCE;
         if (old == newInstance) return;
-        // Use robust API on GameRulesConfig to transfer listeners (preferred over reflection).
-        try {
-            if (old != null) {
-                try {
-                    old.transferListenersTo(newInstance);
-                } catch (Throwable t) {
-                    System.err.println("[RulesConfigProvider] transferListenersTo failed: " + t);
-                    t.printStackTrace(System.err);
-                }
-            }
-        } catch (Throwable t) {
-            System.err.println("[RulesConfigProvider] Unexpected error during listener transfer: " + t);
-        }
+        
         INSTANCE = newInstance;
         // notify instance listeners
         for (InstanceChangeListener l : instanceListeners) {
             try { l.onInstanceReplaced(old, newInstance); } catch (Throwable ignored) {}
         }
         // attempt to shutdown old notifier to avoid leaked threads
-        try { if (old != null) old.shutdownNotifier(); } catch (Throwable ignored) {}
+        try { if (old != null) old.shutdown(); } catch (Throwable ignored) {}
     }
 
     public static void addInstanceChangeListener(InstanceChangeListener l) { instanceListeners.add(l); }
@@ -81,7 +69,7 @@ public final class RulesConfigProvider {
     public static void shutdown() {
         GameRulesConfig inst = INSTANCE;
         if (inst != null) {
-            try { inst.shutdownNotifier(); } catch (Throwable ignored) {}
+            try { inst.shutdown(); } catch (Throwable ignored) {}
         }
     }
 }

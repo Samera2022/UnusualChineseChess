@@ -14,7 +14,6 @@ import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
 import io.github.samera2022.chinese_chess.rules.RuleRegistry;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
-import io.github.samera2022.chinese_chess.ui.RuleSettingsPanel;
 
 import java.util.*;
 
@@ -129,9 +128,9 @@ public class GameEngine {
         Piece piece;
         List<Piece> movedStack = new ArrayList<>(); // 随之移动的堆栈中的其他棋子
         // 背负是否真正启用：必须启用堆叠且最大堆叠数>1 且允许背负
-        boolean carryEnabled = RuleSettingsPanel.isEnabled(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
-                Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1 &&
-                RuleSettingsPanel.isEnabled(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
+        boolean carryEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
+                rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1 &&
+                rulesConfig.getBoolean(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             // 从堆栈中选择特定的棋子
@@ -171,10 +170,10 @@ public class GameEngine {
         // 判断是否为堆叠移动
         boolean isStackingMove = false;
         if (this.rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
-                && Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1
+                && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
                 && capturedPiece != null && capturedPiece.isRed() == piece.isRed()) {
             int stackSize = board.getStackSize(toRow, toCol);
-            if (stackSize < Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName))) {
+            if (stackSize < rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                 isStackingMove = true;
                 capturedPiece = null; // 堆叠时不吃子，只堆叠
             }
@@ -204,27 +203,7 @@ public class GameEngine {
                     }
                 } else {
                     // 模式二：只移除选定的棋子，保留上方的棋子，且不能颠倒顺序
-                    // 策略：手动暂存上方的棋子 -> 弹出到底 -> 还原上方的棋子
-
-                    // 1. 暂存上方的棋子（保持顺序）
-                    List<Piece> piecesAbove = new ArrayList<>();
-                    for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) {
-                        piecesAbove.add(fromStack.get(i));
-                    }
-
-                    // 2. 连续弹出，直到把选中的那个棋子也弹出来
-                    // 比如 Stack [A, B, C, D]，选中 B(index 1)。Size 4.
-                    // piecesAbove = [C, D].
-                    // 需要弹出 D, C, B。共 4 - 1 = 3 次。
-                    int countToPop = fromStack.size() - selectedStackIndex;
-                    for (int k = 0; k < countToPop; k++) {
-                        board.popTop(fromRow, fromCol);
-                    }
-
-                    // 3. 将暂存的上方棋子原样放回去
-                    for (Piece p : piecesAbove) {
-                        board.pushToStack(fromRow, fromCol, p);
-                    }
+                    board.removeFromStack(fromRow, fromCol, selectedStackIndex);
                 }
             } else {
                 // 默认移除顶部棋子
@@ -329,8 +308,8 @@ public class GameEngine {
 
         Piece piece;
         List<Piece> movedStack = new ArrayList<>();
-        boolean carryEnabled = RuleSettingsPanel.isEnabled("allow_piece_stacking") && this.rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
-                && RuleSettingsPanel.isEnabled("allow_carry_pieces_above");
+        boolean carryEnabled = rulesConfig.getBoolean("allow_piece_stacking") && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
+                && rulesConfig.getBoolean("allow_carry_pieces_above");
 
         if (selectedStackIndex >= 0 && selectedStackIndex < fromStack.size()) {
             piece = fromStack.get(selectedStackIndex);
@@ -374,11 +353,7 @@ public class GameEngine {
                     int countToRemove = fromStack.size() - selectedStackIndex;
                     for (int i = 0; i < countToRemove; i++) board.popTop(fromRow, fromCol);
                 } else {
-                    List<Piece> piecesAbove = new ArrayList<>();
-                    for (int i = selectedStackIndex + 1; i < fromStack.size(); i++) piecesAbove.add(fromStack.get(i));
-                    int countToPop = fromStack.size() - selectedStackIndex;
-                    for (int k = 0; k < countToPop; k++) board.popTop(fromRow, fromCol);
-                    for (Piece p : piecesAbove) board.pushToStack(fromRow, fromCol, p);
+                    board.removeFromStack(fromRow, fromCol, selectedStackIndex);
                 }
             } else {
                 board.removePiece(fromRow, fromCol);
@@ -478,102 +453,25 @@ public class GameEngine {
      * 撤销上一步棋
      */
     public boolean undoLastMove() {
-        if (!this.rulesConfig.getBoolean(RuleRegistry.ALLOW_UNDO.registryName)) {
+        if (!rulesConfig.getBoolean(RuleRegistry.ALLOW_UNDO.registryName)) {
             return false;
         }
+
         if (moveHistory.isEmpty()) {
-            return false;
+            return false; // 如果没有棋步可撤销，则直接返回
         }
 
-        Move lastMove = moveHistory.remove(moveHistory.size() - 1);
+        int lastMoveIndex = moveHistory.size() - 1;
 
-        // 处理从堆栈中选择的棋子的撤销
-        if (lastMove.getSelectedStackIndex() >= 0) {
-            // 从目标位置移除该棋子及其跟随的棋子
-            Piece piece = lastMove.getPiece();
-            List<Piece> movedStack = lastMove.getMovedStack();
-
-            // 先移除跟随的棋子（逆序）
-            if (movedStack != null) {
-                for (int i = movedStack.size() - 1; i >= 0; i--) {
-                    board.popTop(lastMove.getToRow(), lastMove.getToCol());
-                }
-            }
-            // 移除主棋子
-            board.popTop(lastMove.getToRow(), lastMove.getToCol());
-
-            // 必须考虑源位置可能已经有其他棋子（虽然在当前规则下，源位置被抽走后，剩下的棋子会落下）
-            // 但是我们要插回到正确的位置
-
-            // 获取当前源位置的堆栈
-            // Stack: [A, C]. Removed B (Index 1).
-            // undo needs to put B back at Index 1.
-            // Result: [A, B, C].
-
-            // 策略：弹出所有 index >= selectedStackIndex 的棋子，放入 B，再放回。
-            int targetIndex = lastMove.getSelectedStackIndex();
-            List<Piece> currentStack = board.getStack(lastMove.getFromRow(), lastMove.getFromCol());
-            List<Piece> piecesAbove = new ArrayList<>();
-
-            // 弹出目前在该位置之上的所有棋子
-            int countToPop = currentStack.size() - targetIndex;
-            for(int k=0; k<countToPop; k++) {
-                // popTop 返回的是被移除的棋子，我们假设 Board 没有返回它，所以要先 get
-                // 但是 popTop 逻辑依赖 board 实现。
-                // 既然我们在 move 时手动管理了顺序，undo 时如果仅仅是 push 回去可能变成 [A, C, B]。
-                // 所以这里也需要手动重组。
-                Piece p = currentStack.get(currentStack.size() - 1 - k);
-                piecesAbove.add(0, p); // 保持顺序插入头部
-            }
-            // 执行真正的 pop
-            for(int k=0; k<countToPop; k++) {
-                board.popTop(lastMove.getFromRow(), lastMove.getFromCol());
-            }
-
-            // 将主棋子移回原位置
-            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
-            board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), piece);
-
-            // 将跟随的棋子也移回原位置 (如果是 Carry Mode)
-            if (movedStack != null) {
-                for (Piece p : movedStack) {
-                    p.move(lastMove.getFromRow(), lastMove.getFromCol());
-                    board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), p);
-                }
-            }
-
-            // 将原来在上面的棋子放回去 (如果是 Extract Mode，上面可能有 C)
-            for(Piece p : piecesAbove) {
-                board.pushToStack(lastMove.getFromRow(), lastMove.getFromCol(), p);
-            }
+        // 撤销所有在最后一步棋之后发生的规则变更
+        while (!ruleChangeHistory.isEmpty() && ruleChangeHistory.get(ruleChangeHistory.size() - 1).getAfterMoveIndex() >= lastMoveIndex) {
+            RuleChangeRecord record = ruleChangeHistory.remove(ruleChangeHistory.size() - 1);
+            rulesConfig.set(record.getRuleKey(), record.getOldValue(), GameRulesConfig.ChangeSource.UNDO);
         }
-        // 处理堆叠撤销
-        else if (lastMove.isStacking()) {
-            // 从目标位置弹出该棋子
-            board.popTop(lastMove.getToRow(), lastMove.getToCol());
-            // 将棋子放回原位置
-            Piece piece = lastMove.getPiece();
-            piece.move(lastMove.getFromRow(), lastMove.getFromCol());
-            board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
-        } else {
-            if (lastMove.isCaptureConversion()) {
-                // 移除转换后的棋子，恢复被俘棋子，原棋子保持不动
-                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
-                if (lastMove.getCapturedPiece() != null) {
-                    board.setPiece(lastMove.getToRow(), lastMove.getToCol(), lastMove.getCapturedPiece());
-                }
-            } else {
-                Piece piece = lastMove.getPiece();
-                piece.move(lastMove.getFromRow(), lastMove.getFromCol());
-                board.setPiece(lastMove.getFromRow(), lastMove.getFromCol(), piece);
-                board.setPiece(lastMove.getToRow(), lastMove.getToCol(), null);
 
-                if (lastMove.getCapturedPiece() != null) {
-                    Piece captured = lastMove.getCapturedPiece();
-                    board.setPiece(lastMove.getToRow(), lastMove.getToCol(), captured);
-                }
-            }
-        }
+        // 撤销棋步
+        Move lastMove = moveHistory.remove(lastMoveIndex);
+        undoMoveOnBoard(lastMove);
 
         // 切换回合
         isRedTurn = !isRedTurn;
@@ -585,61 +483,46 @@ public class GameEngine {
         return true;
     }
 
-    /**
-     * 撤销最近一步棋（悔棋），支持堆叠和吃子恢复
-     */
-    public boolean undoMove() {
-        if (moveHistory == null || moveHistory.isEmpty()) return false;
-        Move lastMove = moveHistory.remove(moveHistory.size() - 1);
-        int fromRow = lastMove.getFromRow();
-        int fromCol = lastMove.getFromCol();
-        int toRow = lastMove.getToRow();
-        int toCol = lastMove.getToCol();
-        Piece movedPiece = lastMove.getPiece();
-        Piece capturedPiece = lastMove.getCapturedPiece();
-        boolean isStacking = lastMove.isStacking();
-        List<Piece> stackBefore = lastMove.getStackBefore();
-        int selectedStackIndex = lastMove.getSelectedStackIndex();
-        List<Piece> movedStack = lastMove.getMovedStack();
-        boolean captureConversion = lastMove.isCaptureConversion();
-        Piece convertedPiece = lastMove.getConvertedPiece();
+    private void undoMoveOnBoard(Move move) {
+        if (move == null) return;
 
-        // 1. 移除目标位置的棋子（包括堆叠/转换后的棋子）
-        board.clearStack(toRow, toCol);
+        Piece movedPiece = move.getPiece();
+        if (movedPiece == null) return; // 防御性检查
 
-        // 2. 恢复堆叠状态
-        if (isStacking && stackBefore != null) {
-            for (Piece p : stackBefore) {
-                board.pushToStack(toRow, toCol, new Piece(p.getType(), toRow, toCol));
+        // 恢复被移动的棋子到原位
+        movedPiece.move(move.getFromRow(), move.getFromCol());
+        board.setPiece(move.getFromRow(), move.getFromCol(), movedPiece);
+
+        // 恢复目标位置的状态
+        if (move.isStacking()) {
+            // 如果是堆叠，恢复之前的堆叠状态
+            board.clearStack(move.getToRow(), move.getToCol());
+            List<Piece> stackBefore = move.getStackBefore();
+            if (stackBefore != null) {
+                // 从堆叠中移除移动的棋子，剩下的才是目标格之前的状态
+                stackBefore.removeIf(p -> p.equals(movedPiece));
+                for (Piece p : stackBefore) {
+                    board.pushToStack(move.getToRow(), move.getToCol(), p);
+                }
             }
-        } else if (captureConversion && convertedPiece != null && convertedPiece != null) {
-            // 恢复被吃棋子（俘虏转换）
-            board.setPiece(toRow, toCol, capturedPiece.copyAt(toRow, toCol));
-        } else if (capturedPiece != null) {
-            // 恢复被吃棋子
-            board.setPiece(toRow, toCol, capturedPiece.copyAt(toRow, toCol));
-        }
-
-        // 3. 恢复源位置的棋子（包括堆叠/背负）
-        if (selectedStackIndex >= 0 && movedStack != null && !movedStack.isEmpty()) {
-            // 恢复背负棋子
-            board.pushToStack(fromRow, fromCol, movedPiece.copyAt(fromRow, fromCol));
-            for (Piece p : movedStack) {
-                board.pushToStack(fromRow, fromCol, p.copyAt(fromRow, fromCol));
-            }
+        } else if (move.isCaptureConversion()) {
+            // 如果是转换，恢复被转换的棋子
+            board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
         } else {
-            board.setPiece(fromRow, fromCol, movedPiece.copyAt(fromRow, fromCol));
+            // 否则，恢复被吃的棋子（可能为null）
+            board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
         }
 
-        // 4. 切换回合
-        isRedTurn = !isRedTurn;
-
-        // 5. 通知监听器
-        for (GameStateListener listener : listeners) {
-            listener.onMoveExecuted(null); // 可自定义撤销通知
+        // 恢复随同移动的棋子（背负模式）
+        List<Piece> movedStack = move.getMovedStack();
+        if (movedStack != null && !movedStack.isEmpty()) {
+            for (Piece p : movedStack) {
+                p.move(move.getFromRow(), move.getFromCol());
+                board.pushToStack(move.getFromRow(), move.getFromCol(), p);
+            }
         }
-        return true;
     }
+
 
     /**
      * 重新开始游戏
@@ -692,45 +575,16 @@ public class GameEngine {
      */
     public List<HistoryItem> getCombinedHistory() {
         List<HistoryItem> combined = new ArrayList<>();
-        int moveIndex = 0;
-        int ruleIndex = 0;
-
-        // 先插入所有 afterMoveIndex == -1 的规则变动（即走第一颗子前的变动）
-        while (ruleIndex < ruleChangeHistory.size()) {
-            RuleChangeRecord ruleChange = ruleChangeHistory.get(ruleIndex);
-            if (ruleChange.getAfterMoveIndex() == -1) {
-                combined.add(ruleChange);
-                ruleIndex++;
+        combined.addAll(moveHistory);
+        combined.addAll(ruleChangeHistory);
+        combined.sort(Comparator.comparingDouble(item -> {
+            if (item instanceof Move) {
+                return moveHistory.indexOf(item);
             } else {
-                break;
+                // 将规则变更项放在其 "afterMoveIndex" 之后
+                return ((RuleChangeRecord) item).getAfterMoveIndex() + 0.5;
             }
-        }
-
-        while (moveIndex < moveHistory.size() || ruleIndex < ruleChangeHistory.size()) {
-            // 插入所有 afterMoveIndex < moveIndex 且 != -1 的规则变动
-            while (ruleIndex < ruleChangeHistory.size()) {
-                RuleChangeRecord ruleChange = ruleChangeHistory.get(ruleIndex);
-                if (ruleChange.getAfterMoveIndex() != -1 && ruleChange.getAfterMoveIndex() < moveIndex) {
-                    combined.add(ruleChange);
-                    ruleIndex++;
-                } else {
-                    break;
-                }
-            }
-
-            // 插入当前 move
-            if (moveIndex < moveHistory.size()) {
-                combined.add(moveHistory.get(moveIndex));
-                moveIndex++;
-            }
-        }
-
-        // 插入剩余规则变动
-        while (ruleIndex < ruleChangeHistory.size()) {
-            combined.add(ruleChangeHistory.get(ruleIndex));
-            ruleIndex++;
-        }
-
+        }));
         return combined;
     }
 

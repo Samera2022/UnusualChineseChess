@@ -5,14 +5,14 @@ package io.github.samera2022.chinese_chess.model;
  */
 public class RuleChangeRecord implements HistoryItem {
     private final String ruleKey;      // 规则键名（如 RuleConstants.ALLOW_FLYING_GENERAL）
-    private final String displayName;  // 显示名称（如 "允许飞将"）
-    private final boolean enabled;     // true表示启用（+），false表示取消（-）
+    private final Object oldValue;     // 旧值
+    private final Object newValue;     // 新值
     private final int afterMoveIndex;  // 在哪一步着法之后发生的变更（-1表示游戏开始前）
 
-    public RuleChangeRecord(String ruleKey, String displayName, boolean enabled, int afterMoveIndex) {
+    public RuleChangeRecord(String ruleKey, Object oldValue, Object newValue, int afterMoveIndex) {
         this.ruleKey = ruleKey;
-        this.displayName = displayName;
-        this.enabled = enabled;
+        this.oldValue = oldValue;
+        this.newValue = newValue;
         this.afterMoveIndex = afterMoveIndex;
     }
 
@@ -20,12 +20,12 @@ public class RuleChangeRecord implements HistoryItem {
         return ruleKey;
     }
 
-    public String getDisplayName() {
-        return displayName;
+    public Object getOldValue() {
+        return oldValue;
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    public Object getNewValue() {
+        return newValue;
     }
 
     public int getAfterMoveIndex() {
@@ -34,8 +34,6 @@ public class RuleChangeRecord implements HistoryItem {
 
     @Override
     public String toString() {
-        String prefix = enabled ? "[Rule] + " : "[Rule] - ";
-        return prefix + "[" + displayName + "]";
+        return String.format("[Rule] %s: %s -> %s", ruleKey, oldValue, newValue);
     }
 }
-

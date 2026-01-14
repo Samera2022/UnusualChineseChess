@@ -137,33 +137,28 @@ public class RuleSettingsPanel extends JPanel {
 
     public void refreshUI() {
         if (config == null) return;
-        Map<String, Boolean> enabledMap = config.getAllRuleEnabledStates();
+        Map<String, Object> allValues = config.getAllValues();
         for (RuleRegistry rule : RuleRegistry.values()) {
             if (rule.type == Consts.CHECK_BOX) {
                 JCheckBox box = registryNameToCheckBox.get(rule.registryName);
                 if (box != null) {
-                    boolean target = config.isRuleEnabled(rule.registryName);
+                    boolean target = config.getBoolean(rule.registryName);
                     if (box.isSelected() != target) {
                         box.setSelected(target);
                     }
-                    box.setEnabled(rule.canBeEnabled(enabledMap));
+                    box.setEnabled(rule.canBeEnabled(allValues));
                 }
             } else if (rule.type == Consts.TEXT_AREA) {
                 JTextField field = registryNameToTextField.get(rule.registryName);
                 if (field != null) {
-                    // 对于 TEXT_AREA，我们可能需要从 config 获取 int 值并更新
-                    // 但目前 GameRulesConfig 主要存储 boolean 状态，对于 int 值可能需要扩展
-                    // 这里假设 config.getInt 返回正确的值
                     try {
                         int val = config.getInt(rule.registryName);
-                        // 只有当值改变且焦点不在该输入框时才更新，避免用户输入时被打断
                         if (!field.hasFocus() && !String.valueOf(val).equals(field.getText())) {
                             field.setText(String.valueOf(val));
                         }
                     } catch (Exception ignored) {}
                     
-                    // 检查依赖是否满足以启用/禁用输入框
-                    field.setEnabled(rule.canBeEnabled(enabledMap));
+                    field.setEnabled(rule.canBeEnabled(allValues));
                 }
             }
         }
@@ -203,14 +198,6 @@ public class RuleSettingsPanel extends JPanel {
 
         for (RuleRegistry rule : rules) {
             boolean isChild = false;
-            // 对于 TEXT_AREA，它的 targetComponent 实际上指向了它应该跟随的 CHECK_BOX
-            // 但在这里我们先处理 CHECK_BOX 的层级关系
-            // TEXT_AREA 将在 addRuleRecursively 中作为特殊情况处理，或者在这里预处理
-            
-            // 现有的逻辑是基于 dependentRegistryNames 来构建树形结构
-            // 如果 TEXT_AREA 依赖于某个 CHECK_BOX，它应该已经被包含在 dependentRegistryNames 中
-            // 从而被正确归类为 child
-            
             if (rule.dependentRegistryNames != null && rule.dependentRegistryNames.length == 1) {
                 String parentName = rule.dependentRegistryNames[0];
                 if (rulesInPanel.contains(parentName)) {
@@ -227,7 +214,6 @@ public class RuleSettingsPanel extends JPanel {
             if (root.type == Consts.CHECK_BOX) {
                 addRuleRecursively(root, panel, dependencyMap, 0);
             } else if (root.type == Consts.TEXT_AREA) {
-                // 如果 TEXT_AREA 是 root（即没有依赖），直接添加
                 addTextArea(root, panel, 0);
             }
         }
@@ -236,17 +222,14 @@ public class RuleSettingsPanel extends JPanel {
     private void addRuleRecursively(RuleRegistry rule, JPanel panel, Map<String, List<RuleRegistry>> dependencyMap, int indentLevel) {
         JCheckBox box = createCheckBox(rule);
 
-        // Apply indentation
         JPanel itemPanel = new JPanel();
         itemPanel.setLayout(new BoxLayout(itemPanel, BoxLayout.X_AXIS));
         itemPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         
         if (indentLevel > 0) {
-            // Add rigid area for indentation
             itemPanel.add(Box.createRigidArea(new Dimension(20 * indentLevel, 0)));
         }
         itemPanel.add(box);
-        // Ensure the panel doesn't expand vertically more than needed
         itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, box.getPreferredSize().height));
         panel.add(itemPanel);
         panel.add(Box.createVerticalStrut(6));
@@ -257,7 +240,6 @@ public class RuleSettingsPanel extends JPanel {
                 if (child.type == Consts.CHECK_BOX) {
                     addRuleRecursively(child, panel, dependencyMap, indentLevel + 1);
                 } else if (child.type == Consts.TEXT_AREA) {
-                    // 如果子项是 TEXT_AREA，将其添加到当前 CHECK_BOX 下方
                     addTextArea(child, panel, indentLevel + 1);
                 }
             }
@@ -278,7 +260,6 @@ public class RuleSettingsPanel extends JPanel {
         textField.setName(rule.registryName);
         textField.setMaximumSize(new Dimension(100, 25));
         
-        // 添加监听器以更新配置
         textField.addActionListener(e -> updateConfigFromTextField(rule, textField));
         textField.addFocusListener(new java.awt.event.FocusAdapter() {
             public void focusLost(java.awt.event.FocusEvent evt) {
@@ -304,7 +285,6 @@ public class RuleSettingsPanel extends JPanel {
                     config.set(rule.registryName, value, GameRulesConfig.ChangeSource.UI);
                 }
             } catch (NumberFormatException ex) {
-                // 忽略无效输入，或者重置为旧值
                 refreshUI();
             }
         }
@@ -318,16 +298,13 @@ public class RuleSettingsPanel extends JPanel {
         box.addActionListener(e -> {
             if (config != null) {
                 boolean newValue = box.isSelected();
-                // 触发主类的规则更改监听，Type为UI
                 config.set(rule.registryName, newValue, GameRulesConfig.ChangeSource.UI);
 
-                // 检查是否实际更改成功（处理依赖/冲突限制）
-                boolean actualValue = config.isRuleEnabled(rule.registryName);
+                boolean actualValue = config.getBoolean(rule.registryName);
                 if (actualValue != newValue) {
                     box.setSelected(actualValue);
                 }
 
-                // 刷新 UI 以更新其他复选框的启用/禁用状态（依赖关系）
                 refreshUI();
             }
         });
@@ -336,9 +313,6 @@ public class RuleSettingsPanel extends JPanel {
         return box;
     }
 
-    /**
-     * 设置所有玩法勾选框是否可用（如联网时客户端禁用）
-     */
     public static void setAllCheckboxesEnabled(boolean enabled) {
         for (JCheckBox box : registryNameToCheckBox.values()) {
             box.setEnabled(enabled);
@@ -348,17 +322,11 @@ public class RuleSettingsPanel extends JPanel {
         }
     }
 
-    /**
-     * 根据玩法注册名判断当前勾选框是否被选中（即玩法是否启用）
-     */
     public static boolean isEnabled(String registryName) {
         JCheckBox box = registryNameToCheckBox.get(registryName);
         return box != null && box.isSelected();
     }
     
-    /**
-     * 获取文本框的值
-     */
     public static String getValue(String registryName) {
         JTextField field = registryNameToTextField.get(registryName);
         return field != null ? field.getText() : null;

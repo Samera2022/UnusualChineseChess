@@ -73,7 +73,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // Record rule changes in history (except UI-related settings)
         if (key != null && !RuleRegistry.ALLOW_UNDO.registryName.equals(key) && !RuleRegistry.SHOW_HINTS.registryName.equals(key)) {
             int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
-            RuleChangeRecord record = new RuleChangeRecord(key, key, newVal, afterMoveIndex);
+            RuleChangeRecord record = new RuleChangeRecord(key, oldVal, newVal, afterMoveIndex);
             gameEngine.addRuleChangeToHistory(record);
             if (moveHistoryPanel != null) {
                 moveHistoryPanel.refreshHistory();
@@ -82,8 +82,13 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // don't forward network-originated changes back to peer
         if (key == null || source == GameRulesConfig.ChangeSource.NETWORK) return;
         synchronized (pendingDiffsLock) {
-            // 只允许 Boolean 类型，其他类型全部转为字符串
-                pendingDiffs.addProperty(key, newVal);
+            if (newVal instanceof Boolean) {
+                pendingDiffs.addProperty(key, (Boolean) newVal);
+            } else if (newVal instanceof Number) {
+                pendingDiffs.addProperty(key, (Number) newVal);
+            } else {
+                pendingDiffs.addProperty(key, String.valueOf(newVal));
+            }
         }
         SwingUtilities.invokeLater(this::sendSettingsSnapshotToClient);
     };

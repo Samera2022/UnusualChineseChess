@@ -154,8 +154,8 @@ public class GameStateExporter {
         for (RuleChangeRecord record : ruleChangeHistory) {
             JsonObject changeObj = new JsonObject();
             changeObj.addProperty("ruleKey", record.getRuleKey());
-            changeObj.addProperty("displayName", record.getDisplayName());
-            changeObj.addProperty("enabled", record.isEnabled());
+            changeObj.add("oldValue", gson.toJsonTree(record.getOldValue()));
+            changeObj.add("newValue", gson.toJsonTree(record.getNewValue()));
             changeObj.addProperty("afterMoveIndex", record.getAfterMoveIndex());
             ruleChanges.add(changeObj);
         }
