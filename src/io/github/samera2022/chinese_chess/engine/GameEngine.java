@@ -129,13 +129,8 @@ public class GameEngine {
         }
 
         Piece capturedPiece = board.getPiece(toRow, toCol);
-        List<Piece> capturedStack = board.getStack(toRow, toCol);
         boolean convertedCapture = false;
         boolean isStackingMove = false;
-        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
-        if (capturedStack.size() > 1) {
-            move.setCapturedStack(new ArrayList<>(capturedStack));
-        }
 
         if (rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
                 rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1 &&
@@ -143,9 +138,7 @@ public class GameEngine {
             int stackSize = board.getStackSize(toRow, toCol);
             if (stackSize < rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                 isStackingMove = true;
-                capturedPiece = null; // It's not a capture, it's a stack
-                move.setStacking(true);
-                move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
+                capturedPiece = null;
             }
         }
 
@@ -155,7 +148,7 @@ public class GameEngine {
             convertedCapture = true;
             board.setPiece(toRow, toCol, convertedPiece);
         } else if (capturedPiece != null && !isStackingMove) {
-            board.clearStack(toRow, toCol);
+            board.removePiece(toRow, toCol);
         }
 
         if (!convertedCapture) {
@@ -197,9 +190,14 @@ public class GameEngine {
             }
         }
 
+        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
         if (convertedCapture) {
             move.setCaptureConversion(true);
             move.setConvertedPiece(convertedPiece);
+        }
+        if (isStackingMove) {
+            move.setStacking(true);
+            move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
         }
         if (selectedStackIndex >= 0) {
             move.setSelectedStackIndex(selectedStackIndex);
@@ -298,19 +296,43 @@ public class GameEngine {
     }
 
     private void checkGameState() {
-        Piece redKing = board.getRedKing();
-        Piece blackKing = board.getBlackKing();
-
-        if (redKing == null) {
-            gameState = GameState.RED_CHECKMATE;
-        } else if (blackKing == null) {
-            gameState = GameState.BLACK_CHECKMATE;
-        } else if (checkDetector.isCheckmate(false)) {
-            gameState = GameState.BLACK_CHECKMATE;
-        } else if (checkDetector.isCheckmate(true)) {
-            gameState = GameState.RED_CHECKMATE;
+        if (rulesConfig.getBoolean(RuleRegistry.DEATH_MATCH_UNTIL_VICTORY.registryName)) {
+            int redPieces = 0;
+            int blackPieces = 0;
+            for (int r = 0; r < board.getRows(); r++) {
+                for (int c = 0; c < board.getCols(); c++) {
+                    Piece piece = board.getPiece(r, c);
+                    if (piece != null) {
+                        if (piece.isRed()) {
+                            redPieces++;
+                        } else {
+                            blackPieces++;
+                        }
+                    }
+                }
+            }
+            if (redPieces == 0) {
+                gameState = GameState.RED_CHECKMATE;
+            } else if (blackPieces == 0) {
+                gameState = GameState.BLACK_CHECKMATE;
+            } else {
+                return; // No change
+            }
         } else {
-            return; // No change
+            Piece redKing = board.getRedKing();
+            Piece blackKing = board.getBlackKing();
+
+            if (redKing == null) {
+                gameState = GameState.RED_CHECKMATE;
+            } else if (blackKing == null) {
+                gameState = GameState.BLACK_CHECKMATE;
+            } else if (checkDetector.isCheckmate(false)) {
+                gameState = GameState.BLACK_CHECKMATE;
+            } else if (checkDetector.isCheckmate(true)) {
+                gameState = GameState.RED_CHECKMATE;
+            } else {
+                return; // No change
+            }
         }
         notifyGameStateChanged();
     }
@@ -341,66 +363,39 @@ public class GameEngine {
         return true;
     }
 
-    public void undoMoveOnBoard(Move move) {
+    private void undoMoveOnBoard(Move move) {
         if (move == null) return;
         Piece movedPiece = move.getPiece();
         if (movedPiece == null) return;
 
-        // 1. Restore destination state
-        board.clearStack(move.getToRow(), move.getToCol()); // Clear the destination first
+        movedPiece.move(move.getFromRow(), move.getFromCol());
+        board.setPiece(move.getFromRow(), move.getFromCol(), movedPiece);
 
         if (move.isStacking()) {
-            // If it was a stacking move, restore the stack that was there before
+            board.clearStack(move.getToRow(), move.getToCol());
             List<Piece> stackBefore = move.getStackBefore();
             if (stackBefore != null) {
+                stackBefore.removeIf(p -> p.equals(movedPiece));
                 for (Piece p : stackBefore) {
                     board.pushToStack(move.getToRow(), move.getToCol(), p);
                 }
             }
-        } else if (move.getCapturedStack() != null) {
-            // If a whole stack was captured, restore it
-            for (Piece p : move.getCapturedStack()) {
-                board.pushToStack(move.getToRow(), move.getToCol(), p);
-            }
-        } else if (move.getCapturedPiece() != null) {
-            // If a single piece was captured, restore it
+        } else if (move.isCaptureConversion()) {
+            board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
+        } else {
             board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
         }
-        // If nothing was captured and it wasn't a stacking move, the destination remains empty.
 
-        // 2. Restore source state
-        movedPiece.move(move.getFromRow(), move.getFromCol());
-        
-        boolean carryEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
-        int selectedStackIndex = move.getSelectedStackIndex();
-
-        if (selectedStackIndex >= 0) {
-            // Move was from a stack
-            if (carryEnabled) {
-                // Carried move, moved pieces were at the top of the stack. Push them back in order.
-                board.pushToStack(move.getFromRow(), move.getFromCol(), movedPiece);
-                List<Piece> movedStack = move.getMovedStack();
-                if (movedStack != null && !movedStack.isEmpty()) {
-                    for (Piece p : movedStack) {
-                        p.move(move.getFromRow(), move.getFromCol());
-                        board.pushToStack(move.getFromRow(), move.getFromCol(), p);
-                    }
-                }
-            } else {
-                // Non-carried move, piece was extracted from the middle. Insert it back.
-                board.insertToStack(move.getFromRow(), move.getFromCol(), selectedStackIndex, movedPiece);
+        List<Piece> movedStack = move.getMovedStack();
+        if (movedStack != null && !movedStack.isEmpty()) {
+            for (Piece p : movedStack) {
+                p.move(move.getFromRow(), move.getFromCol());
+                board.pushToStack(move.getFromRow(), move.getFromCol(), p);
             }
-        } else {
-            // Normal move (not from a stack selection), usually means moving the top piece.
-            board.pushToStack(move.getFromRow(), move.getFromCol(), movedPiece);
         }
     }
 
     public void restart() {
-        // 1. Get a snapshot of the current rule values.
-        Map<String, Object> currentRules = rulesConfig.getAllValues();
-
-        // 2. Reset board and histories.
         board.reset();
         moveHistory.clear();
         ruleChangeHistory.clear();
@@ -410,27 +405,6 @@ public class GameEngine {
         savedInitialIsRedTurn = true;
         isInReplayMode = false;
         currentReplayStep = -1;
-
-        // 3. Compare current rules with defaults and record changes.
-        for (RuleRegistry rule : RuleRegistry.values()) {
-            Object currentValue = currentRules.get(rule.registryName);
-            Object defaultValue = rule.defaultValue;
-
-            boolean areEqual;
-            if (currentValue instanceof Number && defaultValue instanceof Number) {
-                areEqual = ((Number) currentValue).doubleValue() == ((Number) defaultValue).doubleValue();
-            } else {
-                areEqual = Objects.equals(currentValue, defaultValue);
-            }
-
-            if (!areEqual) {
-                // 4. Create and add the record for non-default rules.
-                RuleChangeRecord record = new RuleChangeRecord(rule.registryName, defaultValue, currentValue, -1);
-                ruleChangeHistory.add(record);
-            }
-        }
-
-        // 5. Notify UI to refresh.
         notifyGameStateChanged();
     }
 

@@ -41,7 +41,7 @@ public class GameRulesConfig {
         t.setDaemon(true);
         return t;
     });
-    private final ExecutorService listenerExecutor = Executors.newCachedThreadPool(r -> {
+    private final ExecutorService listenerExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RuleChangeListener");
         t.setDaemon(true);
         return t;
@@ -51,7 +51,7 @@ public class GameRulesConfig {
         resetToDefault();
     }
 
-    public void resetToDefault() {
+    public synchronized void resetToDefault() {
         ruleValues.clear();
         for (RuleRegistry rule : RuleRegistry.values()) {
             ruleValues.put(rule.registryName, rule.defaultValue);
@@ -59,7 +59,7 @@ public class GameRulesConfig {
         enforceRuleConsistency(ChangeSource.API);
     }
 
-    public void set(String registryName, Object value, ChangeSource source) {
+    public synchronized void set(String registryName, Object value, ChangeSource source) {
         Object oldValue = ruleValues.get(registryName);
         if (Objects.equals(oldValue, value)) {
             return;
@@ -71,32 +71,43 @@ public class GameRulesConfig {
         }
     }
 
-    public boolean getBoolean(String registryName) {
+    public synchronized boolean getBoolean(String registryName) {
         Object value = ruleValues.get(registryName);
         if (value instanceof Boolean) {
             return (Boolean) value;
         }
+        if (value instanceof String) {
+            return Boolean.parseBoolean((String) value);
+        }
         return false;
     }
 
-    public int getInt(String registryName) {
+    public synchronized int getInt(String registryName) {
         Object value = ruleValues.get(registryName);
         if (value instanceof Number) {
             return ((Number) value).intValue();
         }
+        if (value instanceof String) {
+            try {
+                // Try parsing as double first to handle "16.0"
+                return (int) Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
         return 0;
     }
 
-    public String getString(String registryName) {
+    public synchronized String getString(String registryName) {
         Object value = ruleValues.get(registryName);
         return value != null ? String.valueOf(value) : null;
     }
 
-    public Map<String, Object> getAllValues() {
+    public synchronized Map<String, Object> getAllValues() {
         return new HashMap<>(ruleValues);
     }
 
-    private void enforceRuleConsistency(ChangeSource source) {
+    private synchronized void enforceRuleConsistency(ChangeSource source) {
         boolean iterationChanged;
         do {
             iterationChanged = false;
@@ -104,8 +115,16 @@ public class GameRulesConfig {
 
             for (RuleRegistry rule : RuleRegistry.values()) {
                 String registryName = rule.registryName;
-                
-                if (getBoolean(registryName) && !rule.canBeEnabled(currentValuesSnapshot)) {
+
+                Object value = currentValuesSnapshot.get(registryName);
+                boolean isEnabled = false;
+                if (value instanceof Boolean) {
+                    isEnabled = (Boolean) value;
+                } else if (value instanceof String) {
+                    isEnabled = Boolean.parseBoolean((String) value);
+                }
+
+                if (isEnabled && !rule.canBeEnabled(currentValuesSnapshot)) {
                     set(registryName, false, source);
                     iterationChanged = true;
                 }
@@ -149,7 +168,7 @@ public class GameRulesConfig {
         }
     }
 
-    public JsonObject toJson() {
+    public synchronized JsonObject toJson() {
         JsonObject json = new JsonObject();
         for (Map.Entry<String, Object> entry : ruleValues.entrySet()) {
             String key = entry.getKey();
@@ -165,7 +184,7 @@ public class GameRulesConfig {
         return json;
     }
 
-    public void applySnapshot(JsonObject snapshot, ChangeSource source) {
+    public synchronized void applySnapshot(JsonObject snapshot, ChangeSource source) {
         if (snapshot == null) return;
         
         for (Map.Entry<String, JsonElement> entry : snapshot.entrySet()) {

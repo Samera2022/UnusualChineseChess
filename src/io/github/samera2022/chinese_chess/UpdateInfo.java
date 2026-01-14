@@ -97,7 +97,14 @@ public enum UpdateInfo {
                     "## [Changed]\n" +
                     " - 大规模重构底层结构，重点重构了“玩法创建”的相关逻辑。新版本的玩法注册逻辑可参照docs/如何创建新玩法(2.X.X)。\n" +
                     " - 修改了相关玩法的注册名，这使得无法同1.X.X版本的带有玩法的联机进行兼容（1.3.0版本除外）。\n" +
-                    "注：玩法注册名的修改是从1.3.0开始的，这使得1.3.0无法同前面版本进行带有玩法的联机兼容。");
+                    "注：玩法注册名的修改是从1.3.0开始的，这使得1.3.0无法同前面版本进行带有玩法的联机兼容。"),
+    VERSION_2_0_1("2.0.1","2026-01-14 20:42",
+                    "## [Fixed]\n" +
+                    " - 修复残局导入的异常。\n" +
+                    " - 修复玩家胜利的判断逻辑。\n" +
+                    " - 修复正常移动到己方底线的“允许己方底线底线晋升”的棋子转换。\n\n" +
+                    "## [Warn]\n" +
+                    " - “堆叠棋子”被发现具有很多潜在的问题，但目前尚无法被解决。");
     private final String version;
     private final String releaseDate;
     private final String description;
@@ -183,6 +190,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_2_0_0.getFormattedLog());
+        System.out.println(VERSION_2_0_1.getFormattedLog());
     }
 }

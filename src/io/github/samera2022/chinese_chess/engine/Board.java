@@ -38,24 +38,17 @@ public class Board {
         stacks.clear();
 
         // 初始化黑方（顶部，行 0-4）
-        // 黑方王（将）
         addPiece(0, 4, Piece.Type.BLACK_KING);
-        // 黑方士
         addPiece(0, 3, Piece.Type.BLACK_ADVISOR);
         addPiece(0, 5, Piece.Type.BLACK_ADVISOR);
-        // 黑方象
         addPiece(0, 2, Piece.Type.BLACK_ELEPHANT);
         addPiece(0, 6, Piece.Type.BLACK_ELEPHANT);
-        // 黑方马
         addPiece(0, 1, Piece.Type.BLACK_HORSE);
         addPiece(0, 7, Piece.Type.BLACK_HORSE);
-        // 黑方车
         addPiece(0, 0, Piece.Type.BLACK_CHARIOT);
         addPiece(0, 8, Piece.Type.BLACK_CHARIOT);
-        // 黑方炮
         addPiece(2, 1, Piece.Type.BLACK_CANNON);
         addPiece(2, 7, Piece.Type.BLACK_CANNON);
-        // 黑方兵
         addPiece(3, 0, Piece.Type.BLACK_SOLDIER);
         addPiece(3, 2, Piece.Type.BLACK_SOLDIER);
         addPiece(3, 4, Piece.Type.BLACK_SOLDIER);
@@ -63,24 +56,17 @@ public class Board {
         addPiece(3, 8, Piece.Type.BLACK_SOLDIER);
 
         // 初始化红方（底部，行 5-9）
-        // 红方王（帅）
         addPiece(9, 4, Piece.Type.RED_KING);
-        // 红方士
         addPiece(9, 3, Piece.Type.RED_ADVISOR);
         addPiece(9, 5, Piece.Type.RED_ADVISOR);
-        // 红方象
         addPiece(9, 2, Piece.Type.RED_ELEPHANT);
         addPiece(9, 6, Piece.Type.RED_ELEPHANT);
-        // 红方马
         addPiece(9, 1, Piece.Type.RED_HORSE);
         addPiece(9, 7, Piece.Type.RED_HORSE);
-        // 红方车
         addPiece(9, 0, Piece.Type.RED_CHARIOT);
         addPiece(9, 8, Piece.Type.RED_CHARIOT);
-        // 红方炮
         addPiece(7, 1, Piece.Type.RED_CANNON);
         addPiece(7, 7, Piece.Type.RED_CANNON);
-        // 红方兵
         addPiece(6, 0, Piece.Type.RED_SOLDIER);
         addPiece(6, 2, Piece.Type.RED_SOLDIER);
         addPiece(6, 4, Piece.Type.RED_SOLDIER);
@@ -122,7 +108,9 @@ public class Board {
     public void setPiece(int row, int col, Piece piece) {
         if (!isValid(row, col)) return;
         clearStack(row, col);
-        if (piece != null) pushToStack(row, col, piece);
+        if (piece != null) {
+            pushToStack(row, col, piece);
+        }
     }
 
     public void removePiece(int row, int col) {
@@ -131,12 +119,16 @@ public class Board {
     }
 
     public void pushToStack(int row, int col, Piece piece) {
-        if (!isValid(row, col)) return;
+        if (!isValid(row, col) || piece == null) return;
+        piece.move(row, col); // Ensure piece's internal coordinates are updated
         Deque<Piece> dq = stackOf(row, col);
         dq.addLast(piece);
         board[row][col] = dq.peekLast();
-        if (piece.isRed()) redPieces.add(piece);
-        else blackPieces.add(piece);
+        if (piece.isRed()) {
+            if (!redPieces.contains(piece)) redPieces.add(piece);
+        } else {
+            if (!blackPieces.contains(piece)) blackPieces.add(piece);
+        }
     }
 
     public Piece popTop(int row, int col) {
@@ -144,6 +136,7 @@ public class Board {
         Deque<Piece> dq = stacks.get(key(row, col));
         if (dq == null || dq.isEmpty()) return null;
         Piece p = dq.removeLast();
+        p.move(-1, -1); // Mark as off-board
         if (p.isRed()) redPieces.remove(p);
         else blackPieces.remove(p);
         board[row][col] = dq.peekLast();
@@ -151,48 +144,30 @@ public class Board {
         return p;
     }
 
-    /**
-     * 从堆栈中移除指定索引的棋子
-     * @param row 行
-     * @param col 列
-     * @param index 要移除的棋子索引（0为底部）
-     * @return 被移除的棋子，如果索引无效则返回null
-     */
     public Piece removeFromStack(int row, int col, int index) {
         if (!isValid(row, col)) return null;
         Deque<Piece> dq = stacks.get(key(row, col));
         if (dq == null || dq.isEmpty() || index < 0 || index >= dq.size()) return null;
 
-        // 将堆栈转换为列表以便按索引访问
         java.util.List<Piece> list = new java.util.ArrayList<>(dq);
         Piece removed = list.remove(index);
+        removed.move(-1, -1); // Mark as off-board
 
-        // 更新棋子列表
         if (removed.isRed()) redPieces.remove(removed);
         else blackPieces.remove(removed);
 
-        // 重建堆栈
         dq.clear();
         dq.addAll(list);
 
-        // 更新棋盘顶部棋子
         board[row][col] = dq.peekLast();
-
-        // 如果堆栈为空，移除键
         if (dq.isEmpty()) stacks.remove(key(row, col));
 
         return removed;
     }
 
-    /**
-     * 将棋子插入到堆栈的指定索引位置
-     * @param row 行
-     * @param col 列
-     * @param index 插入位置索引
-     * @param piece 要插入的棋子
-     */
     public void insertToStack(int row, int col, int index, Piece piece) {
         if (!isValid(row, col) || piece == null) return;
+        piece.move(row, col); // Ensure piece's internal coordinates are updated
         Deque<Piece> dq = stackOf(row, col);
         
         if (index < 0) index = 0;
@@ -201,8 +176,11 @@ public class Board {
         java.util.List<Piece> list = new java.util.ArrayList<>(dq);
         list.add(index, piece);
 
-        if (piece.isRed()) redPieces.add(piece);
-        else blackPieces.add(piece);
+        if (piece.isRed()) {
+            if (!redPieces.contains(piece)) redPieces.add(piece);
+        } else {
+            if (!blackPieces.contains(piece)) blackPieces.add(piece);
+        }
 
         dq.clear();
         dq.addAll(list);
@@ -214,6 +192,7 @@ public class Board {
         Deque<Piece> dq = stacks.remove(key(row, col));
         if (dq != null) {
             for (Piece p : dq) {
+                p.move(-1, -1); // Mark as off-board
                 if (p.isRed()) redPieces.remove(p);
                 else blackPieces.remove(p);
             }
@@ -266,9 +245,6 @@ public class Board {
         stacks.clear();
     }
 
-    /**
-     * 创建棋盘的深拷贝
-     */
     public Board deepCopy() {
         Board copy = new Board();
         copy.clearBoard();
