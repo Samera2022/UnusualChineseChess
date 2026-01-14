@@ -397,6 +397,10 @@ public class GameEngine {
     }
 
     public void restart() {
+        // 1. Get a snapshot of the current rule values.
+        Map<String, Object> currentRules = rulesConfig.getAllValues();
+
+        // 2. Reset board and histories.
         board.reset();
         moveHistory.clear();
         ruleChangeHistory.clear();
@@ -406,6 +410,27 @@ public class GameEngine {
         savedInitialIsRedTurn = true;
         isInReplayMode = false;
         currentReplayStep = -1;
+
+        // 3. Compare current rules with defaults and record changes.
+        for (RuleRegistry rule : RuleRegistry.values()) {
+            Object currentValue = currentRules.get(rule.registryName);
+            Object defaultValue = rule.defaultValue;
+
+            boolean areEqual;
+            if (currentValue instanceof Number && defaultValue instanceof Number) {
+                areEqual = ((Number) currentValue).doubleValue() == ((Number) defaultValue).doubleValue();
+            } else {
+                areEqual = Objects.equals(currentValue, defaultValue);
+            }
+
+            if (!areEqual) {
+                // 4. Create and add the record for non-default rules.
+                RuleChangeRecord record = new RuleChangeRecord(rule.registryName, defaultValue, currentValue, -1);
+                ruleChangeHistory.add(record);
+            }
+        }
+
+        // 5. Notify UI to refresh.
         notifyGameStateChanged();
     }
 
