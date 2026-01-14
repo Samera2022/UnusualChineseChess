@@ -750,12 +750,14 @@ public class BoardPanel extends JPanel {
         }
 
         // 绘制可能的移动 - 在交点上显示
-        g2d.setColor(VALID_MOVE_COLOR);
-        for (Point p : validMoves) {
-            int[] display = logicToDisplay(p.x, p.y);
-            int moveX = display[1] * cellSize;
-            int moveY = display[0] * cellSize;
-            g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
+        if (rulesConfig.getBoolean(RuleRegistry.SHOW_HINTS.registryName)) {
+            g2d.setColor(VALID_MOVE_COLOR);
+            for (Point p : validMoves) {
+                int[] display = logicToDisplay(p.x, p.y);
+                int moveX = display[1] * cellSize;
+                int moveY = display[0] * cellSize;
+                g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
+            }
         }
 
         // 绘制强制走子指示器
