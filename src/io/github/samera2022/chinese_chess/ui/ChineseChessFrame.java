@@ -189,7 +189,8 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     }
                 } else {
                     // 本地模式：直接执行强制走子
-                    gameEngine.forceApplyMove(fromRow, fromCol, toRow, toCol, null, boardPanel.getSelectedStackIndex());
+                    Piece.Type promotionType = resolveForcePromotionType(fromRow, fromCol, toRow, toCol);
+                    gameEngine.forceApplyMove(fromRow, fromCol, toRow, toCol, promotionType, boardPanel.getSelectedStackIndex());
                     boardPanel.clearSelection();
                     boardPanel.clearForceMoveIndicator();
                     boardPanel.repaint();
