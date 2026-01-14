@@ -90,7 +90,7 @@ public enum UpdateInfo {
                     " - 增加“强制走子”和联机时的“规则改变”到“着法记录”中。现在上述的两个内容将会在客户端和服务端的“着法记录”中显示，并可正常导出到残局中。\n\n" +
                     "## [Fixed]\n" +
                     " - 修复联机与本地环境下鼠标左键对于双方“堆叠棋子”的行为。"),
-    VERSION_2_0_0("2.0.0","2026-01-14 13:12",
+    VERSION_2_0_0("2.0.0","2026-01-14 14:10",
                     "## [Added]\n" +
                     " - 恢复了先前版本中的“显示提示”勾选框。\n" +
                     " - 将“强制走子”纳入玩法的可选项。\n\n" +
@@ -183,6 +183,6 @@ public enum UpdateInfo {
     }
 
     public static void main(String[] args) {
-        System.out.println(VERSION_1_3_0.getFormattedLog());
+        System.out.println(VERSION_2_0_0.getFormattedLog());
     }
 }
