@@ -131,6 +131,7 @@ public class GameEngine {
         Piece capturedPiece = board.getPiece(toRow, toCol);
         boolean convertedCapture = false;
         boolean isStackingMove = false;
+        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
         if (rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) &&
                 rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1 &&
@@ -138,7 +139,9 @@ public class GameEngine {
             int stackSize = board.getStackSize(toRow, toCol);
             if (stackSize < rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)) {
                 isStackingMove = true;
-                capturedPiece = null;
+                capturedPiece = null; // It's not a capture, it's a stack
+                move.setStacking(true);
+                move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
             }
         }
 
@@ -182,20 +185,17 @@ public class GameEngine {
 
         if (!convertedCapture && rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName) &&
                 (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
-            boolean isAtBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
-            if (isAtBaseLine && promotionType != null) {
+            boolean isAtOpponentBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
+            boolean isAtOwnBaseLine = (piece.isRed() && toRow == 9) || (!piece.isRed() && toRow == 0);
+            boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName);
+            if ((isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine)) && promotionType != null) {
                 board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
             }
         }
 
-        Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
         if (convertedCapture) {
             move.setCaptureConversion(true);
             move.setConvertedPiece(convertedPiece);
-        }
-        if (isStackingMove) {
-            move.setStacking(true);
-            move.setStackBefore(new ArrayList<>(board.getStack(toRow, toCol)));
         }
         if (selectedStackIndex >= 0) {
             move.setSelectedStackIndex(selectedStackIndex);
@@ -342,14 +342,11 @@ public class GameEngine {
         Piece movedPiece = move.getPiece();
         if (movedPiece == null) return;
 
-        movedPiece.move(move.getFromRow(), move.getFromCol());
-        board.setPiece(move.getFromRow(), move.getFromCol(), movedPiece);
-
+        // 1. Restore destination state
         if (move.isStacking()) {
             board.clearStack(move.getToRow(), move.getToCol());
             List<Piece> stackBefore = move.getStackBefore();
             if (stackBefore != null) {
-                stackBefore.removeIf(p -> p.equals(movedPiece));
                 for (Piece p : stackBefore) {
                     board.pushToStack(move.getToRow(), move.getToCol(), p);
                 }
@@ -360,12 +357,31 @@ public class GameEngine {
             board.setPiece(move.getToRow(), move.getToCol(), move.getCapturedPiece());
         }
 
-        List<Piece> movedStack = move.getMovedStack();
-        if (movedStack != null && !movedStack.isEmpty()) {
-            for (Piece p : movedStack) {
-                p.move(move.getFromRow(), move.getFromCol());
-                board.pushToStack(move.getFromRow(), move.getFromCol(), p);
+        // 2. Restore source state
+        movedPiece.move(move.getFromRow(), move.getFromCol());
+        
+        boolean carryEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
+        int selectedStackIndex = move.getSelectedStackIndex();
+
+        if (selectedStackIndex >= 0) {
+            // Move was from a stack
+            if (carryEnabled) {
+                // Carried move, moved pieces were at the top of the stack. Push them back in order.
+                board.pushToStack(move.getFromRow(), move.getFromCol(), movedPiece);
+                List<Piece> movedStack = move.getMovedStack();
+                if (movedStack != null && !movedStack.isEmpty()) {
+                    for (Piece p : movedStack) {
+                        p.move(move.getFromRow(), move.getFromCol());
+                        board.pushToStack(move.getFromRow(), move.getFromCol(), p);
+                    }
+                }
+            } else {
+                // Non-carried move, piece was extracted from the middle. Insert it back.
+                board.insertToStack(move.getFromRow(), move.getFromCol(), selectedStackIndex, movedPiece);
             }
+        } else {
+            // Normal move (not from a stack selection), usually means moving the top piece.
+            board.pushToStack(move.getFromRow(), move.getFromCol(), movedPiece);
         }
     }
 

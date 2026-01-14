@@ -184,6 +184,31 @@ public class Board {
         return removed;
     }
 
+    /**
+     * 将棋子插入到堆栈的指定索引位置
+     * @param row 行
+     * @param col 列
+     * @param index 插入位置索引
+     * @param piece 要插入的棋子
+     */
+    public void insertToStack(int row, int col, int index, Piece piece) {
+        if (!isValid(row, col) || piece == null) return;
+        Deque<Piece> dq = stackOf(row, col);
+        
+        if (index < 0) index = 0;
+        if (index > dq.size()) index = dq.size();
+
+        java.util.List<Piece> list = new java.util.ArrayList<>(dq);
+        list.add(index, piece);
+
+        if (piece.isRed()) redPieces.add(piece);
+        else blackPieces.add(piece);
+
+        dq.clear();
+        dq.addAll(list);
+        board[row][col] = dq.peekLast();
+    }
+
     public void clearStack(int row, int col) {
         if (!isValid(row, col)) return;
         Deque<Piece> dq = stacks.remove(key(row, col));
