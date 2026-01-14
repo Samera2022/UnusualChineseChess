@@ -24,10 +24,11 @@ public class GameRulesConfig {
     private final Map<String, Object> ruleValues = new HashMap<>();
 
     public enum ChangeSource {
-        UI,       // changes originated from local UI actions
-        NETWORK,  // changes applied from network snapshots
-        API,      // programmatic changes (internal code)
-        UNDO      // changes from an undo operation
+        UI,
+        NETWORK,
+        API,
+        UNDO,
+        INTERNAL_CONSISTENCY
     }
 
     public interface RuleChangeListener {
@@ -65,7 +66,9 @@ public class GameRulesConfig {
         }
         ruleValues.put(registryName, value);
         notifyRuleChange(registryName, oldValue, value, source);
-        enforceRuleConsistency(source);
+        if (source != ChangeSource.INTERNAL_CONSISTENCY) {
+            enforceRuleConsistency(ChangeSource.INTERNAL_CONSISTENCY);
+        }
     }
 
     public boolean getBoolean(String registryName) {
@@ -93,8 +96,7 @@ public class GameRulesConfig {
         return new HashMap<>(ruleValues);
     }
 
-    private boolean enforceRuleConsistency(ChangeSource source) {
-        boolean changedAny = false;
+    private void enforceRuleConsistency(ChangeSource source) {
         boolean iterationChanged;
         do {
             iterationChanged = false;
@@ -102,33 +104,13 @@ public class GameRulesConfig {
 
             for (RuleRegistry rule : RuleRegistry.values()) {
                 String registryName = rule.registryName;
-                Object currentValue = ruleValues.get(registryName);
-
-                // Check dependencies
-                for (String dep : rule.dependentRegistryNames) {
-                    if (!getBoolean(dep)) {
-                        if (getBoolean(registryName)) {
-                            set(registryName, false, source);
-                            iterationChanged = true;
-                            changedAny = true;
-                        }
-                    }
-                }
-
-                // Check conflicts
-                for (String conf : rule.conflictRegistryNames) {
-                    if (getBoolean(conf)) {
-                        if (getBoolean(registryName)) {
-                            set(registryName, false, source);
-                            iterationChanged = true;
-                            changedAny = true;
-                        }
-                    }
+                
+                if (getBoolean(registryName) && !rule.canBeEnabled(currentValuesSnapshot)) {
+                    set(registryName, false, source);
+                    iterationChanged = true;
                 }
             }
         } while (iterationChanged);
-
-        return changedAny;
     }
 
     public void addRuleChangeListener(RuleChangeListener l) {
@@ -183,21 +165,30 @@ public class GameRulesConfig {
         return json;
     }
 
-    public void loadFromJson(JsonObject json) {
-        if (json == null) return;
-        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+    public void applySnapshot(JsonObject snapshot, ChangeSource source) {
+        if (snapshot == null) return;
+        
+        for (Map.Entry<String, JsonElement> entry : snapshot.entrySet()) {
             String key = entry.getKey();
             JsonElement el = entry.getValue();
             if (el.isJsonPrimitive()) {
+                Object newValue = null;
                 if (el.getAsJsonPrimitive().isBoolean()) {
-                    set(key, el.getAsBoolean(), ChangeSource.UI);
+                    newValue = el.getAsBoolean();
                 } else if (el.getAsJsonPrimitive().isNumber()) {
-                    set(key, el.getAsNumber(), ChangeSource.UI);
+                    newValue = el.getAsNumber();
                 } else {
-                    set(key, el.getAsString(), ChangeSource.UI);
+                    newValue = el.getAsString();
+                }
+                
+                Object oldValue = ruleValues.get(key);
+                if (!Objects.equals(oldValue, newValue)) {
+                    ruleValues.put(key, newValue);
+                    notifyRuleChange(key, oldValue, newValue, source);
                 }
             }
         }
+        enforceRuleConsistency(ChangeSource.INTERNAL_CONSISTENCY);
     }
 
     public void shutdown() {

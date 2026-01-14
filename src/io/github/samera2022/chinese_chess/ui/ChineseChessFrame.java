@@ -70,6 +70,10 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
     // named listeners so they can be migrated when provider replaces the instance
     private final GameRulesConfig.RuleChangeListener rulesChangeListener = (key, oldVal, newVal, source) -> {
+        if (source == GameRulesConfig.ChangeSource.INTERNAL_CONSISTENCY) {
+            return; // Do not record internal consistency changes
+        }
+
         // Record rule changes in history (except UI-related settings)
         if (key != null && !RuleRegistry.ALLOW_UNDO.registryName.equals(key) && !RuleRegistry.SHOW_HINTS.registryName.equals(key)) {
             int afterMoveIndex = gameEngine.getMoveHistory().size() - 1;
@@ -312,7 +316,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         }
                     }
 
-                    setRuleSettingsEnabled(!netController.isHost());
+                    setRuleSettingsEnabled(netController.isHost());
                     ruleSettingsPanel.refreshUI();
                     updateStatus();
                 });

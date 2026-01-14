@@ -114,7 +114,7 @@ public class RuleSettingsPanel extends JPanel {
 
             try {
                 com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(jsonStr).getAsJsonObject();
-                config.loadFromJson(json);
+                config.applySnapshot(json, GameRulesConfig.ChangeSource.UI);
                 // 显式刷新 UI 以确保万无一失
                 refreshUI();
                 JOptionPane.showMessageDialog(this, "配置已成功导入！", "成功", JOptionPane.INFORMATION_MESSAGE);
@@ -137,6 +137,7 @@ public class RuleSettingsPanel extends JPanel {
 
     public void refreshUI() {
         if (config == null) return;
+        boolean isPanelEnabled = isEnabled(); // Check if the whole panel is enabled
         Map<String, Object> allValues = config.getAllValues();
         for (RuleRegistry rule : RuleRegistry.values()) {
             if (rule.type == Consts.CHECK_BOX) {
@@ -146,7 +147,7 @@ public class RuleSettingsPanel extends JPanel {
                     if (box.isSelected() != target) {
                         box.setSelected(target);
                     }
-                    box.setEnabled(rule.canBeEnabled(allValues));
+                    box.setEnabled(isPanelEnabled && rule.canBeEnabled(allValues));
                 }
             } else if (rule.type == Consts.TEXT_AREA) {
                 JTextField field = registryNameToTextField.get(rule.registryName);
@@ -158,7 +159,7 @@ public class RuleSettingsPanel extends JPanel {
                         }
                     } catch (Exception ignored) {}
                     
-                    field.setEnabled(rule.canBeEnabled(allValues));
+                    field.setEnabled(isPanelEnabled && rule.canBeEnabled(allValues));
                 }
             }
         }
