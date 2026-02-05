@@ -75,14 +75,36 @@ jobs:
           ./.build/jpackage_build.ps1 -Type exe
           
           Write-Host "All packaging steps completed." -ForegroundColor Green
-
+      - name: Generate Changelog from JSON
+        id: changelog_gen
+        shell: pwsh
+        run: |
+            $targetVersion = "${{ github.ref_name }}"
+            $jsonPath = "resources/updates.json"
+            if (-not (Test-Path $jsonPath)) {
+                "Release for $targetVersion" | Out-File -FilePath release_body.txt
+                exit 0
+            }
+            $updates = Get-Content $jsonPath -Raw | ConvertFrom-Json
+            $entry = $updates."$targetVersion"
+            
+            if ($null -eq $entry) {
+                Write-Host "Warning: Version $targetVersion not found in updates.json" -ForegroundColor Yellow
+                $finalLog = "Release for version $targetVersion"
+            } else {
+                $date = $entry.releaseDate
+                $desc = $entry.description
+                $finalLog = "[$date] $targetVersion`n`n$desc"
+            }
+            $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
+            [System.IO.File]::WriteAllLines("$(Get-Location)/release_body.txt", $finalLog, $Utf8NoBomEncoding)
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          name: ${BaseName} Release ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release_body.txt
           draft: false
           prerelease: false
-          generate_release_notes: true
           files: |
             output/*.jar
             output/*.zip
