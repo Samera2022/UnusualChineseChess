@@ -1,0 +1,91 @@
+name: Official Release Build
+
+on:
+  push:
+    tags:
+      - '[0-9]*'
+  workflow_dispatch:
+jobs:
+  build-and-release:
+    name: Build All Formats and Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'liberica'
+
+      - name: Install WiX Toolset
+        run: choco install wixtoolset
+
+      - name: Install Enigma Virtual Box
+        shell: pwsh
+        run: |
+          Write-Host "Downloading Enigma Virtual Box..." -ForegroundColor Cyan
+          curl -L -o evb_setup.exe https://enigmaprotector.com/assets/files/enigmavb.exe
+          Write-Host "Installing EVB silently..." -ForegroundColor Cyan
+          Start-Process -FilePath .\evb_setup.exe -ArgumentList '/S' -Wait
+          
+          if (Test-Path "C:\Program Files (x86)\Enigma Virtual Box\enigmavbconsole.exe") {
+              Write-Host "EVB Installed Successfully!" -ForegroundColor Green
+          } else {
+              Write-Host "Failed to install EVB." -ForegroundColor Red
+              exit 1
+          }
+      - name: Build Source Code
+        shell: pwsh
+        run: |
+          $props = Get-Content ".build/properties.json" | ConvertFrom-Json
+          $BaseName    = $props.name
+          New-Item -ItemType Directory -Path "out/production/${BaseName}" -Force
+          New-Item -ItemType Directory -Path "out/artifacts/${BaseName}_jar" -Force
+
+          $CLASSPATH = ".;lib/*" 
+          Write-Host "Compiling Java source files..." -ForegroundColor Cyan
+          $javaFiles = Get-ChildItem -Recurse src/*.java | Select-Object -ExpandProperty FullName
+          javac -encoding UTF-8 -d out/production/${BaseName} $javaFiles
+
+          Write-Host "Packaging into JAR..." -ForegroundColor Cyan
+          jar --create --file out/artifacts/${BaseName}_jar/${BaseName}.jar --main-class io.github.samera2022.chinese_chess.ChineseChess .
+          
+          if (Test-Path "out/artifacts/${BaseName}_jar/${BaseName}.jar") {
+             Write-Host "Successfully built JAR!" -ForegroundColor Green
+          } else {
+             Write-Host "Failed to build JAR." -ForegroundColor Red
+             exit 1
+          }
+
+      - name: Execute All Packaging Scripts
+        shell: pwsh
+        env:
+          MSI_WIN_UPGRADE_UUID: ${{ secrets.WIX_UPGRADE_UUID }}
+          MSIX_WIN_PY_PACKAGE_NAME: ${{ secrets.MSIX_PACKAGE_NAME }}
+          MSIX_WIN_PY_PUBLISHER_NAME: ${{ secrets.MSIX_PUBLISHER_ID }}
+          MSIX_WIN_PY_PUBLISHER_DISPLAY_NAME: ${{ secrets.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          Write-Host "Starting Multi-format Packaging..." -ForegroundColor Magenta
+          
+          ./.build/jpackage_build.ps1 -Type jar
+          ./.build/jpackage_build.ps1 -Type zip
+          ./.build/jpackage_build.ps1 -Type exe
+          
+          Write-Host "All packaging steps completed." -ForegroundColor Green
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${BaseName} Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            output/*.jar
+            output/*.zip
+            output/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
