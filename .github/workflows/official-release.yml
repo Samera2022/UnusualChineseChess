@@ -26,24 +26,7 @@ jobs:
         run: choco install wixtoolset
 
       - name: Install Enigma Virtual Box
-        shell: pwsh
-        run: |
-          curl -L -o evb_setup.exe https://enigmaprotector.com/assets/files/enigmavb.exe
-        
-          Write-Host "Starting installation..." -ForegroundColor Cyan
-          $process = Start-Process -FilePath .\evb_setup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -PassThru
-          
-          $process | Wait-Process -Timeout 180 -ErrorAction SilentlyContinue
-          
-          Stop-Process -Name "evb_setup" -ErrorAction SilentlyContinue
-          
-          $EVB_CONSOLE = "C:\Program Files (x86)\Enigma Virtual Box\enigmavbconsole.exe"
-          if (Test-Path $EVB_CONSOLE) {
-            Write-Host "SUCCESS: EVB is physically located at $EVB_CONSOLE" -ForegroundColor Green
-          } else {
-            Write-Host "CRITICAL ERROR: EVB files were not written to disk!" -ForegroundColor Red
-            exit 1
-          }
+        run: choco install enigmavirtualbox --no-progress
       - name: Build with Maven
         run: mvn clean package -DskipTests
       - name: Execute All Packaging Scripts
