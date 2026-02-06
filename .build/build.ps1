@@ -26,29 +26,24 @@ if (-not (Test-Path "custom-jre")) {
           --strip-debug --compress 2 --no-header-files --no-man-pages
 }
 
-# 4. 执行分支逻辑
 switch ($Type) {
     "jar" {
-        Copy-Item "target/${BaseName}_jar/${BaseName}.jar" "$OUT_DIR\$FullName.jar"
+        Copy-Item "$PROJECT_ROOT\target\${BaseName}.jar" "$OUT_DIR\$FullName.jar"
     }
 
     "zip" {
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --icon "$IconPath" `
-                 --input "target/${BaseName}_jar" --main-jar "${BaseName}.jar" `
+                 --input "$PROJECT_ROOT\target" --main-jar "${BaseName}.jar" `
                  --runtime-image "custom-jre" --dest "output/temp_zip"
         Compress-Archive -Path "output/temp_zip/$BaseName" -DestinationPath "$OUT_DIR\$FullName.zip" -Force
     }
 
     "exe" {
-        Write-Host "[DEBUG] --- Environment Info ---" -ForegroundColor Gray
-        Write-Host "Current Directory: $(Get-Location)" -ForegroundColor Gray
-
-        # 1. 准备 app-image 环境
         Write-Host "[EXE] Step 1: Generating app-image..." -ForegroundColor Cyan
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --copyright $Copyright --icon "$IconPath" `
-                 --input "target/${BaseName}_jar" --main-jar "${BaseName}.jar" `
+                 --input "$PROJECT_ROOT\target" --main-jar "${BaseName}.jar" `
                  --runtime-image "custom-jre" --dest "output/temp_exe"
 
         # --- 【硬核调试开始】 ---
