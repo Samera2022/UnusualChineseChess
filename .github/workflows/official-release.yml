@@ -23,10 +23,9 @@ jobs:
           architecture: x64
 
       - name: Install WiX Toolset
-        run: choco install wixtoolset
-
+        run: choco install wixtoolset --ignore-checksums -y
       - name: Install Enigma Virtual Box
-        run: choco install enigmavirtualbox --no-progress
+        run: choco install enigmavirtualbox --no-progress --ignore-checksums -y
       - name: Build with Maven
         run: mvn clean package -DskipTests
       - name: Execute All Packaging Scripts
