@@ -75,9 +75,9 @@ jobs:
         run: |
           Write-Host "Starting Multi-format Packaging..." -ForegroundColor Magenta
           
-          ./.build/jpackage_build.ps1 -Type jar
-          ./.build/jpackage_build.ps1 -Type zip
-          ./.build/jpackage_build.ps1 -Type exe
+          ./.build/build.ps1 -Type jar
+          ./.build/build.ps1 -Type zip
+          ./.build/build.ps1 -Type exe
           
           Write-Host "All packaging steps completed." -ForegroundColor Green
       - name: Generate Changelog from JSON
