@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/github/v/release/Samera2022/UnusualChineseChess" alt="Latest Release">
   <img src="https://img.shields.io/github/v/release/Samera2022/UnusualChineseChess?include_prereleases&label=pre-release&color=orange" alt="Pre-Release">
   <br>
-  <img src="https://img.shields.io/github/actions/workflow/status/Samera2022/UnusualChineseChess/official-release.yml" alt="Build Status">
+  <img src="https://img.shields.io/github/actions/workflow/status/Samera2022/UnusualChineseChess/official-release.yml?label=CI/CD" alt="Build Status">
   <a href="https://deepwiki.com/Samera2022/UnusualChineseChess"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
