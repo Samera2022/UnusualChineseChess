@@ -43,29 +43,8 @@ jobs:
             Write-Host "CRITICAL ERROR: EVB files were not written to disk!" -ForegroundColor Red
             exit 1
           }
-      - name: Build Source Code
-        shell: pwsh
-        run: |
-          $props = Get-Content ".build/properties.json" | ConvertFrom-Json
-          $BaseName    = $props.name
-          New-Item -ItemType Directory -Path "out/production/${BaseName}" -Force
-          New-Item -ItemType Directory -Path "out/artifacts/${BaseName}_jar" -Force
-
-          $CLASSPATH = ".;lib/*" 
-          Write-Host "Compiling Java source files..." -ForegroundColor Cyan
-          $javaFiles = Get-ChildItem -Recurse src/*.java | Select-Object -ExpandProperty FullName
-          javac -encoding UTF-8 -d out/production/${BaseName} $javaFiles
-
-          Write-Host "Packaging into JAR..." -ForegroundColor Cyan
-          jar --create --file out/artifacts/${BaseName}_jar/${BaseName}.jar --main-class io.github.samera2022.chinese_chess.ChineseChess .
-          
-          if (Test-Path "out/artifacts/${BaseName}_jar/${BaseName}.jar") {
-             Write-Host "Successfully built JAR!" -ForegroundColor Green
-          } else {
-             Write-Host "Failed to build JAR." -ForegroundColor Red
-             exit 1
-          }
-
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
       - name: Execute All Packaging Scripts
         shell: pwsh
         env:

@@ -29,13 +29,13 @@ if (-not (Test-Path "custom-jre")) {
 # 4. 执行分支逻辑
 switch ($Type) {
     "jar" {
-        Copy-Item "out/artifacts/${BaseName}_jar/${BaseName}.jar" "$OUT_DIR\$FullName.jar"
+        Copy-Item "target/${BaseName}_jar/${BaseName}.jar" "$OUT_DIR\$FullName.jar"
     }
 
     "zip" {
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --icon "$IconPath" `
-                 --input "out/artifacts/${BaseName}_jar" --main-jar "${BaseName}.jar" `
+                 --input "target/${BaseName}_jar" --main-jar "${BaseName}.jar" `
                  --runtime-image "custom-jre" --dest "output/temp_zip"
         Compress-Archive -Path "output/temp_zip/$BaseName" -DestinationPath "$OUT_DIR\$FullName.zip" -Force
     }
@@ -48,7 +48,7 @@ switch ($Type) {
         Write-Host "[EXE] Step 1: Generating app-image..." -ForegroundColor Cyan
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --copyright $Copyright --icon "$IconPath" `
-                 --input "out/artifacts/${BaseName}_jar" --main-jar "${BaseName}.jar" `
+                 --input "target/${BaseName}_jar" --main-jar "${BaseName}.jar" `
                  --runtime-image "custom-jre" --dest "output/temp_exe"
 
         # --- 【硬核调试开始】 ---
