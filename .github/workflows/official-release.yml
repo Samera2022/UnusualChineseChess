@@ -9,7 +9,8 @@ jobs:
   build-and-release:
     name: Build All Formats and Release
     runs-on: windows-latest
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
