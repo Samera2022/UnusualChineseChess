@@ -26,7 +26,7 @@
               <File>
                 <Type>2</Type>
                 <Name>.jpackage.xml</Name>
-                <File>..\output\temp_exe\UnusualChineseChess\.jpackage.xml</File>
+                <File>..\output\temp_exe\UnusualChineseChess\app\.jpackage.xml</File>
                 <ActiveX>False</ActiveX>
                 <ActiveXInstall>False</ActiveXInstall>
                 <Action>0</Action>
@@ -38,7 +38,7 @@
               <File>
                 <Type>2</Type>
                 <Name>UnusualChineseChess.jar</Name>
-                <File>..\output\temp_exe\UnusualChineseChess\UnusualChineseChess.jar</File>
+                <File>..\output\temp_exe\UnusualChineseChess\app\UnusualChineseChess.jar</File>
                 <ActiveX>False</ActiveX>
                 <ActiveXInstall>False</ActiveXInstall>
                 <Action>0</Action>
@@ -50,7 +50,7 @@
               <File>
                 <Type>2</Type>
                 <Name>UnusualChineseChess.cfg</Name>
-                <File>..\output\temp_exe\UnusualChineseChess\UnusualChineseChess.cfg</File>
+                <File>..\output\temp_exe\UnusualChineseChess\app\UnusualChineseChess.cfg</File>
                 <ActiveX>False</ActiveX>
                 <ActiveXInstall>False</ActiveXInstall>
                 <Action>0</Action>
