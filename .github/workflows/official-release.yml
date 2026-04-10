@@ -31,10 +31,10 @@ jobs:
       - name: Execute All Packaging Scripts
         shell: pwsh
         env:
-          MSI_WIN_UPGRADE_UUID: ${{ secrets.WIX_UPGRADE_UUID }}
-          MSIX_WIN_PY_PACKAGE_NAME: ${{ secrets.MSIX_PACKAGE_NAME }}
-          MSIX_WIN_PY_PUBLISHER_NAME: ${{ secrets.MSIX_PUBLISHER_ID }}
-          MSIX_WIN_PY_PUBLISHER_DISPLAY_NAME: ${{ secrets.MSIX_PUBLISHER_DISPLAY_NAME }}
+          MSI_WIN_UPGRADE_UUID: ${{ secrets.MSI_WIN_UPGRADE_UUID }}
+          MSIX_WIN_PY_PACKAGE_NAME: ${{ secrets.MSIX_WIN_PY_PACKAGE_NAME }}
+          MSIX_WIN_PY_PUBLISHER_NAME: ${{ secrets.MSIX_WIN_PY_PUBLISHER_NAME }}
+          MSIX_WIN_PY_PUBLISHER_DISPLAY_NAME: ${{ secrets.MSIX_WIN_PY_PUBLISHER_DISPLAY_NAME }}
         run: |
           Write-Host "Starting Multi-format Packaging..." -ForegroundColor Magenta
           

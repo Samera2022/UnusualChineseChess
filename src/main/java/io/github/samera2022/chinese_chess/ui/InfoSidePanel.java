@@ -3,6 +3,7 @@ package io.github.samera2022.chinese_chess.ui;
 import com.google.gson.JsonObject;
 import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
+import io.github.samera2022.chinese_chess.model.Piece;
 import io.github.samera2022.chinese_chess.net.NetModeController;
 
 import javax.swing.*;
@@ -54,6 +55,11 @@ public class InfoSidePanel extends JPanel {
 
     // 持方切换权：true=本地有权，false=对方有权
     private boolean hasSideAuth = false;
+
+    // 新增：棋子选择栏相关
+    private JPanel pieceSelectionPanel;
+    private JToggleButton setupBoardBtn;
+    private Piece.Type selectedPieceType = null;
 
     // 仅主机端调用：根据当前状态计算并同步切换权
     private void updateAndSyncSideAuth() {
@@ -128,6 +134,20 @@ public class InfoSidePanel extends JPanel {
         settingsBtn.setSelected(initialSettingsVisible);
         settingsBtn.setText(initialSettingsVisible ? "收起玩法" : "自定义玩法");
         topButtonsPanel.add(settingsBtn);
+
+        // 新增：布置棋盘按钮
+        setupBoardBtn = new JToggleButton("布置棋盘");
+        setupBoardBtn.setFont(new Font("SimHei", Font.PLAIN, 12));
+        setupBoardBtn.addActionListener(e -> {
+            boolean selected = setupBoardBtn.isSelected();
+            setupBoardBtn.setText(selected ? "收起布置" : "布置棋盘");
+            if (selected) {
+                showPieceSelectionPanel();
+            } else {
+                hidePieceSelectionPanel();
+            }
+        });
+        topButtonsPanel.add(setupBoardBtn);
 
         // 新增：更新日志按钮
         JButton changelogBtn = new JButton("更新日志");
@@ -287,7 +307,7 @@ public class InfoSidePanel extends JPanel {
         if (portStr == null || portStr.trim().isEmpty()) return;
         try {
             int port = Integer.parseInt(portStr.trim());
-            // 删除“请选择本地执子方”的弹窗，主机默认可切换
+            // 删除"请选择本地执子方"的弹窗，主机默认可切换
             netController.host(port);
             // 默认红方，可根据主机操作切换
             applyLocalSide(true);
@@ -524,5 +544,174 @@ public class InfoSidePanel extends JPanel {
                 syncSide(localRedBtn.isSelected());
             }
         });
+    }
+
+    // 新增：显示棋子选择栏
+    private void showPieceSelectionPanel() {
+        if (pieceSelectionPanel == null) {
+            createPieceSelectionPanel();
+        }
+        
+        // 将棋子选择栏添加到主窗口的顶部
+        Container parent = getParent();
+        if (parent != null) {
+            Container topLevel = SwingUtilities.getWindowAncestor(parent);
+            if (topLevel instanceof ChineseChessFrame) {
+                ChineseChessFrame frame = (ChineseChessFrame) topLevel;
+                frame.getContentPane().add(pieceSelectionPanel, BorderLayout.NORTH);
+                frame.pack();
+                frame.revalidate();
+                frame.repaint();
+            }
+        }
+        
+        // 通知棋盘面板进入布置模式
+        boardPanel.setBoardSetupMode(true);
+    }
+
+    // 新增：隐藏棋子选择栏
+    private void hidePieceSelectionPanel() {
+        if (pieceSelectionPanel != null) {
+            Container parent = pieceSelectionPanel.getParent();
+            if (parent != null) {
+                parent.remove(pieceSelectionPanel);
+                parent.revalidate();
+                parent.repaint();
+            }
+        }
+        
+        // 通知棋盘面板退出布置模式
+        boardPanel.setBoardSetupMode(false);
+        selectedPieceType = null;
+    }
+
+    // 新增：创建棋子选择栏
+    private void createPieceSelectionPanel() {
+        pieceSelectionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
+        pieceSelectionPanel.setBorder(BorderFactory.createTitledBorder("选择棋子"));
+        pieceSelectionPanel.setBackground(new Color(240, 240, 240));
+
+        // 添加红方棋子
+        addPiecesToPanel(pieceSelectionPanel, true);
+        
+        // 添加分隔符
+        JLabel separator = new JLabel(" | ");
+        separator.setFont(new Font("SimHei", Font.BOLD, 14));
+        pieceSelectionPanel.add(separator);
+        
+        // 添加黑方棋子
+        addPiecesToPanel(pieceSelectionPanel, false);
+    }
+
+    // 新增：创建自定义棋子按钮组件
+    private class PieceButton extends JButton {
+        private final Piece.Type pieceType;
+        private final boolean isRed;
+        private boolean isSelected = false;
+        
+        // 复用BoardPanel中的棋子颜色
+        private final Color RED_PIECE_COLOR = new Color(200, 0, 0);
+        private final Color BLACK_PIECE_COLOR = new Color(50, 50, 50);
+        
+        public PieceButton(Piece.Type pieceType, boolean isRed) {
+            this.pieceType = pieceType;
+            this.isRed = isRed;
+            setPreferredSize(new Dimension(50, 50));
+            setContentAreaFilled(false); // 禁用默认背景填充
+            setBorderPainted(false); // 禁用边框绘制
+            setFocusPainted(false); // 禁用焦点绘制
+            
+            addActionListener(e -> {
+                selectedPieceType = pieceType;
+                // 通知所有棋子按钮更新选中状态
+                for (Component comp : getParent().getComponents()) {
+                    if (comp instanceof PieceButton) {
+                        PieceButton btn = (PieceButton) comp;
+                        btn.setSelected(btn == this);
+                    }
+                }
+            });
+        }
+        
+        public void setSelected(boolean selected) {
+            this.isSelected = selected;
+            repaint();
+        }
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int width = getWidth();
+            int height = getHeight();
+            int radius = Math.min(width, height) / 2 - 5;
+            int centerX = width / 2;
+            int centerY = height / 2;
+            
+            // 绘制圆形背景 - 完全复用BoardPanel的颜色
+            if (isSelected) {
+                // 选中状态：黄色高亮
+                g2d.setColor(new Color(255, 255, 0));
+            } else {
+                // 正常状态：复用BoardPanel的棋子颜色
+                g2d.setColor(isRed ? RED_PIECE_COLOR : BLACK_PIECE_COLOR);
+            }
+            g2d.fillOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
+            
+            // 绘制边框
+            g2d.setColor(Color.WHITE);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
+            
+            // 绘制棋子文字
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("SimHei", Font.BOLD, 16));
+            String text = pieceType.getChineseName();
+            FontMetrics fm = g2d.getFontMetrics();
+            int textX = centerX - fm.stringWidth(text) / 2;
+            int textY = centerY + fm.getAscent() / 2 - 2;
+            g2d.drawString(text, textX, textY);
+        }
+    }
+
+    // 新增：添加棋子按钮到面板
+    private void addPiecesToPanel(JPanel panel, boolean isRed) {
+        Piece.Type[] pieceTypes = isRed ?
+            new Piece.Type[]{
+                Piece.Type.RED_KING, Piece.Type.RED_ADVISOR, Piece.Type.RED_ELEPHANT,
+                Piece.Type.RED_HORSE, Piece.Type.RED_CHARIOT, Piece.Type.RED_CANNON, Piece.Type.RED_SOLDIER
+            } :
+            new Piece.Type[]{
+                Piece.Type.BLACK_KING, Piece.Type.BLACK_ADVISOR, Piece.Type.BLACK_ELEPHANT,
+                Piece.Type.BLACK_HORSE, Piece.Type.BLACK_CHARIOT, Piece.Type.BLACK_CANNON, Piece.Type.BLACK_SOLDIER
+            };
+
+        for (Piece.Type type : pieceTypes) {
+            PieceButton pieceBtn = new PieceButton(type, isRed);
+            panel.add(pieceBtn);
+        }
+    }
+
+    // 新增：获取当前选中的棋子类型
+    public Piece.Type getSelectedPieceType() {
+        return selectedPieceType;
+    }
+
+    // 新增：清除选中的棋子
+    public void clearSelectedPiece() {
+        selectedPieceType = null;
+        if (pieceSelectionPanel != null) {
+            // 重置所有按钮颜色
+            for (Component comp : pieceSelectionPanel.getComponents()) {
+                if (comp instanceof JButton) {
+                    JButton btn = (JButton) comp;
+                    String text = btn.getText();
+                    boolean isRedPiece = text.equals("帥") || text.equals("仕") || text.equals("相") || 
+                                   text.equals("马") || text.equals("車") || text.equals("炮") || text.equals("兵");
+                    btn.setBackground(isRedPiece ? new Color(255, 200, 200) : new Color(200, 200, 255));
+                }
+            }
+        }
     }
 }

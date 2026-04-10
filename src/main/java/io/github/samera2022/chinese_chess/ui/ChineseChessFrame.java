@@ -58,7 +58,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
     // 新的右侧网络面板
     public static NetModeController netController = new NetModeController();
-    private final InfoSidePanel infoSidePanel;
+    public final InfoSidePanel infoSidePanel;
     private final RuleSettingsPanel ruleSettingsPanel;
 
     // 状态标签（左侧）
@@ -112,7 +112,12 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
 
     public ChineseChessFrame() {
         setTitle("不同寻常的中国象棋 - Unusual Chinese Chess");
-        setIconImage(new ImageIcon(Objects.requireNonNull(getClass().getResource("/UnusualChineseChess.png"))).getImage());
+        try {
+            setIconImage(new ImageIcon(Objects.requireNonNull(getClass().getResource("/UnusualChineseChess.png"))).getImage());
+        } catch (Exception e) {
+            // 如果图标资源找不到，忽略错误继续运行
+            System.err.println("Warning: Could not load application icon");
+        }
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
 
@@ -420,17 +425,37 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                         JOptionPane.showMessageDialog(ChineseChessFrame.this, "对方已拒绝你的强制走子", "强制走子被拒绝", JOptionPane.WARNING_MESSAGE);
                     }); }
              @Override public void onSettingsReceived(JsonObject settings) {
-                SwingUtilities.invokeLater(() -> {
-                    // 转发给 NetworkSidePanel 处理持方同步
-                    infoSidePanel.onSettingsReceived(settings);
-                    // 处理游戏规则设置同步
-                    if (!netController.isHost()) {
-                        gameEngine.applySettingsSnapshot(settings);
-                        // 在线状态下撤销按钮权限交由 updateStatus 判断
-                        updateStatus();
-                    }
-                 });
-             }
+                 SwingUtilities.invokeLater(() -> {
+                     // 检查是否是棋盘修改消息
+                     if (settings.has("cmd")) {
+                         String cmd = settings.get("cmd").getAsString();
+                         if ("BOARD_SETUP_PLACE".equals(cmd)) {
+                             // 处理放置棋子消息
+                             int row = settings.get("row").getAsInt();
+                             int col = settings.get("col").getAsInt();
+                             String pieceTypeName = settings.get("pieceType").getAsString();
+                             Piece.Type pieceType = Piece.Type.valueOf(pieceTypeName);
+                             boardPanel.placePieceInSetupMode(row, col, pieceType);
+                             return;
+                         } else if ("BOARD_SETUP_REMOVE".equals(cmd)) {
+                             // 处理移除棋子消息
+                             int row = settings.get("row").getAsInt();
+                             int col = settings.get("col").getAsInt();
+                             boardPanel.removePieceInSetupMode(row, col);
+                             return;
+                         }
+                     }
+                     
+                     // 转发给 NetworkSidePanel 处理持方同步
+                     infoSidePanel.onSettingsReceived(settings);
+                     // 处理游戏规则设置同步
+                     if (!netController.isHost()) {
+                         gameEngine.applySettingsSnapshot(settings);
+                         // 在线状态下撤销按钮权限交由 updateStatus 判断
+                         updateStatus();
+                     }
+                  });
+              }
             @Override public void onPeerUndo() {
                 SwingUtilities.invokeLater(() -> {
                     // 对端请求撤销，本地执行一次撤销并刷新UI
@@ -813,5 +838,23 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     }
     public static boolean isNetSessionActive(){
         return netController.isActive();
+    }
+
+    /**
+     * 程序入口点
+     */
+    public static void main(String[] args) {
+        // 设置系统外观
+        try {
+            javax.swing.UIManager.setLookAndFeel(javax.swing.UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // 创建并显示主窗口
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            ChineseChessFrame frame = new ChineseChessFrame();
+            frame.setVisible(true);
+        });
     }
 }

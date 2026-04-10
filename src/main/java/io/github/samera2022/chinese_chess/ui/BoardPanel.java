@@ -37,6 +37,9 @@ public class BoardPanel extends JPanel {
     private int forceMoveToRow = -1;
     private int forceMoveToCol = -1;
 
+    // 新增：布置模式相关字段
+    private boolean boardSetupMode = false;
+
     // 新增：强制走子指示器样式切换
     private boolean style = true; // false=红色空心圆圈，true=紫色移动指示器样式
     public void setForceMoveIndicatorStyle(boolean style) {
@@ -91,15 +94,21 @@ public class BoardPanel extends JPanel {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (e.getButton() == MouseEvent.BUTTON1) {
-                    // 左键：选择棋子
-                    handleLeftClick(e);
-                } else if (e.getButton() == MouseEvent.BUTTON3) {
-                    // 右键：尝试移动到该位置
-                    handleRightClick(e);
-                } else if (e.getButton() == MouseEvent.BUTTON2) {
-                    // 中键：尝试强制走子
-                    if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) handleMiddleClick(e);
+                if (boardSetupMode) {
+                    // 布置模式下的处理
+                    handleSetupModeClick(e);
+                } else {
+                    // 正常游戏模式下的处理
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        // 左键：选择棋子
+                        handleLeftClick(e);
+                    } else if (e.getButton() == MouseEvent.BUTTON3) {
+                        // 右键：尝试移动到该位置
+                        handleRightClick(e);
+                    } else if (e.getButton() == MouseEvent.BUTTON2) {
+                        // 中键：尝试强制走子
+                        if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) handleMiddleClick(e);
+                    }
                 }
             }
         });
@@ -962,5 +971,132 @@ public class BoardPanel extends JPanel {
 
     public int getSelectedStackIndex() {
         return selectedStackIndex;
+    }
+
+    // 新增：布置模式下的鼠标点击处理
+    private void handleSetupModeClick(MouseEvent e) {
+        // 将鼠标点击位置转换为逻辑坐标
+        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
+        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
+        int[] logical = displayToLogic(displayRow, displayCol);
+        int row = logical[0];
+        int col = logical[1];
+        
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(row, col)) {
+            return;
+        }
+
+        // 获取InfoSidePanel以获取选中的棋子类型
+        Container parent = getParent();
+        if (parent != null) {
+            Container topLevel = SwingUtilities.getWindowAncestor(parent);
+            if (topLevel instanceof ChineseChessFrame) {
+                ChineseChessFrame frame = (ChineseChessFrame) topLevel;
+                InfoSidePanel infoPanel = frame.infoSidePanel;
+                
+                if (e.getButton() == MouseEvent.BUTTON1) {
+                    // 左键：放置棋子
+                    Piece.Type selectedPieceType = infoPanel.getSelectedPieceType();
+                    if (selectedPieceType != null) {
+                        placePieceInSetupMode(row, col, selectedPieceType);
+                    }
+                } else if (e.getButton() == MouseEvent.BUTTON3) {
+                    // 右键：移除棋子
+                    removePieceInSetupMode(row, col);
+                }
+            }
+        }
+    }
+
+    // 新增：设置布置模式
+    public void setBoardSetupMode(boolean setupMode) {
+        this.boardSetupMode = setupMode;
+        if (!setupMode) {
+            // 退出布置模式时清除选择状态
+            clearSelection();
+        }
+        repaint();
+    }
+
+    // 新增：获取布置模式状态
+    public boolean isBoardSetupMode() {
+        return boardSetupMode;
+    }
+
+    // 新增：在布置模式下放置棋子
+    public void placePieceInSetupMode(int row, int col, Piece.Type pieceType) {
+        if (!boardSetupMode || pieceType == null) {
+            return;
+        }
+
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(row, col)) {
+            return;
+        }
+
+        // 创建新棋子并放置到指定位置
+        Piece newPiece = new Piece(pieceType, row, col);
+        board.setPiece(row, col, newPiece);
+        
+        // 联机模式下发送放置棋子消息
+        if (ChineseChessFrame.isNetSessionActive()) {
+            sendBoardSetupPlace(row, col, pieceType);
+        }
+        
+        repaint();
+    }
+
+    // 新增：在布置模式下移除棋子
+    public void removePieceInSetupMode(int row, int col) {
+        if (!boardSetupMode) {
+            return;
+        }
+
+        Board board = gameEngine.getBoard();
+        if (!board.isValid(row, col)) {
+            return;
+        }
+
+        // 移除指定位置的棋子
+        board.setPiece(row, col, null);
+        
+        // 联机模式下发送移除棋子消息
+        if (ChineseChessFrame.isNetSessionActive()) {
+            sendBoardSetupRemove(row, col);
+        }
+        
+        repaint();
+    }
+
+    // 新增：发送放置棋子消息
+    private void sendBoardSetupPlace(int row, int col, Piece.Type pieceType) {
+        if (ChineseChessFrame.netController != null && ChineseChessFrame.netController.isActive()) {
+            try {
+                com.google.gson.JsonObject jo = new com.google.gson.JsonObject();
+                jo.addProperty("cmd", "BOARD_SETUP_PLACE");
+                jo.addProperty("row", row);
+                jo.addProperty("col", col);
+                jo.addProperty("pieceType", pieceType.name());
+                ChineseChessFrame.netController.getSession().sendSettings(jo);
+            } catch (Throwable t) {
+                System.out.println("[DEBUG] 发送棋盘放置消息失败: " + t);
+            }
+        }
+    }
+
+    // 新增：发送移除棋子消息
+    private void sendBoardSetupRemove(int row, int col) {
+        if (ChineseChessFrame.netController != null && ChineseChessFrame.netController.isActive()) {
+            try {
+                com.google.gson.JsonObject jo = new com.google.gson.JsonObject();
+                jo.addProperty("cmd", "BOARD_SETUP_REMOVE");
+                jo.addProperty("row", row);
+                jo.addProperty("col", col);
+                ChineseChessFrame.netController.getSession().sendSettings(jo);
+            } catch (Throwable t) {
+                System.out.println("[DEBUG] 发送棋盘移除消息失败: " + t);
+            }
+        }
     }
 }
