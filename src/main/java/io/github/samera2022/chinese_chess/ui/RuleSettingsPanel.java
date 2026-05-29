@@ -16,8 +16,8 @@ import java.util.List;
  */
 public class RuleSettingsPanel extends JPanel {
 
-    private static final Map<String, JCheckBox> registryNameToCheckBox = new HashMap<>();
-    private static final Map<String, JTextField> registryNameToTextField = new HashMap<>();
+    private final Map<String, JCheckBox> registryNameToCheckBox = new HashMap<>();
+    private final Map<String, JTextField> registryNameToTextField = new HashMap<>();
     private GameRulesConfig config;
 
     private final GameRulesConfig.RuleChangeListener configListener = (key, oldVal, newVal, source) -> {
@@ -314,7 +314,7 @@ public class RuleSettingsPanel extends JPanel {
         return box;
     }
 
-    public static void setAllCheckboxesEnabled(boolean enabled) {
+    public void setAllCheckboxesEnabled(boolean enabled) {
         for (JCheckBox box : registryNameToCheckBox.values()) {
             box.setEnabled(enabled);
         }
@@ -323,12 +323,12 @@ public class RuleSettingsPanel extends JPanel {
         }
     }
 
-    public static boolean isEnabled(String registryName) {
+    public boolean isEnabled(String registryName) {
         JCheckBox box = registryNameToCheckBox.get(registryName);
         return box != null && box.isSelected();
     }
     
-    public static String getValue(String registryName) {
+    public String getValue(String registryName) {
         JTextField field = registryNameToTextField.get(registryName);
         return field != null ? field.getText() : null;
     }

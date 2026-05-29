@@ -279,6 +279,39 @@ public enum RuleRegistry {
             "special",
             Consts.CHECK_BOX,
             false
+    ),
+    TOP_BOTTOM_CONNECTED(
+            "top_bottom_connected",
+            "上下连通",
+            "棋盘上下边缘连通，row 0 与 row 9 邻接",
+            new String[]{},
+            new String[]{},
+            true,
+            "special",
+            Consts.CHECK_BOX,
+            false
+    ),
+    TOP_BOTTOM_CONNECTED_HORSE(
+            "top_bottom_connected_horse",
+            "额外允许马",
+            "上下连通模式下马可跨边界移动",
+            new String[]{"top_bottom_connected"},
+            new String[]{},
+            true,
+            "special",
+            Consts.CHECK_BOX,
+            false
+    ),
+    TOP_BOTTOM_CONNECTED_ELEPHANT(
+            "top_bottom_connected_elephant",
+            "额外允许象",
+            "上下连通模式下象可跨边界移动",
+            new String[]{"top_bottom_connected"},
+            new String[]{},
+            true,
+            "special",
+            Consts.CHECK_BOX,
+            false
     ),;
     public final String registryName;
     public final String displayName;

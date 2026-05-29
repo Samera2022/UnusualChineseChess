@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Java-1.8%2B-orange.svg" alt="Java Version">
+  <img src="https://img.shields.io/badge/Java-11%2B-orange.svg" alt="Java Version">
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License">
   <img src="https://img.shields.io/github/v/release/Samera2022/UnusualChineseChess" alt="Latest Release">
   <img src="https://img.shields.io/github/v/release/Samera2022/UnusualChineseChess?include_prereleases&label=pre-release&color=orange" alt="Pre-Release">

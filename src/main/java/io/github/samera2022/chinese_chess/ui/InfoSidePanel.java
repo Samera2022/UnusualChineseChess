@@ -26,8 +26,9 @@ public class InfoSidePanel extends JPanel {
     private final JButton hostBtn = new JButton("创建联机");
     private final JButton joinBtn = new JButton("加入联机");
     private final JButton disconnectBtn = new JButton("断开联机");
-    private static final JCheckBox allowLocalFlipCheck = new JCheckBox();
+    private final JCheckBox allowLocalFlipCheck = new JCheckBox();
     private final JToggleButton localRedBtn = new JToggleButton("本地红方", true);
+    private final JButton viewToggleBtn = new JButton("全局视角");
     private final JButton exportBtn = new JButton("导出残局");
     private final JButton importBtn = new JButton("导入残局");
 
@@ -101,6 +102,19 @@ public class InfoSidePanel extends JPanel {
         localSidePanel.add(allowLocalFlipCheck);
         localSidePanel.add(localRedBtn);
         controls.add(localSidePanel);
+        // 视角切换按钮（仅上下连通启用时可用）
+        viewToggleBtn.setEnabled(false);
+        viewToggleBtn.setToolTipText("仅在开启上下连通时可用：切换全局/己方/对方视角");
+        viewToggleBtn.addActionListener(e -> {
+            BoardPanel.ViewMode cur = boardPanel.getViewMode();
+            BoardPanel.ViewMode next;
+            if (cur == BoardPanel.ViewMode.GLOBAL) next = BoardPanel.ViewMode.SELF;
+            else if (cur == BoardPanel.ViewMode.SELF) next = BoardPanel.ViewMode.OPPONENT;
+            else next = BoardPanel.ViewMode.GLOBAL;
+            boardPanel.setViewMode(next);
+            updateViewToggleText();
+        });
+        controls.add(viewToggleBtn);
         controls.add(disconnectBtn);
         controls.add(exportBtn);
         controls.add(importBtn);
@@ -135,7 +149,7 @@ public class InfoSidePanel extends JPanel {
         settingsBtn.setText(initialSettingsVisible ? "收起玩法" : "自定义玩法");
         topButtonsPanel.add(settingsBtn);
 
-        // 新增：布置棋盘按钮
+        // 布置棋盘按钮
         setupBoardBtn = new JToggleButton("布置棋盘");
         setupBoardBtn.setFont(new Font("SimHei", Font.PLAIN, 12));
         setupBoardBtn.addActionListener(e -> {
@@ -195,13 +209,32 @@ public class InfoSidePanel extends JPanel {
         setupSideSync();
     }
 
+    private void updateViewToggleText() {
+        BoardPanel.ViewMode v = boardPanel.getViewMode();
+        if (v == BoardPanel.ViewMode.GLOBAL) viewToggleBtn.setText("全局视角");
+        else if (v == BoardPanel.ViewMode.SELF) viewToggleBtn.setText("己方视角");
+        else viewToggleBtn.setText("对方视角");
+    }
+
+    /** 根据上下连通规则状态启用/禁用视角切换按钮 */
+    public void setViewToggleEnabled(boolean enabled) {
+        viewToggleBtn.setEnabled(enabled);
+        if (!enabled) {
+            boardPanel.setViewMode(BoardPanel.ViewMode.GLOBAL);
+            updateViewToggleText();
+        }
+    }
+
     private void installQualityTooltip() {
-        tooltipWindow = new JWindow(SwingUtilities.getWindowAncestor(this));
+        // Delay tooltip window parent resolution until the panel is added to a frame
+        tooltipWindow = new JWindow();
         tooltipLabel = new JLabel();
         tooltipLabel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(100,100,100)),
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
         tooltipLabel.setFont(new Font("Microsoft YaHei", Font.PLAIN, 12));
+        tooltipLabel.setOpaque(true);
+        tooltipLabel.setBackground(new Color(255, 255, 225));
         tooltipWindow.getContentPane().add(tooltipLabel);
         tooltipWindow.setAlwaysOnTop(true);
 
@@ -612,6 +645,8 @@ public class InfoSidePanel extends JPanel {
         // 复用BoardPanel中的棋子颜色
         private final Color RED_PIECE_COLOR = new Color(200, 0, 0);
         private final Color BLACK_PIECE_COLOR = new Color(50, 50, 50);
+        // 选中状态颜色 - 更透明的浅黄色
+        private final Color SELECTED_COLOR = new Color(255, 255, 200);
         
         public PieceButton(Piece.Type pieceType, boolean isRed) {
             this.pieceType = pieceType;
@@ -651,8 +686,8 @@ public class InfoSidePanel extends JPanel {
             
             // 绘制圆形背景 - 完全复用BoardPanel的颜色
             if (isSelected) {
-                // 选中状态：黄色高亮
-                g2d.setColor(new Color(255, 255, 0));
+                // 选中状态：变淡的黄色高亮
+                g2d.setColor(SELECTED_COLOR);
             } else {
                 // 正常状态：复用BoardPanel的棋子颜色
                 g2d.setColor(isRed ? RED_PIECE_COLOR : BLACK_PIECE_COLOR);
@@ -664,9 +699,9 @@ public class InfoSidePanel extends JPanel {
             g2d.setStroke(new BasicStroke(2));
             g2d.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
             
-            // 绘制棋子文字
+            // 绘制棋子文字 - 调大字体
             g2d.setColor(Color.WHITE);
-            g2d.setFont(new Font("SimHei", Font.BOLD, 16));
+            g2d.setFont(new Font("SimHei", Font.BOLD, 20)); // 从16调大到20
             String text = pieceType.getChineseName();
             FontMetrics fm = g2d.getFontMetrics();
             int textX = centerX - fm.stringWidth(text) / 2;
@@ -702,14 +737,10 @@ public class InfoSidePanel extends JPanel {
     public void clearSelectedPiece() {
         selectedPieceType = null;
         if (pieceSelectionPanel != null) {
-            // 重置所有按钮颜色
+            // 重置所有棋子按钮的选中状态
             for (Component comp : pieceSelectionPanel.getComponents()) {
-                if (comp instanceof JButton) {
-                    JButton btn = (JButton) comp;
-                    String text = btn.getText();
-                    boolean isRedPiece = text.equals("帥") || text.equals("仕") || text.equals("相") || 
-                                   text.equals("马") || text.equals("車") || text.equals("炮") || text.equals("兵");
-                    btn.setBackground(isRedPiece ? new Color(255, 200, 200) : new Color(200, 200, 255));
+                if (comp instanceof PieceButton) {
+                    ((PieceButton) comp).setSelected(false);
                 }
             }
         }

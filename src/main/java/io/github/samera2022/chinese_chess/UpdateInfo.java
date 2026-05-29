@@ -9,7 +9,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class UpdateInfo {
-    private static final List<UpdateInfo> VALUES = new ArrayList<>();
+    private static List<UpdateInfo> VALUES = new ArrayList<>();
 
     static {
         try {
@@ -28,7 +28,7 @@ public class UpdateInfo {
                 }
             }
             list.sort((a, b) -> compareVersions(a.version, b.version));
-            VALUES.addAll(list);
+            VALUES = Collections.unmodifiableList(list);
         } catch (Exception e) {
             e.printStackTrace();
         }

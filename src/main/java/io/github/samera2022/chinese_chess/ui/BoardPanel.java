@@ -4,6 +4,7 @@ import io.github.samera2022.chinese_chess.GameConfig;
 import io.github.samera2022.chinese_chess.engine.Board;
 import io.github.samera2022.chinese_chess.engine.GameEngine;
 import io.github.samera2022.chinese_chess.model.Piece;
+import io.github.samera2022.chinese_chess.net.NetModeController;
 import io.github.samera2022.chinese_chess.rules.MoveValidator;
 import io.github.samera2022.chinese_chess.rules.RulesConfigProvider;
 import io.github.samera2022.chinese_chess.rules.GameRulesConfig;
@@ -13,1090 +14,355 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
-/**
- * 棋盘UI - 显示棋盘和棋子
- */
 public class BoardPanel extends JPanel {
     private GameEngine gameEngine;
     private GameRulesConfig rulesConfig = RulesConfigProvider.get();
-    private final GameRulesConfig.RuleChangeListener ruleChangeListener = (key, oldV, newV, src) -> {
-        // when specific config changes, keep validator updated (debounced updates not necessary here)
-        syncValidatorFromConfig();
-    };
+    private final GameRulesConfig.RuleChangeListener ruleChangeListener = (key, oldV, newV, src) -> syncValidatorFromConfig();
     private RulesConfigProvider.InstanceChangeListener providerListener;
 
+    public enum ViewMode { GLOBAL, SELF, OPPONENT }
+    private ViewMode viewMode = ViewMode.GLOBAL;
+    public void setViewMode(ViewMode m) { this.viewMode = m; repaint(); }
+    public ViewMode getViewMode() { return viewMode; }
+
     private int cellSize = GameConfig.CELL_SIZE;
-    private int selectedRow = -1;
+    private int selectedRow = -1, sdr = -1;
+    public void setCellSizeForRows(int rows) { this.cellSize = (rows <= 10) ? GameConfig.CELL_SIZE : 28; repaint(); }
     private int selectedCol = -1;
-    private int selectedStackIndex = -1; // 从堆栈中选择的棋子索引
+    private int selectedStackIndex = -1;
     private java.util.List<Point> validMoves = new java.util.ArrayList<>();
-
-    // 强制走子相关的字段
-    private int forceMoveFromRow = -1;
-    private int forceMoveFromCol = -1;
-    private int forceMoveToRow = -1;
-    private int forceMoveToCol = -1;
-
-    // 新增：布置模式相关字段
+    private int forceMoveFromRow = -1, forceMoveFromCol = -1, forceMoveToRow = -1, forceMoveToCol = -1;
     private boolean boardSetupMode = false;
-
-    // 新增：强制走子指示器样式切换
-    private boolean style = true; // false=红色空心圆圈，true=紫色移动指示器样式
-    public void setForceMoveIndicatorStyle(boolean style) {
-        this.style = style;
-        repaint();
-    }
-
-    // 在联机模式下：本地是否操控红方；null 表示不限制（离线模式）
+    private boolean style = true;
     private Boolean localControlsRed = null;
-
-    // 棋盘翻转：true表示黑方在下（翻转180度）
     private boolean boardFlipped = false;
 
-    // 新增：本地走子事件监听
-    public interface LocalMoveListener {
-        void onLocalMove(int fromRow, int fromCol, int toRow, int toCol);
-    }
+    public interface LocalMoveListener { void onLocalMove(int fromRow, int fromCol, int toRow, int toCol); }
     private LocalMoveListener localMoveListener;
     public void setLocalMoveListener(LocalMoveListener listener) { this.localMoveListener = listener; }
+    private int offsetX = 0, offsetY = 0;
 
-    // 棋盘偏移量（用于居中显示）
-    private int offsetX = 0;
-    private int offsetY = 0;
-
-    // 颜色定义
     private static final Color BOARD_COLOR = new Color(230, 180, 80);
     private static final Color GRID_COLOR = new Color(0, 0, 0);
-    private static final Color SELECTED_COLOR = new Color(255, 255, 0);
     private static final Color VALID_MOVE_COLOR = new Color(0, 255, 0);
     private static final Color RED_PIECE_COLOR = new Color(200, 0, 0);
     private static final Color BLACK_PIECE_COLOR = new Color(50, 50, 50);
 
     public BoardPanel(GameEngine gameEngine) {
         this.gameEngine = gameEngine;
-        // register provider instance listener to keep local rulesConfig up-to-date
-        // initialize providerListener here to avoid forward-reference issues
         this.providerListener = (oldInst, newInst) -> {
-            try {
-                if (oldInst != null) {
-                    try { oldInst.removeRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
-                }
-                if (newInst != null) {
-                    try { newInst.addRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
-                }
-                this.rulesConfig = newInst;
-                syncValidatorFromConfig();
-            } catch (Throwable ignored) {}
+            try { if (oldInst != null) { try { oldInst.removeRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {} }
+                if (newInst != null) { try { newInst.addRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {} }
+                this.rulesConfig = newInst; syncValidatorFromConfig(); } catch (Throwable ignored) {}
         };
         RulesConfigProvider.addInstanceChangeListener(providerListener);
         if (this.rulesConfig != null) this.rulesConfig.addRuleChangeListener(ruleChangeListener);
         setBackground(BOARD_COLOR);
         addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                if (boardSetupMode) {
-                    // 布置模式下的处理
-                    handleSetupModeClick(e);
-                } else {
-                    // 正常游戏模式下的处理
-                    if (e.getButton() == MouseEvent.BUTTON1) {
-                        // 左键：选择棋子
-                        handleLeftClick(e);
-                    } else if (e.getButton() == MouseEvent.BUTTON3) {
-                        // 右键：尝试移动到该位置
-                        handleRightClick(e);
-                    } else if (e.getButton() == MouseEvent.BUTTON2) {
-                        // 中键：尝试强制走子
-                        if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) handleMiddleClick(e);
-                    }
+            @Override public void mousePressed(MouseEvent e) {
+                if (boardSetupMode) { handleSetupModeClick(e); } else {
+                    if (e.getButton() == MouseEvent.BUTTON1) handleLeftClick(e);
+                    else if (e.getButton() == MouseEvent.BUTTON3) handleRightClick(e);
+                    else if (e.getButton() == MouseEvent.BUTTON2) { if (rulesConfig.getBoolean(RuleRegistry.ALLOW_FORCE_MOVE.registryName)) handleMiddleClick(e); }
                 }
             }
         });
     }
 
-    // 供外部设置：本地操控一方（true=红；false=黑；null=不限制）
-    public void setLocalControlsRed(Boolean localControlsRed) {
-        this.localControlsRed = localControlsRed;
-        repaint();
+    public void setLocalControlsRed(Boolean v) { this.localControlsRed = v; repaint(); }
+    public Boolean getLocalControlsRed() { return localControlsRed; }
+    public void setBoardFlipped(boolean v) { this.boardFlipped = v; repaint(); }
+    public boolean isBoardFlipped() { return boardFlipped; }
+    public void setForceMoveIndicatorStyle(boolean s) { this.style = s; repaint(); }
+    public void setForceMoveIndicator(int fr,int fc,int tr,int tc) { forceMoveFromRow=fr;forceMoveFromCol=fc;forceMoveToRow=tr;forceMoveToCol=tc;repaint(); }
+    public void clearForceMoveIndicator() { forceMoveFromRow=-1;forceMoveFromCol=-1;forceMoveToRow=-1;forceMoveToCol=-1;repaint(); }
+    public void setRemotePieceHighlight(int r,int c) { selectedRow=r;selectedCol=c;sdr=-1;repaint(); }
+    public void clearRemotePieceHighlight() { selectedRow=-1;selectedCol=-1;sdr=-1;repaint(); }
+    public void clearSelection() { selectedRow=-1;selectedCol=-1;sdr=-1;selectedStackIndex=-1;validMoves.clear();forceMoveFromRow=-1;forceMoveFromCol=-1;forceMoveToRow=-1;forceMoveToCol=-1;repaint(); }
+
+    private Board board() { return gameEngine.getBoard(); }
+    private boolean tb(){return rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);}
+
+    private int[] displayToLogic(int dr,int dc) {
+        Board b=board(); int tr=b.getRows();
+        if(tb()&&viewMode!=ViewMode.GLOBAL) { int[] fr=buildFocusedRows(b); if(dr>=0&&dr<fr.length) return new int[]{fr[dr],dc}; else return new int[]{dr,dc}; }
+        return boardFlipped?new int[]{tr-1-dr,dc}:new int[]{dr,dc};
+    }
+    private int[] logicToDisplay(int lr,int lc) {
+        Board b=board(); int tr=b.getRows();
+        if(tb()&&viewMode!=ViewMode.GLOBAL) { int[] fr=buildFocusedRows(b); for(int i=0;i<fr.length;i++) if(fr[i]==lr) return new int[]{i,lc}; return new int[]{lr,lc}; }
+        return boardFlipped?new int[]{tr-1-lr,lc}:new int[]{lr,lc};
     }
 
-    // 新增：对外暴露当前本地执方（用于联机下撤销按钮的启用判断）
-    public Boolean getLocalControlsRed() {
-        return localControlsRed;
-    }
-
-    // 设置棋盘是否翻转（黑方在下）
-    public void setBoardFlipped(boolean flipped) {
-        this.boardFlipped = flipped;
-        repaint();
-    }
-
-    public boolean isBoardFlipped() {
-        return boardFlipped;
-    }
-
-    /**
-     * 设置强制走子指示器的位置（显示红色圆圈）
-     */
-    public void setForceMoveIndicator(int fromRow, int fromCol, int toRow, int toCol) {
-        this.forceMoveFromRow = fromRow;
-        this.forceMoveFromCol = fromCol;
-        this.forceMoveToRow = toRow;
-        this.forceMoveToCol = toCol;
-        repaint();
-    }
-
-    /**
-     * 清除强制走子指示器
-     */
-    public void clearForceMoveIndicator() {
-        this.forceMoveFromRow = -1;
-        this.forceMoveFromCol = -1;
-        this.forceMoveToRow = -1;
-        this.forceMoveToCol = -1;
-        repaint();
-    }
-
-    /**
-     * 临时显示对方选中的棋子（黄色高亮）
-     */
-    public void setRemotePieceHighlight(int row, int col) {
-        this.selectedRow = row;
-        this.selectedCol = col;
-        repaint();
-    }
-
-    /**
-     * 清除远程棋子高亮
-     */
-    public void clearRemotePieceHighlight() {
-        this.selectedRow = -1;
-        this.selectedCol = -1;
-        repaint();
-    }
-
-    /**
-     * 清除选择状态（游戏重新开始时调用）
-     */
-    public void clearSelection() {
-        selectedRow = -1;
-        selectedCol = -1;
-        selectedStackIndex = -1;
-        validMoves.clear();
-        forceMoveFromRow = -1;
-        forceMoveFromCol = -1;
-        forceMoveToRow = -1;
-        forceMoveToCol = -1;
-        repaint();
-    }
-
-    /**
-     * 将显示坐标转换为逻辑坐标（考虑翻转）
-     */
-    private int[] displayToLogic(int displayRow, int displayCol) {
-        if (boardFlipped) {
-            return new int[]{9 - displayRow, 8 - displayCol};
-        }
-        return new int[]{displayRow, displayCol};
-    }
-
-    /**
-     * 将逻辑坐标转换为显示坐标（考虑翻转）
-     */
-    private int[] logicToDisplay(int logicRow, int logicCol) {
-        if (boardFlipped) {
-            return new int[]{9 - logicRow, 8 - logicCol};
-        }
-        return new int[]{logicRow, logicCol};
-    }
-    // 左键，中键和右键应该采用相同的逻辑。但是实际操作时，发现只要保证左键正确工作就可以了……
-    // 而且，并不建议将判断是否可行单独抽出来变成一个新的方法。新的这个方法本身就依赖大量的变量（而且这些变量在左中右键里都要继续用），反倒不如放在方法里简单。
-    /**
-     * 处理左键点击 - 点击交点附近时选中棋子
-     */
+    // ==================== Interaction ====================
     private void handleLeftClick(MouseEvent e) {
-        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
-        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-        int[] logical = displayToLogic(displayRow, displayCol);
-        int row = logical[0];
-        int col = logical[1];
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(row, col)) {
-            return;
-        }
-        if (row == selectedRow && col == selectedCol) {
-            selectedRow = -1;
-            selectedCol = -1;
-            selectedStackIndex = -1;
-            validMoves.clear();
-            repaint();
-            return;
-        }
-        Piece piece = board.getPiece(row, col);
-//        System.out.println("---PRECHECK---");
-//        System.out.println("Piece is Red: "+piece.isRed());
-//        System.out.println("Game Engine: "+gameEngine.isRedTurn());
-//        System.out.println("Local Controls Red: "+localControlsRed);
-//        System.out.println("---PRECHECK---");
-        if (rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName) && isStackedPiece(piece))
-            if (piece.isRed() == gameEngine.isRedTurn())
-                if (ChineseChessFrame.isNetSessionActive())
-                    if (gameEngine.isRedTurn()==localControlsRed) showStackSelectionForSourceDialog(row, col);
-                    else showStackInfoDialog(row, col);
-                else showStackSelectionForSourceDialog(row, col);
-            else showStackInfoDialog(row, col);
-         else {
-            if ((!ChineseChessFrame.isNetSessionActive() && (piece == null || piece.isRed() != gameEngine.isRedTurn())) ||
-                    ChineseChessFrame.isNetSessionActive() && (piece == null || !(localControlsRed == gameEngine.isRedTurn() && localControlsRed == piece.isRed())))
-                return;
-            else {
-                selectedRow = row;
-                selectedCol = col;
-                selectedStackIndex = -1;
-                calculateValidMoves();
-            }
-        }
-        repaint();
+        Board board=board(); int dc=Math.round((float)(e.getX()-offsetX)/cellSize),dr=Math.round((float)(e.getY()-offsetY)/cellSize);
+        int[] logic=displayToLogic(dr,dc); int row=logic[0],col=logic[1];
+        if(!board.isValid(row,col)) return;
+        if(row==selectedRow&&col==selectedCol&&dr==sdr){selectedRow=-1;selectedCol=-1;sdr=-1;selectedStackIndex=-1;validMoves.clear();repaint();return;}
+        Piece piece=board.getPiece(row,col);
+        if(rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)&&isStackedPiece(piece))
+            if(piece.isRed()==gameEngine.isRedTurn())
+                if(isNetSessionActive())
+                    if(gameEngine.isRedTurn()==localControlsRed) showStackSelectionForSourceDialog(row,col);
+                    else showStackInfoDialog(row,col);
+                else showStackSelectionForSourceDialog(row,col);
+            else showStackInfoDialog(row,col);
+        else { if(!canSelectPieceForMove(piece)) return; else {selectedRow=row;selectedCol=col;sdr=dr;selectedStackIndex=-1;calculateValidMoves();} } repaint();
     }
+    private boolean canSelectPieceForMove(Piece piece) { if(piece==null)return false;if(!isNetSessionActive())return piece.isRed()==gameEngine.isRedTurn();if(localControlsRed==null)return false;return localControlsRed==gameEngine.isRedTurn()&&localControlsRed==piece.isRed(); }
 
-    /**
-     * 处理右键点击 - 在选中棋子后，右键尝试移动到该位置（会触发堆叠检查）
-     */
     private void handleRightClick(MouseEvent e) {
-//        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
-//        boolean onlyCurrentSide =  !ChineseChessFrame.isNetSessionActive();
-//        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
-//            return;
-//        }
-        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
-        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
-        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-        // 转换为逻辑坐标
-        int[] logical = displayToLogic(displayRow, displayCol);
-        int toRow = logical[0];
-        int toCol = logical[1];
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(toRow, toCol)) {
-            return;
-        }
-        // 如果没有选择棋子，不处理右键
-        if (selectedRow == -1 || selectedCol == -1) {
-            return;
-        }
-        int fromR = selectedRow;
-        int fromC = selectedCol;
-//        // 联机模式下的回合检查（右键移动时）
-//        if (restrictBySide && localControlsRed != null && ChineseChessFrame.isNetSessionActive()) {
-//            if (gameEngine.isRedTurn() != localControlsRed) {
-//                return;
-//            }
-//        }
-        if (selectedStackIndex >= 0) {
-            board.getStack(fromR, fromC);
-        } else {
-            board.getPiece(fromR, fromC);
-        }
-//        Piece sourcePiece;
-        //        // 新增：本地联机且只允许当前回合方操作自己的棋子
-
-//        if (onlyCurrentSide && (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn())) {
-//            return;
-//        }
-        // 检查目标位置是否是己方棋子（堆叠情况）
-        Piece targetPiece = board.getPiece(toRow, toCol);
-        Piece sourcePiece = selectedStackIndex >= 0 ?
-            board.getStack(fromR, fromC).get(selectedStackIndex) :
-            board.getPiece(fromR, fromC);
-
-        if (sourcePiece != null && targetPiece != null && targetPiece.isRed() == gameEngine.isRedTurn() &&
-            targetPiece.isRed() == sourcePiece.isRed()) {
-            // 目标是己方棋子，检查是否启用堆叠
-            if (gameEngine.getRulesConfig().getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
-                    && Integer.parseInt(RuleSettingsPanel.getValue(RuleRegistry.MAX_STACKING_COUNT.registryName)) > 1
-            ) {
-                // 直接执行堆叠移动（保留堆栈）
-                if (gameEngine.makeMove(fromR, fromC, toRow, toCol, null, selectedStackIndex)) {
-                    if (localMoveListener != null) {
-                        localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
-                    }
-                    selectedRow = -1;
-                    selectedCol = -1;
-                    selectedStackIndex = -1;
-                    validMoves.clear();
-                }
-                repaint();
-                return;
-            }
-        }
-
-        // 不是堆叠情况，执行正常移动
-        Piece movingPiece = selectedStackIndex >= 0 ?
-            board.getStack(fromR, fromC).get(selectedStackIndex) :
-            board.getPiece(fromR, fromC);
-        Piece.Type promotionType = null;
-
-        // 检查是否需要晋升：首先验证这是一个有效的移动
-        if (movingPiece != null && rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)) {
-            boolean isSoldier = movingPiece.getType() == Piece.Type.RED_SOLDIER ||
-                               movingPiece.getType() == Piece.Type.BLACK_SOLDIER;
-            boolean isAtOpponentBaseLine = (movingPiece.isRed() && toRow == 0) ||
-                                          (!movingPiece.isRed() && toRow == 9);
-            boolean isAtOwnBaseLine = (movingPiece.isRed() && toRow == 9) ||
-                                     (!movingPiece.isRed() && toRow == 0);
-            boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName);
-
-            // 只有在兵卒到达底线 且 移动是有效的情况下才弹出晋升对话框
-            if (isSoldier && (isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine))) {
-                // 先验证移动是否有效（使用临时的 MoveValidator）
-                MoveValidator tmpValidator = new MoveValidator(gameEngine.getBoard());
-                tmpValidator.setRulesConfig(gameEngine.getRulesConfig());
-                if (tmpValidator.isValidMove(fromR, fromC, toRow, toCol, selectedStackIndex)) {
-                    promotionType = showPromotionDialog(movingPiece.isRed());
-                    if (promotionType == null) {
-                        repaint();
-                        return;
-                    }
-                }
-            }
-        }
-
-        if (gameEngine.makeMove(fromR, fromC, toRow, toCol, promotionType, selectedStackIndex)) {
-            if (localMoveListener != null) {
-                localMoveListener.onLocalMove(fromR, fromC, toRow, toCol);
-            }
-            selectedRow = -1;
-            selectedCol = -1;
-            selectedStackIndex = -1;
-            validMoves.clear();
-        }
-
-        repaint();
+        Board board=board();int dc=Math.round((float)(e.getX()-offsetX)/cellSize),dr=Math.round((float)(e.getY()-offsetY)/cellSize);
+        int[] logic=displayToLogic(dr,dc);int toRow=logic[0],toCol=logic[1];
+        if(!board.isValid(toRow,toCol)||selectedRow==-1||selectedCol==-1)return; int fromR=selectedRow,fromC=selectedCol;
+        Piece tp=board.getPiece(toRow,toCol),sp=selectedStackIndex>=0?board.getStack(fromR,fromC).get(selectedStackIndex):board.getPiece(fromR,fromC);
+        if(sp!=null&&tp!=null&&tp.isRed()==gameEngine.isRedTurn()&&tp.isRed()==sp.isRed()){
+            if(gameEngine.getRulesConfig().getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)&&gameEngine.getRulesConfig().getInt(RuleRegistry.MAX_STACKING_COUNT.registryName)>1){
+                if(gameEngine.makeMove(fromR,fromC,toRow,toCol,null,selectedStackIndex)){if(localMoveListener!=null)localMoveListener.onLocalMove(fromR,fromC,toRow,toCol);selectedRow=-1;selectedCol=-1;sdr=-1;selectedStackIndex=-1;validMoves.clear();}repaint();return;}}
+        Piece mp=selectedStackIndex>=0?board.getStack(fromR,fromC).get(selectedStackIndex):board.getPiece(fromR,fromC); Piece.Type pt=null;
+        if(mp!=null&&rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName)){
+            boolean isSol=mp.getType()==Piece.Type.RED_SOLDIER||mp.getType()==Piece.Type.BLACK_SOLDIER; int H=board.getRows();
+            int oppoRow, ownRow;
+            if(tb()){ oppoRow=mp.isRed()?4:13; ownRow=mp.isRed()?13:4; }
+            else{ oppoRow=mp.isRed()?(H-1):0; ownRow=mp.isRed()?0:(H-1); }
+            boolean oppo=toRow==oppoRow, own=toRow==ownRow;
+            if(isSol&&(oppo||(own&&rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName)))){
+                MoveValidator tmp=new MoveValidator(board);tmp.setRulesConfig(gameEngine.getRulesConfig());
+                if(tmp.isValidMove(fromR,fromC,toRow,toCol,selectedStackIndex)){pt=showPromotionDialog(mp.isRed());if(pt==null){repaint();return;}}}}
+        if(gameEngine.makeMove(fromR,fromC,toRow,toCol,pt,selectedStackIndex)){if(localMoveListener!=null)localMoveListener.onLocalMove(fromR,fromC,toRow,toCol);selectedRow=-1;selectedCol=-1;sdr=-1;selectedStackIndex=-1;validMoves.clear();}repaint();
     }
 
-    /**
-     * 处理中键点击 - 在选中棋子后，中键点击目标位置申请强制走子
-     */
     private void handleMiddleClick(MouseEvent e) {
-        boolean restrictBySide =  ChineseChessFrame.isNetSessionActive();
-        boolean onlyCurrentSide = !ChineseChessFrame.isNetSessionActive();
-        if (restrictBySide && localControlsRed != null && gameEngine.isRedTurn() != localControlsRed) {
-            return;
-        }
-        System.out.println("[DEBUG] [BoardPanel] 中键被点击");
-        // 将鼠标点击位置转换回显示坐标（考虑偏移量）
-        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
-        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-        // 转换为逻辑坐标
-        int[] logical = displayToLogic(displayRow, displayCol);
-        int toRow = logical[0];
-        int toCol = logical[1];
-        System.out.println("[DEBUG] [BoardPanel] 目标坐标: " + toRow + "," + toCol);
-
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(toRow, toCol)) {
-            System.out.println("[DEBUG] [BoardPanel] 目标坐标无效");
-            return;
-        }
-        // 如果没有选择棋子，不处理中键
-        if (selectedRow == -1 || selectedCol == -1) {
-            System.out.println("[DEBUG] [BoardPanel] 没有选择棋子");
-            return;
-        }
-        System.out.println("[DEBUG] [BoardPanel] 选中棋子: " + selectedRow + "," + selectedCol);
-
-        // 检查选中的棋子是否是己方的（仅在 restrictBySide==true 时检查）
-        Piece sourcePiece = selectedStackIndex >= 0 ?
-            board.getStack(selectedRow, selectedCol).get(selectedStackIndex) :
-            board.getPiece(selectedRow, selectedCol);
-        if (restrictBySide) {
-            if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn() ||
-                (localControlsRed != null && sourcePiece.isRed() != localControlsRed)) {
-                // 不是己方棋子，不能进行强制走子
-                System.out.println("[DEBUG] [BoardPanel] 选中的不是己方棋子");
-                return;
-            }
-        } else if (onlyCurrentSide) {
-            if (sourcePiece == null || sourcePiece.isRed() != gameEngine.isRedTurn()) {
-                // 不是当前回合方的棋子，不能进行强制走子
-                System.out.println("[DEBUG] [BoardPanel] 选中的不是当前回合方的棋子");
-                return;
-            }
-        } else {
-            if (sourcePiece == null) {
-                System.out.println("[DEBUG] [BoardPanel] 选中的不是有效棋子");
-                return;
-            }
-        }
-
-        System.out.println("[DEBUG] [BoardPanel] 显示强制走子指示器和弹出确认窗体");
-        // 显示强制走子指示器（红色圆圈）
-        setForceMoveIndicator(selectedRow, selectedCol, toRow, toCol);
-
-        // 弹出确认窗体
-        int ans = JOptionPane.showConfirmDialog(this,
-                "是否进行强制走子？",
-                "强制走子确认",
-                JOptionPane.YES_NO_OPTION);
-
-        if (ans == JOptionPane.YES_OPTION) {
-            System.out.println("[DEBUG] [BoardPanel] 用户确认强制走子，触发回调");
-            // 触发强制走子请求的回调接口
-            if (forceMoveRequestListener != null) {
-                forceMoveRequestListener.onForceMoveRequest(selectedRow, selectedCol, toRow, toCol);
-            }
-        } else {
-            System.out.println("[DEBUG] [BoardPanel] 用户取消强制走子");
-            // 取消操作，清除指示器
-            clearForceMoveIndicator();
-        }
-
-        repaint();
+        boolean r=isNetSessionActive(),oc=!r; if(r&&localControlsRed!=null&&gameEngine.isRedTurn()!=localControlsRed)return;
+        Board board=board(); int dc=Math.round((float)(e.getX()-offsetX)/cellSize),dr=Math.round((float)(e.getY()-offsetY)/cellSize);
+        int[] logic=displayToLogic(dr,dc);int toRow=logic[0],toCol=logic[1];
+        if(!board.isValid(toRow,toCol)||selectedRow==-1||selectedCol==-1)return;
+        Piece src=selectedStackIndex>=0?board.getStack(selectedRow,selectedCol).get(selectedStackIndex):board.getPiece(selectedRow,selectedCol);
+        if(r&&(src==null||src.isRed()!=gameEngine.isRedTurn()||(localControlsRed!=null&&src.isRed()!=localControlsRed)))return;
+        if(oc&&(src==null||src.isRed()!=gameEngine.isRedTurn()))return; if(src==null)return;
+        setForceMoveIndicator(selectedRow,selectedCol,toRow,toCol);
+        int a=JOptionPane.showConfirmDialog(this,"是否进行强制走子？","强制走子确认",JOptionPane.YES_NO_OPTION);
+        if(a==JOptionPane.YES_OPTION&&forceMoveRequestListener!=null)forceMoveRequestListener.onForceMoveRequest(selectedRow,selectedCol,toRow,toCol);
+        else clearForceMoveIndicator(); repaint();
     }
-
-    /**
-     * 强制走子请求监听器接口
-     */
-    public interface ForceMoveRequestListener {
-        void onForceMoveRequest(int fromRow, int fromCol, int toRow, int toCol);
-    }
+    public interface ForceMoveRequestListener { void onForceMoveRequest(int fr,int fc,int tr,int tc); }
     private ForceMoveRequestListener forceMoveRequestListener;
-    public void setForceMoveRequestListener(ForceMoveRequestListener listener) {
-        this.forceMoveRequestListener = listener;
-    }
-    /**
-     * @param isRed 是否是红方
-     * @return 选择的棋子类型，null表示取消
-     */
+    public void setForceMoveRequestListener(ForceMoveRequestListener l) { this.forceMoveRequestListener=l; }
+
     private Piece.Type showPromotionDialog(boolean isRed) {
-        Piece.Type[] types;
-
-        if (isRed) {
-            types = new Piece.Type[]{
-                Piece.Type.RED_CHARIOT,    // 車
-                Piece.Type.RED_HORSE,      // 马
-                Piece.Type.RED_CANNON,     // 炮
-                Piece.Type.RED_ELEPHANT,   // 相
-                Piece.Type.RED_ADVISOR     // 仕
-            };
-        } else {
-            types = new Piece.Type[]{
-                Piece.Type.BLACK_CHARIOT,  // 車
-                Piece.Type.BLACK_HORSE,    // 马
-                Piece.Type.BLACK_CANNON,   // 砲
-                Piece.Type.BLACK_ELEPHANT, // 象
-                Piece.Type.BLACK_ADVISOR   // 士
-            };
-        }
-
-        // 使用每个类型的中文名称作为选项
-        String[] options = new String[types.length];
-        for (int i = 0; i < types.length; i++) {
-            options[i] = types[i].getChineseName();
-        }
-
-        int choice = JOptionPane.showOptionDialog(
-            this,
-            "选择晋升的棋子：",
-            "兵卒晋升",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            options,
-            options[0]
-        );
-
-        if (choice >= 0 && choice < types.length) {
-            return types[choice];
-        }
-        return null;
+        Piece.Type[] types=isRed?new Piece.Type[]{Piece.Type.RED_CHARIOT,Piece.Type.RED_HORSE,Piece.Type.RED_CANNON,Piece.Type.RED_ELEPHANT,Piece.Type.RED_ADVISOR}:new Piece.Type[]{Piece.Type.BLACK_CHARIOT,Piece.Type.BLACK_HORSE,Piece.Type.BLACK_CANNON,Piece.Type.BLACK_ELEPHANT,Piece.Type.BLACK_ADVISOR};
+        String[] o=new String[types.length]; for(int i=0;i<types.length;i++)o[i]=types[i].getChineseName();
+        int ch=JOptionPane.showOptionDialog(this,"选择晋升的棋子：","兵卒晋升",JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,o,o[0]);
+        return(ch>=0&&ch<types.length)?types[ch]:null;
     }
 
-    /**
-     * 显示源位置堆叠棋子选择对话框（己方左键点击堆叠位置）
-     * 用于选择要移动的具体棋子
-     */
-    private void showStackSelectionForSourceDialog(int row, int col) {
-        Board board = gameEngine.getBoard();
-        java.util.List<Piece> stack = board.getStack(row, col);
+    private void showStackSelectionForSourceDialog(int r,int c){}
+    private void showStackInfoDialog(int r,int c){}
+    public boolean isStackedPiece(Piece p){return p!=null&&board().getStack(p.getRow(),p.getCol()).size()>1;}
+    private void calculateValidMoves(){validMoves.clear();Board b=board();MoveValidator mv=new MoveValidator(b);for(int r=0;r<b.getRows();r++)for(int c=0;c<b.getCols();c++)if(mv.isValidMove(selectedRow,selectedCol,r,c,selectedStackIndex))validMoves.add(new Point(r,c));}
 
-        if (stack.isEmpty()) return;
+    // ==================== Rendering ====================
+    private Font riverFont(){return new Font("LiSu",Font.BOLD,(int)Math.max(14,cellSize/1.5f));}
 
-        String[] options = new String[stack.size()];
-        for (int i = 0; i < stack.size(); i++) {
-            Piece p = stack.get(i);
-            options[i] = p.getDisplayName() + " (" + (i + 1) + ")";
-        }
-
-        // 根据组合条件动态调整提示文案：启用堆叠 + 最大堆叠数>1 + 允许背负
-        boolean carryEnabled = rulesConfig.getBoolean(RuleRegistry.ALLOW_PIECE_STACKING.registryName)
-                && rulesConfig.getInt(RuleRegistry.MAX_STACKING_COUNT.registryName) > 1
-                && rulesConfig.getBoolean(RuleRegistry.ALLOW_CARRY_PIECES_ABOVE.registryName);
-        String message = carryEnabled
-                ? "选择要移动的棋子（选择某个棋子后，该棋子及其上方的所有棋子都会一起移动）："
-                : "选择要移动的棋子（选择某个棋子后，仅该棋子会移动；其上方的棋子将留在原位置）：";
-
-        int choice = JOptionPane.showOptionDialog(
-            this,
-            message,
-            "选择要移动的棋子",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            options,
-            options[stack.size() - 1]
-        );
-
-        if (choice >= 0 && choice < stack.size()) {
-            // 设置选中的棋子信息并计算可用移动
-            selectedRow = row;
-            selectedCol = col;
-            selectedStackIndex = choice;
-            calculateValidMoves();
-        }
+    /** 19行环绕排列：己方帅/将在中间。联机时根据 localControlsRed 确定己方颜色 */
+    private int[] buildFocusedRows(Board b) {
+        boolean selfIsRed = (localControlsRed != null)
+            ? (viewMode == ViewMode.SELF ? localControlsRed : !localControlsRed)
+            : (viewMode == ViewMode.SELF);
+        int oppR = selfIsRed ? 4 : 13; // 对手将/帅所在行
+        int tr = b.getRows();
+        return new int[]{
+            oppR,(oppR+1)%tr,(oppR+2)%tr,(oppR+3)%tr,(oppR+4)%tr,
+            (oppR+5)%tr,(oppR+6)%tr,(oppR+7)%tr,(oppR+8)%tr,(oppR+9)%tr,
+            (oppR+10)%tr,(oppR+11)%tr,(oppR+12)%tr,(oppR+13)%tr,
+            (oppR+14)%tr,(oppR+15)%tr,(oppR+16)%tr,(oppR+17)%tr, oppR
+        };
     }
 
-    /**
-     * 显示堆叠棋子选择对话框（己方点击堆叠目标位置）
-     */
-    private void showStackSelectionDialog(int toRow, int toCol) {
-        Board board = gameEngine.getBoard();
-        java.util.List<Piece> stack = board.getStack(toRow, toCol);
-
-        if (stack.isEmpty()) return;
-
-        String[] options = new String[stack.size()];
-        for (int i = 0; i < stack.size(); i++) {
-            Piece p = stack.get(i);
-            options[i] = p.getDisplayName() + " (" + (i + 1) + ")";
-        }
-
-        int choice = JOptionPane.showOptionDialog(
-            this,
-            "选择堆叠棋子中的某一个进行移动：",
-            "选择堆叠棋子",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            options,
-            options[stack.size() - 1]
-        );
-
-        if (choice >= 0 && choice < stack.size()) {
-            // 执行移动
-            if (gameEngine.makeMove(selectedRow, selectedCol, toRow, toCol, null, selectedStackIndex)) {
-                if (localMoveListener != null) {
-                    localMoveListener.onLocalMove(selectedRow, selectedCol, toRow, toCol);
-                }
-            }
-            selectedRow = -1;
-            selectedCol = -1;
-            selectedStackIndex = -1;
-            validMoves.clear();
-        }
+    @Override protected void paintComponent(Graphics g) {
+        super.paintComponent(g); Graphics2D g2d=(Graphics2D)g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+        Board b=board();
+        if(!tb()||viewMode==ViewMode.GLOBAL) drawGlobal(g2d,b);
+        else drawFocused(g2d,b);
     }
 
-    /**
-     * 显示堆叠棋子信息对话框（对方点击堆叠）
-     */
-    private void showStackInfoDialog(int row, int col) {
-        Board board = gameEngine.getBoard();
-        java.util.List<Piece> stack = board.getStack(row, col);
-
-        if (stack.isEmpty()) return;
-
-        StringBuilder message = new StringBuilder("目前对方堆叠在此处的棋子有：\n\n");
-        for (int i = 0; i < stack.size(); i++) {
-            Piece p = stack.get(i);
-            message.append((i + 1)).append(". ").append(p.getDisplayName()).append("\n");
-        }
-
-        JOptionPane.showMessageDialog(
-            this,
-            message.toString(),
-            "堆叠信息",
-            JOptionPane.INFORMATION_MESSAGE
-        );
+    private void drawGlobal(Graphics2D g2d,Board b){
+        int rows=b.getRows(),cols=b.getCols(),pr=cellSize/2-2,bw=(cols-1)*cellSize,bh=(rows-1)*cellSize;
+        boolean tb=tb(); int yPad=tb?cellSize:0;
+        offsetX=pr+(getWidth()-(bw+2*pr))/2; offsetY=yPad+pr+(getHeight()-(yPad*2+bh+2*pr))/2;
+        offsetX=Math.max(pr,offsetX); offsetY=Math.max(pr+yPad,offsetY);
+        g2d.translate(offsetX,offsetY);
+        drawBoardGrid(g2d,b);
+        drawPalaceGlobal(g2d);
+        drawPiecesGlobal(g2d,b);
+        drawMoveIndicators(g2d,b);
     }
 
-    /**
-     * 判断指定棋子是否为“堆叠棋子”
-     * @param piece 棋子对象
-     * @return 是否为堆叠棋子
-     */
-    public boolean isStackedPiece(Piece piece) {
-        if (piece == null) return false;
-        Board board = gameEngine.getBoard();
-        java.util.List<Piece> stack = board.getStack(piece.getRow(), piece.getCol());
-        return stack.size() > 1 && stack.contains(piece);
-    }
-
-    /**
-     * 计算所有可能的移动
-     */
-    private void calculateValidMoves() {
-        validMoves.clear();
-        Board board = gameEngine.getBoard();
-        MoveValidator validator = new MoveValidator(board);
-        // 移除所有 validator.set... 调用，因为它们会修改全局配置，导致规则冲突（特别是堆叠和自己吃自己）
-        // validator 默认使用全局 rulesConfig，所以它已经拥有最新的规则状态。
-
-        for (int row = 0; row < board.getRows(); row++) {
-            for (int col = 0; col < board.getCols(); col++) {
-                if (validator.isValidMove(selectedRow, selectedCol, row, col, selectedStackIndex)) {
-                    validMoves.add(new Point(row, col));
-                }
-            }
-        }
-    }
-
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2d = (Graphics2D) g;
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-        Board board = gameEngine.getBoard();
-
-        // 计算棋盘的居中偏移
-        int pieceRadius = cellSize / 2 - 2;
-        int boardWidth = (board.getCols() - 1) * cellSize;
-        int boardHeight = (board.getRows() - 1) * cellSize;
-        // 总大小 = 棋盘 + 左边棋子半径 + 右边棋子半径
-        int totalWidth = boardWidth + 2 * pieceRadius;
-        int totalHeight = boardHeight + 2 * pieceRadius;
-
-        // 计算偏移量，使棋盘在面板中居中
-        offsetX = pieceRadius + (getWidth() - totalWidth) / 2;
-        offsetY = pieceRadius + (getHeight() - totalHeight) / 2;
-
-        // 保证不会出现负数偏移
-        offsetX = Math.max(pieceRadius, offsetX);
-        offsetY = Math.max(pieceRadius, offsetY);
-
-        // 应用偏移变换
+    private void drawFocused(Graphics2D g2d,Board b){
+        int[] fr = buildFocusedRows(b);
+        int drs = fr.length, cols = b.getCols(), pr = cellSize/2-2;
+        int bw = (cols-1)*cellSize, bh = (drs-1)*cellSize;
+        offsetX = pr + (getWidth() - (bw + 2*pr))/2;
+        offsetY = pr + (getHeight() - (bh + 2*pr))/2;
+        offsetX = Math.max(pr, offsetX); offsetY = Math.max(pr, offsetY);
         g2d.translate(offsetX, offsetY);
 
-        // 绘制棋盘
-        drawBoard(g2d, board);
+        int rv1 = 4, rv2 = 5, rv3 = 13, rv4 = 14; // 河界显示行索引
 
-        // 绘制棋子
-        drawPieces(g2d, board);
+        // 左右边框
+        g2d.setColor(Color.BLACK); g2d.setStroke(new BasicStroke(2));
+        g2d.drawLine(0,0,0,bh); g2d.drawLine(bw,0,bw,bh);
 
-        // 绘制移动指示器（在棋子之后，显示在最上层）
-        drawMoveIndicators(g2d, board);
-    }
-
-    /**
-     * 绘制棋盘
-     */
-    private void drawBoard(Graphics2D g2d, Board board) {
-        // 绘制边框
-        g2d.setColor(Color.BLACK);
-        g2d.setStroke(new BasicStroke(2));
-        // 棋盘边框：从 (0,0) 到最后一个交点
-        int boardWidth = (board.getCols() - 1) * cellSize;
-        int boardHeight = (board.getRows() - 1) * cellSize;
-        g2d.drawRect(0, 0, boardWidth, boardHeight);
-
-        // 绘制网格线
-        g2d.setColor(GRID_COLOR);
-        g2d.setStroke(new BasicStroke(1));
-
-        // 竖线：从第 0 列到第 cols-1 列（共 cols 条线）
-        for (int col = 0; col < board.getCols(); col++) {
-            // 边界线贯穿全局，内部线在“河”区域留空
-            if (col == 0 || col == board.getCols() - 1) {
-                g2d.drawLine(col * cellSize, 0, col * cellSize, boardHeight);
+        // 横线：河界行用±2双线
+        g2d.setColor(GRID_COLOR); g2d.setStroke(new BasicStroke(1));
+        for (int dr = 0; dr < drs; dr++) {
+            int y = dr*cellSize;
+            if (dr == rv1 || dr == rv2 || dr == rv3 || dr == rv4) {
+                g2d.drawLine(0, y-2, bw, y-2);
+                g2d.drawLine(0, y+2, bw, y+2);
             } else {
-                int yTopEnd = 4 * cellSize;      // 河上缘（0-based 第5行之上）
-                int yBottomStart = 5 * cellSize; // 河下缘（0-based 第6行之下）
-                g2d.drawLine(col * cellSize, 0, col * cellSize, yTopEnd);
-                g2d.drawLine(col * cellSize, yBottomStart, col * cellSize, boardHeight);
+                g2d.drawLine(0, y, bw, y);
             }
         }
 
-        // 横线：从第 0 行到第 rows-1 行（共 rows 条线）
-        for (int row = 0; row < board.getRows(); row++) {
-            int y = row * cellSize;
-            if (row == 4 || row == 5) {
-                // “楚河汉界”双细线标记
-                g2d.drawLine(0, y - 2, boardWidth, y - 2);
-                g2d.drawLine(0, y + 2, boardWidth, y + 2);
-            } else {
-                g2d.drawLine(0, y, boardWidth, y);
+        // 竖线：河界两行之间断开
+        for (int c = 1; c < cols-1; c++) {
+            int x = c*cellSize;
+            g2d.drawLine(x, 0, x, rv1*cellSize);
+            g2d.drawLine(x, rv2*cellSize, x, rv3*cellSize);
+            g2d.drawLine(x, rv4*cellSize, x, bh);
+        }
+
+        // 河界文字
+        g2d.setFont(riverFont());
+        drawRiverLabel(g2d, rv1*cellSize, bw, "楚河汉界2");
+        drawRiverLabel(g2d, rv3*cellSize, bw, "楚河汉界1");
+
+        // 宫线：固定 row13(红) 和 row4(黑)，最底下的只画上方米字
+        for (int dr = 0; dr < drs; dr++) {
+            int lr = fr[dr];
+            if (lr == 13 || lr == 4) drawPalaceAt(g2d, dr, dr != drs-1);
+        }
+
+        // 棋子
+        for (int dr = 0; dr < drs; dr++) {
+            int lr = fr[dr]; int y = dr*cellSize;
+            for (int c = 0; c < cols; c++) {
+                int ss = b.getStackSize(lr, c); if (ss == 0) continue;
+                java.util.List<Piece> stack = b.getStack(lr, c);
+                int x = c*cellSize, pr2 = cellSize/2-2;
+                if (ss == 1) drawSinglePiece(g2d, stack.get(0), x, y, pr2);
+                else { for (int s = 0; s < ss; s++) { int ox = s%2==0?-4:4, oy = s%2==0?-4:4; drawSinglePiece(g2d,stack.get(s),x+ox,y+oy,pr2); } drawStackBadge(g2d, ss, x, y, pr2); }
             }
         }
-
-        // 绘制"楚河      汉界"文字（翻转时显示"汉界      楚河"）
-        g2d.setColor(GRID_COLOR);
-        g2d.setFont(new Font("LiSu", Font.BOLD, (int) Math.max(16, cellSize / 1.5)));
-        String riverText = boardFlipped ? "汉界      楚河" : "楚河      汉界";
-        FontMetrics riverFm = g2d.getFontMetrics();
-        int riverTextX = (boardWidth - riverFm.stringWidth(riverText)) / 2;
-        int riverTextY = 4 * cellSize + (cellSize / 2) + (riverFm.getAscent() - riverFm.getDescent()) / 2;
-        g2d.drawString(riverText, riverTextX, riverTextY);
-
-        // 绘制"宫"（King's palace）
-        drawPalace(g2d);
-
-        // 绘制炮的位置标记（空心圆点）
-        drawCannonMarks(g2d);
+        drawMoveIndicators(g2d, b);
     }
 
-    /**
-     * 绘制移动指示器（高亮选中和可能的移动位置）
-     */
-    private void drawMoveIndicators(Graphics2D g2d, Board board) {
-        // 绘制所选棋子的高亮 - 显示在交点周围
-        if (selectedRow != -1 && selectedCol != -1) {
-            int[] display = logicToDisplay(selectedRow, selectedCol);
-            int highlightX = display[1] * cellSize;
-            int highlightY = display[0] * cellSize;
-            int highlightRadius = cellSize / 2;
-            g2d.setColor(new Color(255, 255, 0, 100)); // 半透明黄色
-            g2d.fillOval(highlightX - highlightRadius, highlightY - highlightRadius,
-                         highlightRadius * 2, highlightRadius * 2);
-        }
-
-        // 绘制可能的移动 - 在交点上显示
-        if (rulesConfig.getBoolean(RuleRegistry.SHOW_HINTS.registryName)) {
-            g2d.setColor(VALID_MOVE_COLOR);
-            for (Point p : validMoves) {
-                int[] display = logicToDisplay(p.x, p.y);
-                int moveX = display[1] * cellSize;
-                int moveY = display[0] * cellSize;
-                g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
-            }
-        }
-
-        // 绘制强制走子指示器
-        if (forceMoveToRow != -1 && forceMoveToCol != -1) {
-            int[] display = logicToDisplay(forceMoveToRow, forceMoveToCol);
-            int moveX = display[1] * cellSize;
-            int moveY = display[0] * cellSize;
-            if (!style) {
-                // 原红色空心圆圈
-                g2d.setColor(new Color(255, 0, 0)); // 红色
-                g2d.setStroke(new BasicStroke(3));
-                int radius = cellSize / 2;
-                g2d.drawOval(moveX - radius, moveY - radius, radius * 2, radius * 2);
-            } else {
-                // 紫色移动指示器样式（与正常移动指示器相同，但颜色为紫色）
-                g2d.setColor(new Color(0, 38, 255)); // 紫色
-                g2d.fillOval(moveX - 5, moveY - 5, 10, 10);
-            }
-        }
+    private void drawPalaceAt(Graphics2D g2d, int dr, boolean drawLower) {
+        g2d.setColor(GRID_COLOR); g2d.setStroke(new BasicStroke(1));
+        int x1 = 3*cellSize, x2 = 5*cellSize;
+        int yTop = Math.max(0, (dr-2)*cellSize);
+        int yMid = dr*cellSize;
+        int yBot = drawLower ? (dr+2)*cellSize : yMid;
+        drawPalaceFrame(g2d, x1, yTop, x2, yBot);
+        drawPalaceDiag(g2d, x1, yTop, x2, yMid);
+        if (drawLower)
+            drawPalaceDiag(g2d, x1, yMid, x2, yBot);
     }
 
-    /**
-     * 绘制"宫"（九宫）
-     * 九宫是 3×3 的交点范围：列 3-5，行 0-2 或 7-9
-     */
-    private void drawPalace(Graphics2D g2d) {
-        g2d.setColor(GRID_COLOR);
-        g2d.setStroke(new BasicStroke(1));
-
-        // 黑方宫（上方，行 0-2）
-        int x1 = 3 * cellSize;
-        int y1 = 0;
-        int x2 = 5 * cellSize;
-        int y2 = 2 * cellSize;
-        drawDoublePalaceFrame(g2d, x1, y1, x2, y2);
-        // 单黑细线对角线
-        g2d.drawLine(x1, y1, x2, y2);
-        g2d.drawLine(x2, y1, x1, y2);
-
-        // 红方宫（下方，行 7-9）
-        y1 = 7 * cellSize;
-        y2 = 9 * cellSize;
-        drawDoublePalaceFrame(g2d, x1, y1, x2, y2);
-        // 单黑细线对角线
-        g2d.drawLine(x1, y1, x2, y2);
-        g2d.drawLine(x2, y1, x1, y2);
+    private void drawBoardGrid(Graphics2D g2d,Board b){
+        int rows=b.getRows(),cols=b.getCols(),bw=(cols-1)*cellSize,bh=(rows-1)*cellSize; boolean tb=tb();
+        g2d.setColor(Color.BLACK); g2d.setStroke(new BasicStroke(2));
+        g2d.drawLine(0,0,0,bh); g2d.drawLine(bw,0,bw,bh);
+        g2d.setColor(GRID_COLOR); g2d.setStroke(new BasicStroke(1));
+        for(int c=1;c<cols-1;c++){ int ry=getRiverY(0),ry2=getRiverY(1); g2d.drawLine(c*cellSize,0,c*cellSize,ry); g2d.drawLine(c*cellSize,ry2,c*cellSize,bh); }
+        for(int r=0;r<rows;r++){ int y=r*cellSize; boolean isEdge=(tb&&(r==0||r==rows-1)); if(isEdge||isRiverRow(r)){ g2d.drawLine(0,y-2,bw,y-2); g2d.drawLine(0,y+2,bw,y+2); } else g2d.drawLine(0,y,bw,y); }
+        if(tb){ Font rf=riverFont(); g2d.setFont(rf); g2d.setColor(GRID_COLOR); int tw=g2d.getFontMetrics().stringWidth("楚河汉界2"); g2d.drawString("楚河汉界2",(bw-tw)/2,-cellSize/2+g2d.getFontMetrics().getAscent()/3); drawRiverLabel(g2d,bh,bw,"楚河汉界2"); }
+        drawRiverLabel(g2d,getRiverY(0),bw,tb?"楚河汉界1":(boardFlipped?"汉界      楚河":"楚河      汉界"));
     }
 
-    // 绘制双黑细线宫框
-    private void drawDoublePalaceFrame(Graphics2D g2d, int x1, int y1, int x2, int y2) {
-        int width = x2 - x1;
-        int height = y2 - y1;
-        g2d.drawRect(x1, y1, width, height);
-        int inset = 2; // 内缩 2px 的第二条细线
-        g2d.drawRect(x1 + inset, y1 + inset, width - 2 * inset, height - 2 * inset);
+    private void drawRiverLabel(Graphics2D g2d,int y,int bw,String text) {
+        g2d.setColor(GRID_COLOR); g2d.setStroke(new BasicStroke(1));
+        g2d.drawLine(0,y-2,bw,y-2); g2d.drawLine(0,y+2,bw,y+2);
+        g2d.setFont(riverFont()); FontMetrics fm=g2d.getFontMetrics();
+        g2d.drawString(text,(bw-fm.stringWidth(text))/2,y+cellSize/2+fm.getAscent()/3);
     }
+    private int getRiverY(int p){ boolean tb=tb(); return tb?(p==0?8:9)*cellSize:(p==0?4:5)*cellSize; }
+    private boolean isRiverRow(int r){ boolean tb=tb(); return tb?(r==8||r==9):(r==4||r==5); }
 
-    /**
-     * 绘制炮的位置标记（空心圆点）
-     */
-    private void drawCannonMarks(Graphics2D g2d) {
-        g2d.setColor(GRID_COLOR);
-        g2d.setStroke(new BasicStroke(1));
-
-        // 黑方炮位置标记：(2,1) 和 (2,7)
-        drawCannonMark(g2d, 2, 1);
-        drawCannonMark(g2d, 2, 7);
-
-        // 红方炮位置标记：(7,1) 和 (7,7)
-        drawCannonMark(g2d, 7, 1);
-        drawCannonMark(g2d, 7, 7);
-    }
-
-    /**
-     * 绘制单个炮的位置标记
-     */
-    private void drawCannonMark(Graphics2D g2d, int row, int col) {
-        int[] display = logicToDisplay(row, col);
-        int x = display[1] * cellSize;
-        int y = display[0] * cellSize;
-        int markRadius = 3;
-
-        g2d.drawOval(x - markRadius, y - markRadius, markRadius * 2, markRadius * 2);
-    }
-
-    /**
-     * 绘制棋子
-     */
-    private void drawPieces(Graphics2D g2d, Board board) {
-        int pieceRadius = cellSize / 2 - 2;
-
-        for (int row = 0; row < board.getRows(); row++) {
-            for (int col = 0; col < board.getCols(); col++) {
-                int stackSize = board.getStackSize(row, col);
-                if (stackSize == 0) continue;
-
-                java.util.List<Piece> stack = board.getStack(row, col);
-                int[] display = logicToDisplay(row, col);
-                int x = display[1] * cellSize;
-                int y = display[0] * cellSize;
-
-                if (stackSize == 1) {
-                    // 单个棋子：正常绘制
-                    Piece piece = stack.get(0);
-                    drawSinglePiece(g2d, piece, x, y, pieceRadius);
-                } else {
-                    // 堆叠棋子：绘制错开的效果
-                    for (int i = 0; i < stackSize; i++) {
-                        Piece piece = stack.get(i);
-                        int offsetX = (i % 2 == 0 ? -4 : 4);
-                        int offsetY = (i % 2 == 0 ? -4 : 4);
-                        drawSinglePiece(g2d, piece, x + offsetX, y + offsetY, pieceRadius);
-                    }
-                    // 显示堆叠数量徽章
-                    drawStackBadge(g2d, stackSize, x, y, pieceRadius);
-                }
-            }
-        }
-    }
-
-    /**
-     * 绘制单个棋子
-     */
-    private void drawSinglePiece(Graphics2D g2d, Piece piece, int x, int y, int radius) {
-        // 绘制圆形背景
-        if (piece.isRed()) {
-            g2d.setColor(RED_PIECE_COLOR);
+    private void drawPalaceGlobal(Graphics2D g2d){
+        g2d.setColor(GRID_COLOR);g2d.setStroke(new BasicStroke(1));
+        int x1=3*cellSize,x2=5*cellSize;
+        if(tb()){
+            drawPalaceFrame(g2d,x1,2*cellSize,x2,6*cellSize);
+            drawPalaceDiag(g2d,x1,2*cellSize,x2,4*cellSize);
+            drawPalaceDiag(g2d,x1,4*cellSize,x2,6*cellSize);
+            drawPalaceFrame(g2d,x1,11*cellSize,x2,15*cellSize);
+            drawPalaceDiag(g2d,x1,11*cellSize,x2,13*cellSize);
+            drawPalaceDiag(g2d,x1,13*cellSize,x2,15*cellSize);
         } else {
-            g2d.setColor(BLACK_PIECE_COLOR);
+            drawPalaceFrame(g2d,x1,0,x2,2*cellSize);
+            drawPalaceDiag(g2d,x1,0,x2,2*cellSize);
+            drawPalaceFrame(g2d,x1,7*cellSize,x2,9*cellSize);
+            drawPalaceDiag(g2d,x1,7*cellSize,x2,9*cellSize);
         }
-        g2d.fillOval(x - radius, y - radius, radius * 2, radius * 2);
-
-        // 绘制边框
-        g2d.setColor(Color.WHITE);
-        g2d.setStroke(new BasicStroke(2));
-        g2d.drawOval(x - radius, y - radius, radius * 2, radius * 2);
-
-        // 绘制棋子文字
-        g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("SimHei", Font.BOLD, cellSize / 2));
-        String text = piece.getDisplayName();
-        FontMetrics fm = g2d.getFontMetrics();
-        int textX = x - fm.stringWidth(text) / 2;
-        int textY = y + fm.getAscent() / 2 - fm.getDescent();
-        g2d.drawString(text, textX, textY);
     }
+    private void drawPalaceFrame(Graphics2D g2d,int x1,int y1,int x2,int y2){ g2d.drawRect(x1,y1,x2-x1,y2-y1);g2d.drawRect(x1+2,y1+2,(x2-x1)-4,(y2-y1)-4); }
+    private void drawPalaceDiag(Graphics2D g2d,int x1,int y1,int x2,int y2){ g2d.drawLine(x1,y1,x2,y2);g2d.drawLine(x2,y1,x1,y2); }
 
-    /**
-     * 绘制堆叠数量徽章
-     */
-    private void drawStackBadge(Graphics2D g2d, int count, int x, int y, int radius) {
-        // 在右下角绘制小圆形显示堆叠数量
-        int badgeRadius = radius / 3;
-        int badgeX = x + radius - badgeRadius;
-        int badgeY = y + radius - badgeRadius;
-
-        g2d.setColor(new Color(255, 200, 0)); // 金黄色
-        g2d.fillOval(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
-        g2d.setColor(Color.BLACK);
-        g2d.setStroke(new BasicStroke(1));
-        g2d.drawOval(badgeX - badgeRadius, badgeY - badgeRadius, badgeRadius * 2, badgeRadius * 2);
-
-        // 绘制数字
-        g2d.setColor(Color.BLACK);
-        g2d.setFont(new Font("Dialog", Font.BOLD, (int) (badgeRadius * 1.2)));
-        String text = String.valueOf(count);
-        FontMetrics fm = g2d.getFontMetrics();
-        int textX = badgeX - fm.stringWidth(text) / 2;
-        int textY = badgeY + (fm.getAscent() - fm.getDescent()) / 2;
-        g2d.drawString(text, textX, textY);
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        Board board = gameEngine.getBoard();
-        // 棚子在交点上，需要为左右和上下都留出棋子半径的空间
-        int pieceRadius = cellSize / 2 - 2;
-        int boardWidth = (board.getCols() - 1) * cellSize;
-        int boardHeight = (board.getRows() - 1) * cellSize;
-        int width = boardWidth + 2 * pieceRadius;
-        int height = boardHeight + 2 * pieceRadius;
-        return new Dimension(width, height);
-    }
-
-    /**
-     * Unregister listeners from provider. Caller (e.g. ChineseChessFrame) should call this on shutdown.
-     */
-    public void unbind() {
-        try {
-            RulesConfigProvider.removeInstanceChangeListener(providerListener);
-        } catch (Throwable ignored) {}
-        try { if (this.rulesConfig != null) this.rulesConfig.removeRuleChangeListener(ruleChangeListener); } catch (Throwable ignored) {}
-    }
-
-    private void syncValidatorFromConfig() {
-        try {
-            MoveValidator validator = new MoveValidator(gameEngine.getBoard());
-            validator.setRulesConfig(this.rulesConfig);
-            // optional: we don't replace engine's validator here; BoardPanel only uses validator for hints
-        } catch (Throwable ignored) {}
-    }
-
-    public int getSelectedStackIndex() {
-        return selectedStackIndex;
-    }
-
-    // 新增：布置模式下的鼠标点击处理
-    private void handleSetupModeClick(MouseEvent e) {
-        // 将鼠标点击位置转换为逻辑坐标
-        int displayCol = Math.round((float) (e.getX() - offsetX) / cellSize);
-        int displayRow = Math.round((float) (e.getY() - offsetY) / cellSize);
-        int[] logical = displayToLogic(displayRow, displayCol);
-        int row = logical[0];
-        int col = logical[1];
-        
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(row, col)) {
-            return;
-        }
-
-        // 获取InfoSidePanel以获取选中的棋子类型
-        Container parent = getParent();
-        if (parent != null) {
-            Container topLevel = SwingUtilities.getWindowAncestor(parent);
-            if (topLevel instanceof ChineseChessFrame) {
-                ChineseChessFrame frame = (ChineseChessFrame) topLevel;
-                InfoSidePanel infoPanel = frame.infoSidePanel;
-                
-                if (e.getButton() == MouseEvent.BUTTON1) {
-                    // 左键：放置棋子
-                    Piece.Type selectedPieceType = infoPanel.getSelectedPieceType();
-                    if (selectedPieceType != null) {
-                        placePieceInSetupMode(row, col, selectedPieceType);
+    private void drawMoveIndicators(Graphics2D g2d,Board board){
+        if(selectedRow!=-1&&selectedCol!=-1){
+            int hr=cellSize/2;g2d.setColor(new Color(255,255,0,100));
+            if(tb()&&viewMode!=ViewMode.GLOBAL){
+                int[] fr=buildFocusedRows(board);
+                for(int i=0;i<fr.length;i++){
+                    if(fr[i]==selectedRow){
+                        int hx=selectedCol*cellSize,hy=i*cellSize;
+                        g2d.fillOval(hx-hr,hy-hr,hr*2,hr*2);
                     }
-                } else if (e.getButton() == MouseEvent.BUTTON3) {
-                    // 右键：移除棋子
-                    removePieceInSetupMode(row, col);
                 }
+            }else{
+                int[]d=logicToDisplay(selectedRow,selectedCol);
+                g2d.fillOval(d[1]*cellSize-hr,d[0]*cellSize-hr,hr*2,hr*2);
             }
         }
-    }
-
-    // 新增：设置布置模式
-    public void setBoardSetupMode(boolean setupMode) {
-        this.boardSetupMode = setupMode;
-        if (!setupMode) {
-            // 退出布置模式时清除选择状态
-            clearSelection();
-        }
-        repaint();
-    }
-
-    // 新增：获取布置模式状态
-    public boolean isBoardSetupMode() {
-        return boardSetupMode;
-    }
-
-    // 新增：在布置模式下放置棋子
-    public void placePieceInSetupMode(int row, int col, Piece.Type pieceType) {
-        if (!boardSetupMode || pieceType == null) {
-            return;
-        }
-
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(row, col)) {
-            return;
-        }
-
-        // 创建新棋子并放置到指定位置
-        Piece newPiece = new Piece(pieceType, row, col);
-        board.setPiece(row, col, newPiece);
-        
-        // 联机模式下发送放置棋子消息
-        if (ChineseChessFrame.isNetSessionActive()) {
-            sendBoardSetupPlace(row, col, pieceType);
-        }
-        
-        repaint();
-    }
-
-    // 新增：在布置模式下移除棋子
-    public void removePieceInSetupMode(int row, int col) {
-        if (!boardSetupMode) {
-            return;
-        }
-
-        Board board = gameEngine.getBoard();
-        if (!board.isValid(row, col)) {
-            return;
-        }
-
-        // 移除指定位置的棋子
-        board.setPiece(row, col, null);
-        
-        // 联机模式下发送移除棋子消息
-        if (ChineseChessFrame.isNetSessionActive()) {
-            sendBoardSetupRemove(row, col);
-        }
-        
-        repaint();
-    }
-
-    // 新增：发送放置棋子消息
-    private void sendBoardSetupPlace(int row, int col, Piece.Type pieceType) {
-        if (ChineseChessFrame.netController != null && ChineseChessFrame.netController.isActive()) {
-            try {
-                com.google.gson.JsonObject jo = new com.google.gson.JsonObject();
-                jo.addProperty("cmd", "BOARD_SETUP_PLACE");
-                jo.addProperty("row", row);
-                jo.addProperty("col", col);
-                jo.addProperty("pieceType", pieceType.name());
-                ChineseChessFrame.netController.getSession().sendSettings(jo);
-            } catch (Throwable t) {
-                System.out.println("[DEBUG] 发送棋盘放置消息失败: " + t);
+        if(rulesConfig.getBoolean(RuleRegistry.SHOW_HINTS.registryName)){
+            g2d.setColor(VALID_MOVE_COLOR);
+            if(tb()&&viewMode!=ViewMode.GLOBAL){
+                int[] fr=buildFocusedRows(board);
+                for(Point p:validMoves){
+                    for(int i=0;i<fr.length;i++){
+                        if(fr[i]==p.x){g2d.fillOval(p.y*cellSize-5,i*cellSize-5,10,10);}
+                    }
+                }
+            }else{
+                for(Point p:validMoves){int[]d=logicToDisplay(p.x,p.y);g2d.fillOval(d[1]*cellSize-5,d[0]*cellSize-5,10,10);}
             }
         }
+        if(forceMoveToRow!=-1&&forceMoveToCol!=-1){int[]d=logicToDisplay(forceMoveToRow,forceMoveToCol);int mx=d[1]*cellSize,my=d[0]*cellSize;if(!style){g2d.setColor(new Color(255,0,0));g2d.setStroke(new BasicStroke(3));int r=cellSize/2;g2d.drawOval(mx-r,my-r,r*2,r*2);}else{g2d.setColor(new Color(0,38,255));g2d.fillOval(mx-5,my-5,10,10);}}
     }
+    private void drawPiecesGlobal(Graphics2D g2d,Board board){int pr=cellSize/2-2;for(int r=0;r<board.getRows();r++)for(int c=0;c<board.getCols();c++){int ss=board.getStackSize(r,c);if(ss==0)continue;java.util.List<Piece> stack=board.getStack(r,c);int[]d=logicToDisplay(r,c);int x=d[1]*cellSize,y=d[0]*cellSize;if(ss==1)drawSinglePiece(g2d,stack.get(0),x,y,pr);else{for(int i=0;i<ss;i++){int ox=(i%2==0?-4:4),oy=(i%2==0?-4:4);drawSinglePiece(g2d,stack.get(i),x+ox,y+oy,pr);}drawStackBadge(g2d,ss,x,y,pr);}}}
+    private void drawSinglePiece(Graphics2D g2d,Piece piece,int x,int y,int r){g2d.setColor(piece.isRed()?RED_PIECE_COLOR:BLACK_PIECE_COLOR);g2d.fillOval(x-r,y-r,r*2,r*2);g2d.setColor(Color.WHITE);g2d.setStroke(new BasicStroke(2));g2d.drawOval(x-r,y-r,r*2,r*2);g2d.setColor(Color.WHITE);g2d.setFont(new Font("SimHei",Font.BOLD,cellSize/2));String t=piece.getDisplayName();FontMetrics fm=g2d.getFontMetrics();g2d.drawString(t,x-fm.stringWidth(t)/2,y+fm.getAscent()/2-fm.getDescent());}
+    private void drawStackBadge(Graphics2D g2d,int cnt,int x,int y,int r){int br=r/3,bx=x+r-br,by=y+r-br;g2d.setColor(new Color(255,200,0));g2d.fillOval(bx-br,by-br,br*2,br*2);g2d.setColor(Color.BLACK);g2d.setStroke(new BasicStroke(1));g2d.drawOval(bx-br,by-br,br*2,br*2);g2d.setFont(new Font("Dialog",Font.BOLD,(int)(br*1.2)));String t=String.valueOf(cnt);FontMetrics fm=g2d.getFontMetrics();g2d.drawString(t,bx-fm.stringWidth(t)/2,by+(fm.getAscent()-fm.getDescent())/2);}
 
-    // 新增：发送移除棋子消息
-    private void sendBoardSetupRemove(int row, int col) {
-        if (ChineseChessFrame.netController != null && ChineseChessFrame.netController.isActive()) {
-            try {
-                com.google.gson.JsonObject jo = new com.google.gson.JsonObject();
-                jo.addProperty("cmd", "BOARD_SETUP_REMOVE");
-                jo.addProperty("row", row);
-                jo.addProperty("col", col);
-                ChineseChessFrame.netController.getSession().sendSettings(jo);
-            } catch (Throwable t) {
-                System.out.println("[DEBUG] 发送棋盘移除消息失败: " + t);
-            }
-        }
+    @Override public Dimension getPreferredSize(){
+        Board b=board();int pr=cellSize/2-2;int w=(b.getCols()-1)*cellSize+2*pr;
+        if(tb()&&viewMode!=ViewMode.GLOBAL){int[] fr=buildFocusedRows(b);int h=(fr.length-1)*cellSize+2*pr;return new Dimension(w,h);}
+        int h=(b.getRows()-1)*cellSize+2*pr;if(tb())h+=cellSize*2;return new Dimension(w,h);
     }
+    public void unbind(){try{RulesConfigProvider.removeInstanceChangeListener(providerListener);}catch(Throwable ignored){}try{if(rulesConfig!=null)rulesConfig.removeRuleChangeListener(ruleChangeListener);}catch(Throwable ignored){}}
+    private void syncValidatorFromConfig(){try{new MoveValidator(board()).setRulesConfig(rulesConfig);}catch(Throwable ignored){}}
+    public int getSelectedStackIndex(){return selectedStackIndex;}
+    public void setBoardSetupMode(boolean v){boardSetupMode=v;if(!v)clearSelection();repaint();}
+    public boolean isBoardSetupMode(){return boardSetupMode;}
+
+    private void handleSetupModeClick(MouseEvent e){Board b=board();int dc=Math.round((float)(e.getX()-offsetX)/cellSize),dr=Math.round((float)(e.getY()-offsetY)/cellSize);int[]logic=displayToLogic(dr,dc);int row=logic[0],col=logic[1];if(!b.isValid(row,col))return;Container p=getParent();if(p!=null){Container tl=SwingUtilities.getWindowAncestor(p);if(tl instanceof ChineseChessFrame){InfoSidePanel info=((ChineseChessFrame)tl).infoSidePanel;if(e.getButton()==MouseEvent.BUTTON1){Piece.Type sel=info.getSelectedPieceType();if(sel!=null)placePieceInSetupMode(row,col,sel);}else if(e.getButton()==MouseEvent.BUTTON3)removePieceInSetupMode(row,col);}}}
+    public void placePieceInSetupMode(int row,int col,Piece.Type t){if(!boardSetupMode||t==null)return;Board b=board();if(!b.isValid(row,col))return;b.setPiece(row,col,new Piece(t,row,col));if(isNetSessionActive())sendBoardSetupPlace(row,col,t);repaint();}
+    public void removePieceInSetupMode(int row,int col){if(!boardSetupMode)return;Board b=board();if(!b.isValid(row,col))return;b.setPiece(row,col,null);if(isNetSessionActive())sendBoardSetupRemove(row,col);repaint();}
+    private void sendBoardSetupPlace(int row,int col,Piece.Type t){NetModeController nc=getNetController();if(nc!=null&&nc.isActive()){try{com.google.gson.JsonObject jo=new com.google.gson.JsonObject();jo.addProperty("cmd","BOARD_SETUP_PLACE");jo.addProperty("row",row);jo.addProperty("col",col);jo.addProperty("pieceType",t.name());nc.getSession().sendSettings(jo);}catch(Throwable ignored){}}}
+    private void sendBoardSetupRemove(int row,int col){NetModeController nc=getNetController();if(nc!=null&&nc.isActive()){try{com.google.gson.JsonObject jo=new com.google.gson.JsonObject();jo.addProperty("cmd","BOARD_SETUP_REMOVE");jo.addProperty("row",row);jo.addProperty("col",col);nc.getSession().sendSettings(jo);}catch(Throwable ignored){}}}
+    private NetModeController getNetController(){Container p=getParent();if(p!=null){Container tl=SwingUtilities.getWindowAncestor(p);if(tl instanceof ChineseChessFrame)return((ChineseChessFrame)tl).netController;}return null;}
+    private boolean isNetSessionActive(){NetModeController nc=getNetController();return nc!=null&&nc.isActive();}
 }

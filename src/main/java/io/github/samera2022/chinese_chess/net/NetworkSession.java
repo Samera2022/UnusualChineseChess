@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.samera2022.chinese_chess.UpdateInfo;
 import io.github.samera2022.chinese_chess.model.Piece;
-import io.github.samera2022.chinese_chess.ui.ChineseChessFrame;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
@@ -61,6 +60,7 @@ public class NetworkSession {
     private String localToken;
     private String peerToken;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private Listener listener;
 
     // 新增：待处理的 JSON 帧
@@ -76,6 +76,7 @@ public class NetworkSession {
 
     public void startServer(int port) throws IOException {
         close();
+        closed.set(false);
         localToken = null;
         peerToken = null;
         System.out.println("[DEBUG] Server: 准备监听端口 " + port);
@@ -103,6 +104,7 @@ public class NetworkSession {
 
     public void connect(String host, int port) throws IOException {
         close();
+        closed.set(false);
         localToken = null;
         peerToken = null;
         System.out.println("[DEBUG][Client] 尝试连接到 " + host + ":" + port);
@@ -492,6 +494,10 @@ public class NetworkSession {
     }
 
     private void closeInternal() {
+        // 防止并发重复关闭
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         if (serverSocket != null) {
             System.out.println("[DEBUG][Server] 执行 closeInternal，关闭所有资源");
         } else {

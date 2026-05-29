@@ -1,4 +1,4 @@
-Param(
+﻿Param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("exe", "jar", "zip")]
     [string]$Type
@@ -39,6 +39,11 @@ switch ($Type) {
 
     "zip" {
         $ZIP_TEMP = "output/temp_zip"
+        # 清理上次构建残留，避免 jpackage 因目标目录已存在而报错
+        if (Test-Path "$ZIP_TEMP/$BaseName") {
+            Write-Host "[ZIP] Cleaning previous temp directory..." -ForegroundColor Gray
+            Remove-Item "$ZIP_TEMP/$BaseName" -Recurse -Force
+        }
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --icon "$IconPath" `
                  --input "$MAVEN_JAR_DIR" --main-jar "$JAR_NAME" `
@@ -58,6 +63,11 @@ switch ($Type) {
         # --- 修复 2：EVB 动态更名逻辑 ---
         Write-Host "[EXE] Step 1: Generating app-image..." -ForegroundColor Cyan
         $EXE_TEMP = "output/temp_exe"
+        # 清理上次构建残留，避免 jpackage 因目标目录已存在而报错
+        if (Test-Path "$EXE_TEMP/$BaseName") {
+            Write-Host "[EXE] Cleaning previous temp directory..." -ForegroundColor Gray
+            Remove-Item "$EXE_TEMP/$BaseName" -Recurse -Force
+        }
         jpackage --type app-image --name $BaseName --app-version $Version `
                  --vendor $Vendor --description $Description --copyright $Copyright --icon "$IconPath" `
                  --input "$MAVEN_JAR_DIR" --main-jar "$JAR_NAME" `
@@ -71,7 +81,7 @@ switch ($Type) {
         $newCfgPath = "$APP_DIR\$newCfgName"
         $EVB_TEMPLATE = "$PROJECT_ROOT\.build\evb_settings.evb"
         $TEMP_EVB = "$PROJECT_ROOT\.build\temp_build.evb"
-        $EVB_CONSOLE = "C:\Program Files (x86)\Enigma Virtual Box\enigmavbconsole.exe"
+        $EVB_CONSOLE = if ($env:EVB_CONSOLE_PATH) { $env:EVB_CONSOLE_PATH } else { "C:\Program Files (x86)\Enigma Virtual Box\enigmavbconsole.exe" }
 
         Write-Host "[EXE] Step 2: Patching paths for EVB..." -ForegroundColor Cyan
 

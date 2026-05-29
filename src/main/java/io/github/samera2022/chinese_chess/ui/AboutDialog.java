@@ -53,6 +53,6 @@ public class AboutDialog extends JDialog{
         add(content, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
         setSize(500,300);
-        setLocationRelativeTo(this);
+        setLocationRelativeTo(null);
     }
 }

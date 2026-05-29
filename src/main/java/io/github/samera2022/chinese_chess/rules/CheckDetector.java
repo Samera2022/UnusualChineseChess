@@ -74,29 +74,34 @@ public class CheckDetector {
         int originalRow = piece.getRow();
         int originalCol = piece.getCol();
         Piece capturedPiece = board.getPiece(toRow, toCol);
-
-        // 执行移动
+        java.util.List<Piece> capturedStack = null;
         if (capturedPiece != null) {
-            board.removePiece(toRow, toCol);
+            // 保存完整的堆栈信息以便恢复
+            capturedStack = new java.util.ArrayList<>(board.getStack(toRow, toCol));
         }
+
+        // 执行移动：从原位置移除，放到目标位置
+        board.removePiece(originalRow, originalCol);
+        // 清除目标位置（含堆叠）
+        board.clearStack(toRow, toCol);
         piece.move(toRow, toCol);
-        board.setPiece(toRow, toCol, piece);
-        board.setPiece(originalRow, originalCol, null);
+        board.pushToStack(toRow, toCol, piece);
 
         // 检查移动后是否仍在将
         boolean stillInCheck = isInCheck(isRed);
 
-        // 恢复原始状态
-        piece.move(originalRow, originalCol);
-        board.setPiece(originalRow, originalCol, piece);
-        board.setPiece(toRow, toCol, capturedPiece);
-        if (capturedPiece != null) {
-            if (capturedPiece.isRed()) {
-                // 需要恢复到棋子列表中
-            } else {
-                // 需要恢复到棋子列表中
+        // 恢复原始状态：先清除临时位置
+        board.clearStack(toRow, toCol);
+        // 恢复被吃棋子（含堆叠）
+        if (capturedStack != null) {
+            for (Piece p : capturedStack) {
+                p.move(toRow, toCol);
+                board.pushToStack(toRow, toCol, p);
             }
         }
+        // 恢复移动的棋子
+        piece.move(originalRow, originalCol);
+        board.pushToStack(originalRow, originalCol, piece);
 
         return !stillInCheck;
     }

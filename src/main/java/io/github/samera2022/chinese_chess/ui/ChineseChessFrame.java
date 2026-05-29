@@ -47,19 +47,19 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         RequestInfo(int fr, int fc, int tr, int tc, long seq, int historyLen) { this.fr=fr;this.fc=fc;this.tr=tr;this.tc=tc;this.seq=seq;this.historyLen=historyLen; }
     }
 
-    public static GameEngine gameEngine;
+    public GameEngine gameEngine;
     public GameRulesConfig rulesConfig;
     public BoardPanel boardPanel;
-    public static MoveHistoryPanel moveHistoryPanel;
+    public MoveHistoryPanel moveHistoryPanel;
     public JPanel rightPanel;
     public JToggleButton togglePanelButton;
     public JButton undoButton;
     public JButton restartButton;
 
-    // 新的右侧网络面板
-    public static NetModeController netController = new NetModeController();
-    public final InfoSidePanel infoSidePanel;
-    private final RuleSettingsPanel ruleSettingsPanel;
+    // 网络面板
+    public final NetModeController netController = new NetModeController();
+    public InfoSidePanel infoSidePanel;
+    private RuleSettingsPanel ruleSettingsPanel;
 
     // 状态标签（左侧）
     private JLabel statusLabel;
@@ -68,8 +68,28 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
     private final Object pendingDiffsLock = new Object();
     private JsonObject pendingDiffs = new JsonObject();
 
+    // timer for debounced settings sending; must be stopped on disconnect
+    private javax.swing.Timer sendSettingsTimer;
+
     // named listeners so they can be migrated when provider replaces the instance
     private final GameRulesConfig.RuleChangeListener rulesChangeListener = (key, oldVal, newVal, source) -> {
+        // 上下连通开关：重建棋盘 + 自适应格子
+        if (RuleRegistry.TOP_BOTTOM_CONNECTED.registryName.equals(key) && source != GameRulesConfig.ChangeSource.INTERNAL_CONSISTENCY) {
+            SwingUtilities.invokeLater(() -> {
+                gameEngine.rebuildBoardForTopBottom();
+                boardPanel.setCellSizeForRows(gameEngine.getBoard().getRows());
+                boolean tbOn = gameEngine.getRulesConfig().getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);
+                infoSidePanel.setViewToggleEnabled(tbOn);
+                setResizable(true);
+                pack();
+                setResizable(false);
+                revalidate();
+                repaint();
+                updateStatus();
+                if (moveHistoryPanel != null) moveHistoryPanel.refreshHistory();
+                if (ruleSettingsPanel != null) ruleSettingsPanel.refreshUI();
+            });
+        }
         if (source == GameRulesConfig.ChangeSource.INTERNAL_CONSISTENCY) {
             return; // Do not record internal consistency changes
         }
@@ -100,14 +120,20 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         // migrate rule change listener from old instance to new instance and update cached ref
         try {
             if (oldInst != null) {
-                try { oldInst.removeRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+                try { oldInst.removeRuleChangeListener(rulesChangeListener); } catch (Throwable t) {
+                    System.err.println("[ChineseChessFrame] Failed to remove listener from old config: " + t);
+                }
             }
             if (newInst != null) {
-                try { newInst.addRuleChangeListener(rulesChangeListener); } catch (Throwable ignored) {}
+                try { newInst.addRuleChangeListener(rulesChangeListener); } catch (Throwable t) {
+                    System.err.println("[ChineseChessFrame] Failed to add listener to new config: " + t);
+                }
             }
             // update cached ref
             rulesConfig = newInst;
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            System.err.println("[ChineseChessFrame] Failed to migrate provider instance: " + t);
+        }
     };
 
     public ChineseChessFrame() {
@@ -302,6 +328,11 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
                     undoButton.setEnabled(true);
                     boardPanel.setLocalControlsRed(null);
                     infoSidePanel.onDisconnected(reason);
+                    // 停止设置发送定时器
+                    if (sendSettingsTimer != null) {
+                        sendSettingsTimer.stop();
+                        sendSettingsTimer = null;
+                    }
                 });
             }
             @Override
@@ -733,9 +764,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
              }
          }
      }
-
-    // helper: 当当前是主机且已连接时，将设置快照发送给客户端
-    private javax.swing.Timer sendSettingsTimer;
+// helper: 当当前是主机且已连接时，将设置快照发送给客户端
 
     private void initSettingsSendTimer() {
         // debounce: 延迟200ms发送，避免短时间内多次设置变动造成网络抖动
@@ -836,7 +865,7 @@ public class ChineseChessFrame extends JFrame implements GameEngine.GameStateLis
         if (choice >= 0 && choice < types.length) return types[choice];
         return null;
     }
-    public static boolean isNetSessionActive(){
+    public boolean isNetSessionActive() {
         return netController.isActive();
     }
 

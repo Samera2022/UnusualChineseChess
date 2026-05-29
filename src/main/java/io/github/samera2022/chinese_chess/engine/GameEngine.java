@@ -31,7 +31,9 @@ public class GameEngine {
         try {
             this.rulesConfig = newInst;
             if (this.validator != null) this.validator.setRulesConfig(newInst);
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            System.err.println("[GameEngine] Failed to apply provider instance change: " + t);
+        }
     };
     private List<Move> moveHistory;
     private List<RuleChangeRecord> ruleChangeHistory;
@@ -61,7 +63,8 @@ public class GameEngine {
                 .registerTypeAdapter(RuleChangeRecord.class, (com.google.gson.InstanceCreator<RuleChangeRecord>) type -> new RuleChangeRecord())
                 .create();
         this.rulesConfig = injectedRulesConfig != null ? injectedRulesConfig : RulesConfigProvider.get();
-        this.board = new Board();
+        boolean tb = this.rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);
+        this.board = tb ? new Board(Board.EXPANDED_ROWS) : new Board(Board.STANDARD_ROWS);
         this.validator = new MoveValidator(board);
         this.validator.setRulesConfig(this.rulesConfig);
         this.checkDetector = new CheckDetector(board, validator);
@@ -79,6 +82,28 @@ public class GameEngine {
         if (newConfig == null) return;
         this.rulesConfig = newConfig;
         if (this.validator != null) this.validator.setRulesConfig(newConfig);
+    }
+
+    /**
+     * 根据当前 top_bottom_connected 重建棋盘（标准 10 行 ↔ 对称 18 行）
+     */
+    public void rebuildBoardForTopBottom() {
+        boolean tb = rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);
+        int newRows = tb ? Board.EXPANDED_ROWS : Board.STANDARD_ROWS;
+        if (board.getRows() == newRows) return;
+        this.board = new Board(newRows);
+        this.validator = new MoveValidator(board);
+        this.validator.setRulesConfig(this.rulesConfig);
+        this.checkDetector = new CheckDetector(board, validator);
+        this.moveHistory.clear();
+        this.ruleChangeHistory.clear();
+        this.isRedTurn = true;
+        this.gameState = GameState.RUNNING;
+        this.savedInitialBoard = null;
+        this.savedInitialIsRedTurn = true;
+        this.isInReplayMode = false;
+        this.currentReplayStep = -1;
+        notifyGameStateChanged();
     }
 
     public boolean makeMove(int fromRow, int fromCol, int toRow, int toCol) {
@@ -182,8 +207,17 @@ public class GameEngine {
 
         if (!convertedCapture && rulesConfig.getBoolean(RuleRegistry.PAWN_PROMOTION.registryName) &&
                 (piece.getType() == Piece.Type.RED_SOLDIER || piece.getType() == Piece.Type.BLACK_SOLDIER)) {
-            boolean isAtOpponentBaseLine = (piece.isRed() && toRow == 0) || (!piece.isRed() && toRow == 9);
-            boolean isAtOwnBaseLine = (piece.isRed() && toRow == 9) || (!piece.isRed() && toRow == 0);
+            boolean tb2 = rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);
+            int oppoRow, ownRow;
+            if (tb2) {
+                oppoRow = piece.isRed() ? 4 : 13;
+                ownRow = piece.isRed() ? 13 : 4;
+            } else {
+                oppoRow = piece.isRed() ? 0 : (board.getRows() - 1);
+                ownRow = piece.isRed() ? (board.getRows() - 1) : 0;
+            }
+            boolean isAtOpponentBaseLine = toRow == oppoRow;
+            boolean isAtOwnBaseLine = toRow == ownRow;
             boolean allowOwnBaseLine = rulesConfig.getBoolean(RuleRegistry.ALLOW_OWN_BASE_LINE.registryName);
             if ((isAtOpponentBaseLine || (isAtOwnBaseLine && allowOwnBaseLine)) && promotionType != null) {
                 board.setPiece(toRow, toCol, new Piece(promotionType, toRow, toCol));
@@ -236,6 +270,14 @@ public class GameEngine {
 
     public boolean forceApplyMove(int fromRow, int fromCol, int toRow, int toCol, Piece.Type promotionType, int selectedStackIndex) {
         if (gameState != GameState.RUNNING) {
+            return false;
+        }
+
+        // 基本坐标验证
+        if (!board.isValid(fromRow, fromCol) || !board.isValid(toRow, toCol)) {
+            return false;
+        }
+        if (fromRow == toRow && fromCol == toCol) {
             return false;
         }
 
@@ -292,7 +334,9 @@ public class GameEngine {
         if (piece == null || (piece.getType() != Piece.Type.RED_SOLDIER && piece.getType() != Piece.Type.BLACK_SOLDIER)) {
             return false;
         }
-        return (piece.isRed() && row == 0) || (!piece.isRed() && row == 9);
+        boolean tb3 = rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName);
+        int oppoLine = tb3 ? (piece.isRed() ? 4 : 13) : (piece.isRed() ? 0 : (board.getRows() - 1));
+        return row == oppoLine;
     }
 
     private void checkGameState() {
@@ -396,7 +440,11 @@ public class GameEngine {
     }
 
     public void restart() {
-        board.reset();
+        if (rulesConfig.getBoolean(RuleRegistry.TOP_BOTTOM_CONNECTED.registryName)) {
+            board.resetSymmetric();
+        } else {
+            board.reset();
+        }
         moveHistory.clear();
         ruleChangeHistory.clear();
         isRedTurn = true;
@@ -492,7 +540,9 @@ public class GameEngine {
     public void shutdown() {
         try {
             RulesConfigProvider.removeInstanceChangeListener(providerListener);
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            System.err.println("[GameEngine] Error during shutdown: " + t);
+        }
     }
 
     private Piece.Type convertPieceTypeToSide(Piece.Type type, boolean toRed) {
@@ -584,9 +634,8 @@ public class GameEngine {
                 }
             }
         }
-        Board standardBoard = new Board();
-        this.savedInitialBoard = standardBoard.deepCopy();
-        this.savedInitialIsRedTurn = true;
+        this.savedInitialBoard = board.deepCopy();
+        this.savedInitialIsRedTurn = this.isRedTurn;
         this.isInReplayMode = false;
         this.currentReplayStep = -1;
         this.validator.setRulesConfig(this.rulesConfig);

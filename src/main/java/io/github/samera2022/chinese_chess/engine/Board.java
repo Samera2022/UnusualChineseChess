@@ -6,29 +6,52 @@ import java.util.*;
 
 /**
  * 棋盘类 - 管理中国象棋的棋盘状态
- * 棋盘为 10 行 9 列，坐标为 (0-9, 0-8)
+ * 标准模式：10 行 9 列 (0-9, 0-8)
+ * 上下连通模式：18 行 9 列 (0-17, 0-8)
  */
 public class Board {
-    private static final int ROWS = 10;
-    private static final int COLS = 9;
+    public static final int COLS = 9;
+    public static final int STANDARD_ROWS = 10;
+    public static final int EXPANDED_ROWS = 18;
+
+    private final int rows;
     private Piece[][] board;
     private List<Piece> redPieces;
     private List<Piece> blackPieces;
     private final Map<String, Deque<Piece>> stacks = new HashMap<>();
 
     public Board() {
-        this.board = new Piece[ROWS][COLS];
-        this.redPieces = new ArrayList<>();
-        this.blackPieces = new ArrayList<>();
-        initializeBoard();
+        this(STANDARD_ROWS, true, false);
     }
 
-    /**
-     * 初始化棋盘 - 按照中国象棋标准布局
-     */
+    public Board(int rows) {
+        this(rows, true, false);
+    }
+
+    private Board(int rows, boolean initialize, boolean symmetric) {
+        this.rows = rows;
+        this.board = new Piece[rows][COLS];
+        this.redPieces = new ArrayList<>();
+        this.blackPieces = new ArrayList<>();
+        if (initialize) {
+            initializeBoard(symmetric);
+        }
+    }
+
+    // Copy constructor for deepCopy
+    private Board(int rows, boolean unused) {
+        this.rows = rows;
+        this.board = new Piece[rows][COLS];
+        this.redPieces = new ArrayList<>();
+        this.blackPieces = new ArrayList<>();
+    }
+
     private void initializeBoard() {
-        // 清空棋盘
-        for (int i = 0; i < ROWS; i++) {
+        initializeBoard(false);
+    }
+
+    private void initializeBoard(boolean symmetric) {
+        for (int i = 0; i < rows; i++) {
             for (int j = 0; j < COLS; j++) {
                 board[i][j] = null;
             }
@@ -37,7 +60,17 @@ public class Board {
         blackPieces.clear();
         stacks.clear();
 
-        // 初始化黑方（顶部，行 0-4）
+        if (symmetric) {
+            initExpandedSymmetric();
+        } else if (rows == EXPANDED_ROWS) {
+            initExpandedSymmetric();
+        } else {
+            initStandard();
+        }
+    }
+
+    private void initStandard() {
+        // 黑方（顶部，行 0-4）
         addPiece(0, 4, Piece.Type.BLACK_KING);
         addPiece(0, 3, Piece.Type.BLACK_ADVISOR);
         addPiece(0, 5, Piece.Type.BLACK_ADVISOR);
@@ -55,7 +88,7 @@ public class Board {
         addPiece(3, 6, Piece.Type.BLACK_SOLDIER);
         addPiece(3, 8, Piece.Type.BLACK_SOLDIER);
 
-        // 初始化红方（底部，行 5-9）
+        // 红方（底部，行 5-9）
         addPiece(9, 4, Piece.Type.RED_KING);
         addPiece(9, 3, Piece.Type.RED_ADVISOR);
         addPiece(9, 5, Piece.Type.RED_ADVISOR);
@@ -72,6 +105,46 @@ public class Board {
         addPiece(6, 4, Piece.Type.RED_SOLDIER);
         addPiece(6, 6, Piece.Type.RED_SOLDIER);
         addPiece(6, 8, Piece.Type.RED_SOLDIER);
+    }
+
+    /**
+     * 18行对称布局（上下连通模式）：
+     * 黑方 row 0-8（上半区），红方 row 9-17（下半区，红在下）
+     */
+    private void initExpandedSymmetric() {
+        // 黑方 (row 0-8) —— 上方
+        for (int c = 0; c < COLS; c += 2) addPiece(1, c, Piece.Type.BLACK_SOLDIER);
+        addPiece(2, 1, Piece.Type.BLACK_CANNON);
+        addPiece(2, 7, Piece.Type.BLACK_CANNON);
+        addPiece(4, 4, Piece.Type.BLACK_KING);
+        addPiece(4, 3, Piece.Type.BLACK_ADVISOR);
+        addPiece(4, 5, Piece.Type.BLACK_ADVISOR);
+        addPiece(4, 2, Piece.Type.BLACK_ELEPHANT);
+        addPiece(4, 6, Piece.Type.BLACK_ELEPHANT);
+        addPiece(4, 1, Piece.Type.BLACK_HORSE);
+        addPiece(4, 7, Piece.Type.BLACK_HORSE);
+        addPiece(4, 0, Piece.Type.BLACK_CHARIOT);
+        addPiece(4, 8, Piece.Type.BLACK_CHARIOT);
+        addPiece(6, 1, Piece.Type.BLACK_CANNON);
+        addPiece(6, 7, Piece.Type.BLACK_CANNON);
+        for (int c = 0; c < COLS; c += 2) addPiece(7, c, Piece.Type.BLACK_SOLDIER);
+
+        // 红方 (row 9-17) —— 下方
+        for (int c = 0; c < COLS; c += 2) addPiece(10, c, Piece.Type.RED_SOLDIER);
+        addPiece(11, 1, Piece.Type.RED_CANNON);
+        addPiece(11, 7, Piece.Type.RED_CANNON);
+        addPiece(13, 4, Piece.Type.RED_KING);
+        addPiece(13, 3, Piece.Type.RED_ADVISOR);
+        addPiece(13, 5, Piece.Type.RED_ADVISOR);
+        addPiece(13, 2, Piece.Type.RED_ELEPHANT);
+        addPiece(13, 6, Piece.Type.RED_ELEPHANT);
+        addPiece(13, 1, Piece.Type.RED_HORSE);
+        addPiece(13, 7, Piece.Type.RED_HORSE);
+        addPiece(13, 0, Piece.Type.RED_CHARIOT);
+        addPiece(13, 8, Piece.Type.RED_CHARIOT);
+        addPiece(15, 1, Piece.Type.RED_CANNON);
+        addPiece(15, 7, Piece.Type.RED_CANNON);
+        for (int c = 0; c < COLS; c += 2) addPiece(16, c, Piece.Type.RED_SOLDIER);
     }
 
     private String key(int r, int c) {
@@ -120,7 +193,7 @@ public class Board {
 
     public void pushToStack(int row, int col, Piece piece) {
         if (!isValid(row, col) || piece == null) return;
-        piece.move(row, col); // Ensure piece's internal coordinates are updated
+        piece.move(row, col);
         Deque<Piece> dq = stackOf(row, col);
         dq.addLast(piece);
         board[row][col] = dq.peekLast();
@@ -136,7 +209,7 @@ public class Board {
         Deque<Piece> dq = stacks.get(key(row, col));
         if (dq == null || dq.isEmpty()) return null;
         Piece p = dq.removeLast();
-        p.move(-1, -1); // Mark as off-board
+        p.move(-1, -1);
         if (p.isRed()) redPieces.remove(p);
         else blackPieces.remove(p);
         board[row][col] = dq.peekLast();
@@ -148,40 +221,31 @@ public class Board {
         if (!isValid(row, col)) return null;
         Deque<Piece> dq = stacks.get(key(row, col));
         if (dq == null || dq.isEmpty() || index < 0 || index >= dq.size()) return null;
-
-        java.util.List<Piece> list = new java.util.ArrayList<>(dq);
+        List<Piece> list = new ArrayList<>(dq);
         Piece removed = list.remove(index);
-        removed.move(-1, -1); // Mark as off-board
-
+        removed.move(-1, -1);
         if (removed.isRed()) redPieces.remove(removed);
         else blackPieces.remove(removed);
-
         dq.clear();
         dq.addAll(list);
-
         board[row][col] = dq.peekLast();
         if (dq.isEmpty()) stacks.remove(key(row, col));
-
         return removed;
     }
 
     public void insertToStack(int row, int col, int index, Piece piece) {
         if (!isValid(row, col) || piece == null) return;
-        piece.move(row, col); // Ensure piece's internal coordinates are updated
+        piece.move(row, col);
         Deque<Piece> dq = stackOf(row, col);
-        
         if (index < 0) index = 0;
         if (index > dq.size()) index = dq.size();
-
-        java.util.List<Piece> list = new java.util.ArrayList<>(dq);
+        List<Piece> list = new ArrayList<>(dq);
         list.add(index, piece);
-
         if (piece.isRed()) {
             if (!redPieces.contains(piece)) redPieces.add(piece);
         } else {
             if (!blackPieces.contains(piece)) blackPieces.add(piece);
         }
-
         dq.clear();
         dq.addAll(list);
         board[row][col] = dq.peekLast();
@@ -192,7 +256,7 @@ public class Board {
         Deque<Piece> dq = stacks.remove(key(row, col));
         if (dq != null) {
             for (Piece p : dq) {
-                p.move(-1, -1); // Mark as off-board
+                p.move(-1, -1);
                 if (p.isRed()) redPieces.remove(p);
                 else blackPieces.remove(p);
             }
@@ -200,55 +264,35 @@ public class Board {
         board[row][col] = null;
     }
 
-    public int getRows() {
-        return ROWS;
-    }
+    public int getRows() { return rows; }
+    public int getCols() { return COLS; }
 
-    public int getCols() {
-        return COLS;
-    }
-
-    public List<Piece> getRedPieces() {
-        return new ArrayList<>(redPieces);
-    }
-
-    public List<Piece> getBlackPieces() {
-        return new ArrayList<>(blackPieces);
-    }
+    public List<Piece> getRedPieces() { return new ArrayList<>(redPieces); }
+    public List<Piece> getBlackPieces() { return new ArrayList<>(blackPieces); }
 
     public Piece getRedKing() {
-        return redPieces.stream()
-            .filter(p -> p.getType() == Piece.Type.RED_KING)
-            .findFirst()
-            .orElse(null);
+        return redPieces.stream().filter(p -> p.getType() == Piece.Type.RED_KING).findFirst().orElse(null);
     }
-
     public Piece getBlackKing() {
-        return blackPieces.stream()
-            .filter(p -> p.getType() == Piece.Type.BLACK_KING)
-            .findFirst()
-            .orElse(null);
+        return blackPieces.stream().filter(p -> p.getType() == Piece.Type.BLACK_KING).findFirst().orElse(null);
     }
 
-    public void reset() {
-        initializeBoard();
-    }
+    public void reset() { initializeBoard(); }
+
+    public void resetSymmetric() { initializeBoard(true); }
 
     public void clearBoard() {
-        for (int i = 0; i < ROWS; i++) {
-            for (int j = 0; j < COLS; j++) {
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < COLS; j++)
                 board[i][j] = null;
-            }
-        }
         redPieces.clear();
         blackPieces.clear();
         stacks.clear();
     }
 
     public Board deepCopy() {
-        Board copy = new Board();
-        copy.clearBoard();
-        for (int r = 0; r < ROWS; r++) {
+        Board copy = new Board(this.rows, false);
+        for (int r = 0; r < rows; r++) {
             for (int c = 0; c < COLS; c++) {
                 for (Piece p : getStack(r, c)) {
                     Piece cp = new Piece(p.getType(), r, c);
@@ -259,6 +303,7 @@ public class Board {
         return copy;
     }
 
+
     public void putPieceFresh(int row, int col, Piece piece) {
         if (!isValid(row, col)) return;
         popTop(row, col);
@@ -268,14 +313,10 @@ public class Board {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < ROWS; i++) {
+        for (int i = 0; i < rows; i++) {
             for (int j = 0; j < COLS; j++) {
                 Piece piece = board[i][j];
-                if (piece != null) {
-                    sb.append(piece.toString()).append(" ");
-                } else {
-                    sb.append(". ");
-                }
+                sb.append(piece != null ? piece.toString() : ".").append(" ");
             }
             sb.append("\n");
         }
@@ -283,6 +324,6 @@ public class Board {
     }
 
     public boolean isValid(int row, int col) {
-        return row >= 0 && row < ROWS && col >= 0 && col < COLS;
+        return row >= 0 && row < rows && col >= 0 && col < COLS;
     }
 }
