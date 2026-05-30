@@ -46,5 +46,9 @@
   "2.1.0": {
     "releaseDate": "2026-02-05 19:44",
     "description": "## [Changed]\n - 改为使用updates.json维护更新日志。\n - 开始使用Github Action。\n - 改用maven构建。"
+  },
+  "2.2.0": {
+    "releaseDate": "2026-05-30 16:57",
+    "description": "## [Added]\n - 添加上下连通模式。"
   }
 }
