@@ -19,8 +19,8 @@ $Copyright   = $props.copyright
 $FullName = "$BaseName-$Version"
 $OUT_DIR = New-Item -ItemType Directory -Path "$PROJECT_ROOT\output" -Force
 $IconPath = "$PROJECT_ROOT\.build\${BaseName}.ico"
-$MAVEN_JAR_DIR = "$PROJECT_ROOT\target"
-$JAR_NAME = "${BaseName}.jar"
+$MAVEN_JAR_DIR = "$PROJECT_ROOT\ucc-app\target"
+$JAR_NAME = "ucc-app.jar"
 
 # 2. 生成 JRE (jlink)
 if (-not (Test-Path "custom-jre")) {

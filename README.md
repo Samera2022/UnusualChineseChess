@@ -38,7 +38,7 @@
 
 ### Quick Launch
 I. Jar User
-1. Make sure that you have installed JRE 1.8 or above. If not, you can download [HERE](https://www.oracle.com/technetwork/cn/java/javase/downloads/jre8-downloads-2133155-zhs.html).
+1. Make sure that you have installed JRE 11 or above. If not, you can download [HERE](https://www.oracle.com/java/technologies/downloads/).
 2. Download the latest `.jar` file from the [Releases](https://github.com/Samera2022/UnusualChineseChess/releases) page.
 3. Double-click the jar file OR use cmd to run the application:
     ```bash
@@ -48,12 +48,47 @@ II. Exe User
 1. Download the latest `.exe` file from the [Releases](https://github.com/Samera2022/UnusualChineseChess/releases) page.
 2. Click to start! All environments are integrated into one `exe` file!
 
+## Build from Source
+
+This project uses **Maven multi-module** structure. The modules are:
+
+| Module | Description |
+|--------|-------------|
+| `ucc-common` | Common models, constants, SPI interfaces |
+| `ucc-core` | Game engine, rules, move validation |
+| `ucc-api` | Public API (networking, I/O, filters) |
+| `ucc-app` | Application UI layer (Swing GUI, controllers) |
+
+### Prerequisites
+- **JDK 11+** (Oracle or OpenJDK)
+- **Maven 3.6+**
+
+### Build
+```bash
+# Build from the root directory (compiles all modules)
+mvn clean package -DskipTests
+
+# The runnable uber-jar is at:
+# ucc-app/target/ucc-app.jar
+```
+
+Run the application:
+```bash
+java -jar ucc-app/target/ucc-app.jar
+```
+
+### Local Build Script (PowerShell)
+For full package generation (jar/zip/exe), run:
+```powershell
+.\build-local.ps1
+```
+
 ## Development Document
 
 This project is designed to be extensible. If you have an idea for a new, unusual rule, it is encouraged for you to contribute!
 
 *   **How to Contribute**: Please fork the repository, create a new branch for your feature, and submit a pull request.
-*   **Adding New Rules**: I've created a step-by-step guide for developers. Please see [**How to Create New Rules in 2.X.X**](docs/如何创建新玩法(2.X.X).md) for more details. 
+*   **Adding New Rules**: I've created a step-by-step guide for developers. Please see [**How to Create New Rules in 2.X.X**](docs/如何创建新玩法(2.X.X).md) for more details.
 Specifically, if you want to develop on 1.X.X version, please refer to [**How to Create New Rules in 1.X.X**](docs/如何创建新玩法(1.X.X).md) for more details.
 
 For more up-to-date documents, you can refer to [Samera2022/UnusualChineseChess | DeepWiki](https://deepwiki.com/Samera2022/UnusualChineseChess) or just click the badge at the top of the article， which offers weekly-updated docs for this project.
