@@ -1,0 +1,49 @@
+### IntelliJ IDEA ###
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+UnusualChineseChess.iml
+
+/local_build_settings
+/custom-jre
+/TO-DO.txt
+/_results
+/output/
+/.idea/
+/target/
+
+ucc-common/target/
+ucc-api/target/
+ucc-app/target/
+ucc-core/target/
+ucc-ai/target/
+ucc-ai/checkpoints_test/
+ucc-ai/__pycache__/
+
+*.iml
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
