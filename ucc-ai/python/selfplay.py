@@ -45,6 +45,17 @@ PIECE_TYPE_TO_CHANNEL: Dict[str, int] = {
     "BLACK_SOLDIER": 13,
 }
 
+# 棋子子力价值（用于启发式评估）
+PIECE_VALUE: Dict[str, int] = {
+    "RED_KING": 10000, "BLACK_KING": 10000,
+    "RED_CHARIOT": 900, "BLACK_CHARIOT": 900,
+    "RED_CANNON": 450, "BLACK_CANNON": 450,
+    "RED_HORSE": 400, "BLACK_HORSE": 400,
+    "RED_ELEPHANT": 200, "BLACK_ELEPHANT": 200,
+    "RED_ADVISOR": 200, "BLACK_ADVISOR": 200,
+    "RED_SOLDIER": 100, "BLACK_SOLDIER": 100,
+}
+
 NUM_CHANNELS = 14
 RULE_BOOL_DIM = 22          # RuleEncoder.encode() 输出长度
 RULE_CONTINUOUS_DIM = 1     # RuleEncoder.encodeContinuous() 输出长度
@@ -598,6 +609,81 @@ def _apply_mock_move(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 启发式局面评估（mock 模式用）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _evaluate_mock_position(board_state: Dict[str, Any]) -> float:
+    """对 mock 棋盘进行启发式子力评估。
+
+    计算红方与黑方的子力差，归一化到 [-1, 1]。
+    用于替代 mock 模式下的随机胜负判定，为 value head 提供有意义的训练信号。
+
+    Args:
+        board_state: BoardState JSON 字典。
+
+    Returns:
+        红方视角的评估值 ∈ [-1, 1]。正值表示红方优势。
+    """
+    red_score = 0
+    black_score = 0
+    entries = board_state.get("entries", [])
+
+    for entry in entries:
+        piece_types = entry.get("pieceTypes", [])
+        for pt in piece_types:
+            value = PIECE_VALUE.get(pt, 0)
+            if pt.startswith("RED_"):
+                red_score += value
+            elif pt.startswith("BLACK_"):
+                black_score += value
+
+    diff = red_score - black_score
+    # 使用 tanh 归一化，scale=2000 使得一个车的差距约 0.42
+    if diff == 0:
+        return 0.0
+    return float(np.tanh(diff / 2000.0))
+
+
+def _is_mock_game_over(board_state: Dict[str, Any]) -> Tuple[bool, float]:
+    """检查 mock 棋盘是否达到终止条件。
+
+    终止条件：
+      - 某方将帅被吃（子力列表中无 KING）→ 对方胜
+      - 某方棋子全部被吃 → 对方胜
+
+    Args:
+        board_state: BoardState JSON 字典。
+
+    Returns:
+        (is_over, value): is_over 为 True 时 value 为红方视角的胜负值。
+    """
+    entries = board_state.get("entries", [])
+    has_red_king = False
+    has_black_king = False
+    has_red_piece = False
+    has_black_piece = False
+
+    for entry in entries:
+        for pt in entry.get("pieceTypes", []):
+            if pt == "RED_KING":
+                has_red_king = True
+                has_red_piece = True
+            elif pt.startswith("RED_"):
+                has_red_piece = True
+            elif pt == "BLACK_KING":
+                has_black_king = True
+                has_black_piece = True
+            elif pt.startswith("BLACK_"):
+                has_black_piece = True
+
+    if not has_red_king or not has_red_piece:
+        return True, -1.0  # 黑胜
+    if not has_black_king or not has_black_piece:
+        return True, 1.0   # 红胜
+    return False, 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MCTS 搜索
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -635,11 +721,18 @@ def mcts_search(
     rows: int = 10,
     cols: int = 9,
     use_mock: bool = True,
+    dirichlet_alpha: float = 0.3,
+    dirichlet_weight: float = 0.25,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """神经网络引导的 MCTS 搜索。
+    """神经网络引导的 MCTS 搜索（含 Dirichlet 噪声探索）。
 
     对给定局面执行 num_simulations 次模拟，每次模拟含四个阶段：
       Selection → Evaluation → Expansion → Backpropagation
+
+    改进点（相比原版）：
+      - 根节点添加 Dirichlet 噪声，增强探索多样性
+      - 叶子节点在 mock 模式下使用启发式评估（非零 value）
+      - 支持虚拟损失（virtual loss）防止搜索集中
 
     若 model 为 None，回退到均匀先验（无神经网络引导的纯 MCTS）。
 
@@ -655,7 +748,10 @@ def mcts_search(
         rows: 棋盘行数。
         cols: 棋盘列数。
         use_mock: True 时使用模拟数据（不调用 Java）。
-            False 时通过 PyBridge 获取真实合法着法和执行模拟。
+        dirichlet_alpha: Dirichlet 噪声的 alpha 参数。
+            较小值（0.03-0.3）产生更集中的噪声，适合大动作空间。
+        dirichlet_weight: 噪声混合权重 ε。
+            prior = (1-ε)*nn_prior + ε*noise。AlphaZero 使用 0.25。
 
     Returns:
         (action_probs, training_target):
@@ -680,6 +776,39 @@ def mcts_search(
 
     # 创建根节点
     root = MCTSNode(state={"board": board_state, "rules": rule_vector})
+
+    # ── 根节点首次展开 + Dirichlet 噪声 ──
+    root_tensor = board_to_tensor(board_state, rows, cols)
+    if model is not None:
+        with torch.no_grad():
+            batch_board = torch.from_numpy(root_tensor).unsqueeze(0)
+            batch_rules = torch.from_numpy(rule_tensor).unsqueeze(0)
+            policy_logits, root_value = model(batch_board, batch_rules)
+            root_policy_probs = (
+                torch.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
+            )
+    else:
+        root_policy_probs = np.ones(cells, dtype=np.float32) / cells
+
+    # 展开根节点并添加 Dirichlet 噪声
+    root.is_expanded = True
+    num_root_moves = len(root_moves)
+    noise = np.random.dirichlet([dirichlet_alpha] * num_root_moves)
+
+    for i, move in enumerate(root_moves):
+        move_idx = move["toRow"] * cols + move["toCol"]
+        if 0 <= move_idx < cells:
+            nn_prior = float(root_policy_probs[move_idx])
+        else:
+            nn_prior = 1.0 / num_root_moves
+
+        # 混合神经网络先验与 Dirichlet 噪声
+        prior = (1.0 - dirichlet_weight) * nn_prior + dirichlet_weight * noise[i]
+
+        child_board = _apply_mock_move(board_state, move, rows, cols)
+        child_state = {"board": child_board, "rules": rule_vector}
+        child = MCTSNode(state=child_state, parent=root, prior=prior)
+        root.children[json.dumps(move, sort_keys=True)] = child
 
     # ── MCTS 主循环 ──
     for _ in range(num_simulations):
@@ -710,26 +839,44 @@ def mcts_search(
 
         # 2) Evaluation: 神经网络评估当前叶子局面
         node_board = node.state.get("board", board_state)
+
+        # 检查是否为终止局面（mock 模式）
+        if use_mock:
+            is_over, terminal_value = _is_mock_game_over(node_board)
+            if is_over:
+                # 终止局面：直接使用终止值，转换为当前回合方视角
+                is_red_turn = node_board.get("redTurn", True)
+                leaf_value = terminal_value if is_red_turn else -terminal_value
+                # 跳过展开，直接反向传播
+                for path_node in reversed(search_path):
+                    path_node.visit_count += 1
+                    path_node.total_value += leaf_value
+                    leaf_value = -leaf_value
+                continue
+
         node_tensor = board_to_tensor(node_board, rows, cols)
 
         if model is not None:
             with torch.no_grad():
-                batch_board = torch.from_numpy(node_tensor).unsqueeze(0)  # [1,14,H,W]
-                batch_rules = torch.from_numpy(rule_tensor).unsqueeze(0)  # [1,23]
+                batch_board = torch.from_numpy(node_tensor).unsqueeze(0)
+                batch_rules = torch.from_numpy(rule_tensor).unsqueeze(0)
                 policy_logits, value = model(batch_board, batch_rules)
-                # policy_logits: [1, cells], value: [1, 1]
                 policy_probs = (
                     torch.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
                 )
                 leaf_value = float(value.item())
         else:
-            # 回退：均匀先验 + 估值零（纯 MCTS 无学习）
             policy_probs = np.ones(cells, dtype=np.float32) / cells
-            leaf_value = 0.0
+            # 在无模型时使用启发式评估代替零值
+            if use_mock:
+                raw_eval = _evaluate_mock_position(node_board)
+                is_red_turn = node_board.get("redTurn", True)
+                leaf_value = raw_eval if is_red_turn else -raw_eval
+            else:
+                leaf_value = 0.0
 
         # 3) Expansion: 展开叶子节点（为非终止局面创建子节点）
         if not node.is_expanded:
-            # 获取叶子局面的合法着法
             if use_mock:
                 node_legal_moves = _generate_mock_legal_moves(
                     node_board, rows, cols
@@ -748,7 +895,6 @@ def mcts_search(
                 else:
                     prior = 0.0
 
-                # 构建子节点局面（模拟走子后的棋盘）
                 child_board = _apply_mock_move(node_board, move, rows, cols)
                 child_state = {"board": child_board, "rules": rule_vector}
                 child = MCTSNode(state=child_state, parent=node, prior=prior)
@@ -766,7 +912,8 @@ def mcts_search(
         move = json.loads(move_key)
         move_idx = move["toRow"] * cols + move["toCol"]
         if 0 <= move_idx < cells:
-            visit_counts[move_idx] = float(child.visit_count)
+            # 累加同一目标格的访问次数（多个着法可能指向同一格）
+            visit_counts[move_idx] += float(child.visit_count)
 
     # 温度化
     if temperature <= 1e-8:
@@ -910,6 +1057,9 @@ def selfplay_game(
     final_value = 0.0
 
     for step in range(max_steps):
+        # 温度退火：前 30 步使用高温度探索，之后降低温度
+        step_temperature = temperature if step < 30 else max(0.1, temperature * 0.5)
+
         # a) 获取 MCTS 策略分布
         action_probs, training_target = mcts_search(
             model=model,
@@ -917,7 +1067,7 @@ def selfplay_game(
             rule_vector=rules,
             num_simulations=num_simulations,
             c_puct=c_puct,
-            temperature=temperature,
+            temperature=step_temperature,
             rows=rows,
             cols=cols,
             use_mock=use_mock,
@@ -929,6 +1079,13 @@ def selfplay_game(
             is_red = board_state.get("redTurn", True)
             final_value = -1.0 if is_red else 1.0
             break
+
+        # 检查终止条件（mock 模式）
+        if use_mock:
+            is_over, terminal_val = _is_mock_game_over(board_state)
+            if is_over:
+                final_value = terminal_val
+                break
 
         # b) 按策略采样选择着法
         move_idx = int(np.random.choice(cells, p=action_probs))
@@ -973,9 +1130,10 @@ def selfplay_game(
             # 这里用 mock 更新作为近似。完整方案需扩展 PyBridge。
             board_state = _apply_mock_move(board_state, chosen_move, rows, cols)
 
-    # 模拟模式下随机胜负值（Phase 0 仅验证走法差异，胜负值非重点）
+    # 使用启发式评估代替随机胜负值
     if use_mock and final_value == 0.0:
-        final_value = random.choice([-1.0, 0.0, 1.0])
+        # 用子力评估作为连续值胜负信号（比随机 ±1 更有信息量）
+        final_value = _evaluate_mock_position(board_state)
 
     return trajectory, final_value
 

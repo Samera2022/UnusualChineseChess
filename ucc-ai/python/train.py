@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 
 from model import MiniResNet
 from selfplay import (
@@ -190,6 +190,7 @@ def train_step(
     model: MiniResNet,
     batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
     optimizer: torch.optim.Optimizer,
+    grad_clip: float = 1.0,
 ) -> Tuple[float, float, float]:
     """执行一次训练步（单个 batch 的前向 + 反向传播）。
 
@@ -198,10 +199,15 @@ def train_step(
       value_loss   = MSE(value, target_value)
       total_loss   = policy_loss + value_loss
 
+    改进点：
+      - 梯度裁剪（grad_clip）防止梯度爆炸
+      - 策略损失使用 label smoothing 防止过拟合
+
     Args:
         model: MiniResNet 模型（训练模式）。
         batch: (board_batch, rule_batch, policy_batch, value_batch) 四元组。
-        optimizer: PyTorch 优化器（如 Adam）。
+        optimizer: PyTorch 优化器（如 AdamW）。
+        grad_clip: 梯度裁剪阈值（L2 范数）。
 
     Returns:
         (total_loss, policy_loss, value_loss) 均为 Python float。
@@ -215,8 +221,13 @@ def train_step(
     policy_logits, value = model(board_batch, rule_batch)
 
     # 策略损失：交叉熵（软目标 — 用 log_softmax + 点积实现）
+    # 添加 label smoothing: 将 5% 的概率质量均匀分配到所有动作
+    smoothing = 0.05
+    num_actions = target_policy.shape[1]
+    smoothed_policy = (1.0 - smoothing) * target_policy + smoothing / num_actions
+
     log_probs = torch.log_softmax(policy_logits, dim=1)
-    policy_loss = -(target_policy * log_probs).sum(dim=1).mean()
+    policy_loss = -(smoothed_policy * log_probs).sum(dim=1).mean()
 
     # 价值损失：MSE
     value_loss = nn.functional.mse_loss(
@@ -226,8 +237,9 @@ def train_step(
     # 总损失
     total_loss = policy_loss + value_loss
 
-    # 反向传播
+    # 反向传播 + 梯度裁剪
     total_loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
     optimizer.step()
 
     return float(total_loss.item()), float(policy_loss.item()), float(value_loss.item())
@@ -467,23 +479,27 @@ def evaluate(
 
 def train_main(
     num_iterations: int = 1000,
-    games_per_iteration: int = 10,
-    batch_size: int = 32,
-    lr: float = 1e-3,
+    games_per_iteration: int = 20,
+    batch_size: int = 128,
+    lr: float = 2e-3,
+    weight_decay: float = 1e-4,
     rows: int = 10,
     cols: int = 9,
     use_mock: bool = True,
     num_simulations: int = 200,
-    replay_capacity: int = 100000,
-    eval_interval: int = 100,
-    eval_games: int = 100,
+    replay_capacity: int = 50000,
+    eval_interval: int = 50,
+    eval_games: int = 40,
     win_rate_threshold: float = 0.55,
     save_dir: str = "checkpoints",
+    num_res_blocks: int = 5,
+    filters: int = 128,
+    train_epochs_per_iter: int = 3,
 ) -> Dict[str, Any]:
     """主训练循环 — AlphaZero 风格强化学习 + 课程学习。
 
     流程:
-      1. 初始化 MiniResNet 模型、Adam 优化器、ReplayBuffer。
+      1. 初始化 MiniResNet 模型、AdamW 优化器、ReplayBuffer。
       2. 课程学习三阶段：
          阶段 1 (0%-10%):  仅标准规则（全部 false）
          阶段 2 (10%-50%): 扩展规则随机开启 2-8 条
@@ -492,18 +508,26 @@ def train_main(
          a. 根据当前阶段生成规则向量
          b. 调用 selfplay_game 生成 games_per_iteration 局
          c. 将轨迹数据 push 到 ReplayBuffer
-         d. 从 buffer 采样 batch_size 条数据
-         e. 执行 train_step 更新模型
+         d. 从 buffer 采样 batch_size 条数据，训练 train_epochs_per_iter 次
+         e. 执行 train_step 更新模型（含梯度裁剪）
          f. 每 eval_interval 轮评估：新模型 vs 旧模型对战 eval_games 局
          g. 如果新模型胜率 > win_rate_threshold，保存模型（torch.save）
       4. 训练结束后导出 TorchScript（torch.jit.script）。
       5. 保存训练历史为 JSON。
 
+    改进点（相比原版）：
+      - 使用 AdamW 优化器（含 weight_decay 正则化）
+      - 每轮迭代训练多个 epoch（train_epochs_per_iter）充分利用数据
+      - 学习率余弦退火调度
+      - 更大的 batch_size 和 games_per_iteration
+      - 更大的模型（5 残差块 + 128 滤波器）
+
     Args:
         num_iterations: 总训练迭代次数。
         games_per_iteration: 每轮迭代生成的对局数。
         batch_size: 训练 batch 大小。
-        lr: Adam 优化器学习率。
+        lr: AdamW 优化器初始学习率。
+        weight_decay: L2 正则化系数。
         rows: 棋盘行数（默认 10，上下连通时为 18）。
         cols: 棋盘列数。
         use_mock: True 时使用模拟数据（不调用 Java PyBridge）。
@@ -513,6 +537,9 @@ def train_main(
         eval_games: 评估时的对弈局数。
         win_rate_threshold: 胜率阈值，超过则保存检查点。
         save_dir: 模型保存目录。
+        num_res_blocks: 残差块数量。
+        filters: 卷积滤波器数。
+        train_epochs_per_iter: 每轮迭代的训练 epoch 数。
 
     Returns:
         训练历史字典，含 "loss_history"、"eval_history"、"saved_checkpoints"。
@@ -526,10 +553,16 @@ def train_main(
         board_h=rows,
         board_w=cols,
         rule_dim=RULE_FULL_DIM,
-        num_res_blocks=3,
-        filters=64,
+        num_res_blocks=num_res_blocks,
+        filters=filters,
     )
-    optimizer = Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # 余弦退火学习率调度
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=num_iterations, eta_min=lr * 0.01
+    )
+
     buffer = ReplayBuffer(max_size=replay_capacity)
 
     # 保存初始模型参数作为"旧模型"的首次基准
@@ -622,12 +655,21 @@ def train_main(
                 )
                 total_samples_collected += 1
 
-        # ── c) & d) & e) 从 buffer 采样并训练 ──
+        # ── c) & d) & e) 从 buffer 采样并训练（多 epoch） ──
+        total_loss, policy_loss, value_loss = 0.0, 0.0, 0.0
         if len(buffer) >= batch_size:
-            batch = buffer.sample(batch_size)
-            total_loss, policy_loss, value_loss = train_step(model, batch, optimizer)
-        else:
-            total_loss, policy_loss, value_loss = 0.0, 0.0, 0.0
+            for _epoch in range(train_epochs_per_iter):
+                batch = buffer.sample(batch_size)
+                tl, pl, vl = train_step(model, batch, optimizer)
+                total_loss += tl
+                policy_loss += pl
+                value_loss += vl
+            # 取平均
+            total_loss /= train_epochs_per_iter
+            policy_loss /= train_epochs_per_iter
+            value_loss /= train_epochs_per_iter
+            # 学习率调度（仅在实际训练后 step）
+            scheduler.step()
 
         # 记录损失
         history["loss_history"].append({
@@ -636,16 +678,19 @@ def train_main(
             "policy_loss": policy_loss,
             "value_loss": value_loss,
             "stage": stage,
+            "lr": optimizer.param_groups[0]["lr"],
         })
 
         # 进度输出
         log_interval = max(1, num_iterations // 20)
         if (iteration + 1) % log_interval == 0 or iteration < 5:
+            current_lr = optimizer.param_groups[0]["lr"]
             print(
                 f"  [Iter {iteration + 1:5d}/{num_iterations}] "
                 f"stage={stage} "
                 f"loss={total_loss:.4f} "
                 f"(policy={policy_loss:.4f}, value={value_loss:.4f}) "
+                f"lr={current_lr:.6f} "
                 f"| new_samples={total_samples_collected} "
                 f"buffer={len(buffer):,}"
             )
@@ -654,14 +699,14 @@ def train_main(
         if (iteration + 1) % eval_interval == 0:
             print(f"\n  >>> 评估 @ Iter {iteration + 1} (阶段 {stage}) …")
 
-            # 构建旧模型（加载上次保存的参数快照）
+            # 构建旧模型（使用相同架构参数）
             old_model = MiniResNet(
                 board_channels=NUM_CHANNELS,
                 board_h=rows,
                 board_w=cols,
                 rule_dim=RULE_FULL_DIM,
-                num_res_blocks=3,
-                filters=64,
+                num_res_blocks=num_res_blocks,
+                filters=filters,
             )
             old_model.load_state_dict(old_model_state)
             old_model.eval()
@@ -774,6 +819,7 @@ def test_train(
         games_per_iteration=games_per_iteration,
         batch_size=8,
         lr=1e-3,
+        weight_decay=1e-4,
         rows=10,
         cols=9,
         use_mock=use_mock,
@@ -783,6 +829,9 @@ def test_train(
         eval_games=4,
         win_rate_threshold=0.55,
         save_dir="checkpoints_test",
+        num_res_blocks=3,
+        filters=64,
+        train_epochs_per_iter=1,
     )
 
 
@@ -928,19 +977,23 @@ if __name__ == "__main__":
 
     # ── [6] 运行训练 ──
     if "--full" in sys.argv:
-        print("\n[6] 运行 train_main (完整模式) …")
+        print("\n[6] 运行 train_main (完整模式 — 改进参数) …")
         history = train_main(
-            num_iterations=100,
-            games_per_iteration=2,
-            batch_size=16,
-            lr=1e-3,
+            num_iterations=200,
+            games_per_iteration=10,
+            batch_size=64,
+            lr=2e-3,
+            weight_decay=1e-4,
             use_mock=True,
-            num_simulations=50,
-            replay_capacity=5000,
-            eval_interval=20,
+            num_simulations=100,
+            replay_capacity=20000,
+            eval_interval=40,
             eval_games=20,
             win_rate_threshold=0.55,
             save_dir="checkpoints",
+            num_res_blocks=5,
+            filters=128,
+            train_epochs_per_iter=3,
         )
     else:
         print("\n[6] 运行 test_train (小规模验证) …")

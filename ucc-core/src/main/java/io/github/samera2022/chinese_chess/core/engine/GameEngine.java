@@ -95,6 +95,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
         this.moveHistory.clear();
         this.ruleChangeHistory.clear();
         this.isRedTurn = true;
+        this.board.setTurn(true);
         this.gameState = GameStatus.RUNNING;
         this.savedInitialBoard = null;
         this.savedInitialIsRedTurn = true;
@@ -238,6 +239,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
         moveHistory.add(move);
 
         isRedTurn = !isRedTurn;
+        board.flipTurn();
         for (GameStateListener listener : listeners) {
             listener.onMoveExecuted(move);
         }
@@ -318,6 +320,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
         moveHistory.add(move);
 
         isRedTurn = !isRedTurn;
+        board.flipTurn();
         for (GameStateListener listener : listeners) {
             listener.onMoveExecuted(move);
         }
@@ -401,6 +404,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
         undoMoveOnBoard(lastMove);
 
         isRedTurn = !isRedTurn;
+        board.flipTurn();
         gameState = GameStatus.RUNNING;
         notifyGameStateChanged();
         return true;
@@ -448,6 +452,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
         moveHistory.clear();
         ruleChangeHistory.clear();
         isRedTurn = true;
+        board.setTurn(true);
         gameState = GameStatus.RUNNING;
         savedInitialBoard = null;
         savedInitialIsRedTurn = true;
@@ -553,6 +558,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
             }
         }
         isRedTurn = savedInitialIsRedTurn;
+        board.setTurn(savedInitialIsRedTurn);
         List<Move> moves = getMoveHistory();
         for (int i = 0; i < step && i < moves.size(); i++) {
             Move move = moves.get(i);
@@ -569,6 +575,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
                 board.setPiece(move.getFromRow(), move.getFromCol(), null);
             }
             isRedTurn = !isRedTurn;
+            board.flipTurn();
         }
         gameState = GameStatus.RUNNING;
     }
@@ -585,7 +592,10 @@ public class GameEngine implements GameStateAccessor, GameSession {
     public boolean isRedTurn() { return isRedTurn; }
 
     @Override
-    public void setRedTurn(boolean isRedTurn) { this.isRedTurn = isRedTurn; }
+    public void setRedTurn(boolean isRedTurn) {
+        this.isRedTurn = isRedTurn;
+        this.board.setTurn(isRedTurn);
+    }
 
     public GameStatus getGameState() { return gameState; }
 

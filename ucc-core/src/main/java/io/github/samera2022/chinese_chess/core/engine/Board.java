@@ -313,6 +313,7 @@ public class Board implements ReadonlyBoard {
                 }
             }
         }
+        copy.turn = this.turn;
         return copy;
     }
 
@@ -381,6 +382,15 @@ public class Board implements ReadonlyBoard {
      */
     public boolean isRedTurn() {
         return turn;
+    }
+
+    /**
+     * 设置当前回合方，true 为红方。
+     *
+     * @param turn true 表示红方回合，false 表示黑方回合
+     */
+    public void setTurn(boolean turn) {
+        this.turn = turn;
     }
 
     /**

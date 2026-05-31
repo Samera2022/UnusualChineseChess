@@ -43,7 +43,14 @@ class ResidualBlock(nn.Module):
 
 class MiniResNet(nn.Module):
     """
-    最小可行 ResNet — 用于 Phase 0 规则感知验证实验。
+    改进版 ResNet — 用于规则感知强化学习训练。
+
+    改进点（相比原版）：
+      - 规则向量通过 FiLM（Feature-wise Linear Modulation）注入到卷积特征中，
+        而非仅在最后拼接。这让规则信息能更早地影响特征提取。
+      - 策略头增加 BatchNorm 和 Dropout 防止过拟合。
+      - 价值头增加隐藏层容量。
+      - 支持可配置的残差块数和滤波器数。
 
     输入:
       - 棋盘张量:  [B, 14, H, W]   (14 通道 = 7 种棋子 × 2 方)
@@ -60,8 +67,8 @@ class MiniResNet(nn.Module):
         board_h: int = 10,
         board_w: int = 9,
         rule_dim: int = 23,
-        num_res_blocks: int = 3,
-        filters: int = 64,
+        num_res_blocks: int = 5,
+        filters: int = 128,
     ):
         """
         Args:
@@ -69,8 +76,8 @@ class MiniResNet(nn.Module):
             board_h:       棋盘行数。
             board_w:       棋盘列数。
             rule_dim:      规则向量维度（来自 RuleEncoder）。
-            num_res_blocks: 残差块数量。
-            filters:       卷积滤波器数。
+            num_res_blocks: 残差块数量（默认 5，增加表达能力）。
+            filters:       卷积滤波器数（默认 128，增加容量）。
         """
         super().__init__()
         self.board_h = board_h
@@ -89,27 +96,43 @@ class MiniResNet(nn.Module):
             *[ResidualBlock(filters) for _ in range(num_res_blocks)]
         )
 
-        # ── 规则编码器 ──
+        # ── 规则编码器（FiLM 风格：生成 scale 和 bias） ──
         self.rule_fc = nn.Sequential(
-            nn.Linear(rule_dim, 64),
+            nn.Linear(rule_dim, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 64),
             nn.ReLU(inplace=True),
         )
+        # FiLM: 规则向量生成对卷积特征的 scale 和 bias
+        self.film_gamma = nn.Linear(64, filters)  # scale
+        self.film_beta = nn.Linear(64, filters)   # bias
 
         # ── 策略头 (policy head) ──
-        # Conv2d(filters, 2, 1) → flatten → concat rule → Linear → 每格概率
-        self.policy_conv = nn.Conv2d(filters, 2, kernel_size=1)
-        self.policy_fc = nn.Linear(
-            2 * board_h * board_w + 64,  # 2*H*W 棋盘特征 + 64 规则编码
-            board_h * board_w,           # 每格一个 logit
+        self.policy_conv = nn.Sequential(
+            nn.Conv2d(filters, 4, kernel_size=1),
+            nn.BatchNorm2d(4),
+            nn.ReLU(inplace=True),
+        )
+        self.policy_fc = nn.Sequential(
+            nn.Linear(4 * board_h * board_w + 64, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Linear(256, board_h * board_w),
         )
 
         # ── 价值头 (value head) ──
-        # Conv2d(filters, 1, 1) → flatten → concat rule → Linear(256) → ReLU → Linear(1) → Tanh
-        self.value_conv = nn.Conv2d(filters, 1, kernel_size=1)
-        self.value_fc = nn.Sequential(
-            nn.Linear(board_h * board_w + 64, 256),
+        self.value_conv = nn.Sequential(
+            nn.Conv2d(filters, 2, kernel_size=1),
+            nn.BatchNorm2d(2),
             nn.ReLU(inplace=True),
-            nn.Linear(256, 1),
+        )
+        self.value_fc = nn.Sequential(
+            nn.Linear(2 * board_h * board_w + 64, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Linear(256, 64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, 1),
             nn.Tanh(),
         )
 
@@ -132,19 +155,22 @@ class MiniResNet(nn.Module):
         x = self.board_conv(board)       # [B, filters, H, W]
         x = self.res_blocks(x)           # [B, filters, H, W]
 
-        # 规则编码
+        # 规则编码 + FiLM 调制
         r = self.rule_fc(rule_vec)       # [B, 64]
+        gamma = self.film_gamma(r).unsqueeze(-1).unsqueeze(-1)  # [B, filters, 1, 1]
+        beta = self.film_beta(r).unsqueeze(-1).unsqueeze(-1)    # [B, filters, 1, 1]
+        x = x * (1.0 + gamma) + beta    # FiLM: 特征调制
 
         # ── 策略头 ──
-        p = self.policy_conv(x)          # [B, 2, H, W]
-        p = p.flatten(1)                 # [B, 2*H*W]
-        p = torch.cat([p, r], dim=1)     # [B, 2*H*W + 64]
+        p = self.policy_conv(x)          # [B, 4, H, W]
+        p = p.flatten(1)                 # [B, 4*H*W]
+        p = torch.cat([p, r], dim=1)     # [B, 4*H*W + 64]
         policy = self.policy_fc(p)       # [B, H*W]
 
         # ── 价值头 ──
-        v = self.value_conv(x)           # [B, 1, H, W]
-        v = v.flatten(1)                 # [B, H*W]
-        v = torch.cat([v, r], dim=1)     # [B, H*W + 64]
+        v = self.value_conv(x)           # [B, 2, H, W]
+        v = v.flatten(1)                 # [B, 2*H*W]
+        v = torch.cat([v, r], dim=1)     # [B, 2*H*W + 64]
         value = self.value_fc(v)         # [B, 1]
 
         return policy, value
@@ -258,14 +284,14 @@ if __name__ == "__main__":
     print("测试 MiniResNet 前向传播")
     print("=" * 60)
 
-    # 创建模型
+    # 创建模型（使用新的默认参数）
     model = MiniResNet(
         board_channels=14,
         board_h=10,
         board_w=9,
         rule_dim=23,
-        num_res_blocks=3,
-        filters=64,
+        num_res_blocks=5,
+        filters=128,
     )
     total_params = sum(p.numel() for p in model.parameters())
     print(f"模型参数量: {total_params:,}")
@@ -290,6 +316,24 @@ if __name__ == "__main__":
     assert value.shape == (batch_size, 1), \
         f"value shape 错误: {value.shape} != (2, 1)"
     print("\n✓ MiniResNet 前向传播通过！")
+
+    # 测试兼容旧参数（向后兼容）
+    print("\n测试向后兼容（旧参数 num_res_blocks=3, filters=64）…")
+    model_compat = MiniResNet(
+        board_channels=14,
+        board_h=10,
+        board_w=9,
+        rule_dim=23,
+        num_res_blocks=3,
+        filters=64,
+    )
+    with torch.no_grad():
+        p2, v2 = model_compat(board, rule_vec)
+    assert p2.shape == (batch_size, 90)
+    assert v2.shape == (batch_size, 1)
+    compat_params = sum(p.numel() for p in model_compat.parameters())
+    print(f"兼容模型参数量: {compat_params:,}")
+    print("✓ 向后兼容通过！")
 
     # ── ChessTransformer ──
     print("\n" + "=" * 60)
