@@ -18,8 +18,9 @@ ucc-api/target/
 ucc-app/target/
 ucc-core/target/
 ucc-ai/target/
-ucc-ai/checkpoints_test/
-ucc-ai/__pycache__/
+ucc-ai/python/checkpoints_test/
+ucc-ai/python/checkpoints/
+ucc-ai/python/__pycache__/
 
 *.iml
 
