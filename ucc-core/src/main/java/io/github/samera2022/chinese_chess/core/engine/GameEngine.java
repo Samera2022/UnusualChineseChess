@@ -500,7 +500,7 @@ public class GameEngine implements GameStateAccessor, GameSession {
                 }
             }
         }
-        return new BoardState(board.getRows(), board.getCols(), entries);
+        return new BoardState(board.getRows(), board.getCols(), entries, board.isRedTurn());
     }
 
     @Override

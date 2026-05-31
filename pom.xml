@@ -17,6 +17,7 @@
         <module>ucc-core</module>
         <module>ucc-api</module>
         <module>ucc-app</module>
+        <module>ucc-ai</module>
     </modules>
 
     <properties>
@@ -40,6 +41,11 @@
             <dependency>
                 <groupId>io.github.samera2022</groupId>
                 <artifactId>ucc-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.samera2022</groupId>
+                <artifactId>ucc-ai</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

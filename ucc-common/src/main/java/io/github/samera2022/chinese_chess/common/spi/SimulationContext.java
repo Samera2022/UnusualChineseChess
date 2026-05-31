@@ -6,6 +6,7 @@ import java.util.List;
 public interface SimulationContext {
     ReadonlyBoard getBoard();
     boolean simulateMove(int fromRow, int fromCol, int toRow, int toCol);
+    boolean isValidMove(int fromRow, int fromCol, int toRow, int toCol);
     boolean simulateUndo();
     boolean isRedTurn();
     List<Move> getSimulatedMoves();

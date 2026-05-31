@@ -102,6 +102,9 @@ public class ChineseChessFrame extends JFrame {
         netGameCoordinator = new NetGameCoordinator(gameEngine, gameEngine, netController, boardPanel, moveHistoryPanel,
                 ruleSettingsPanel, infoSidePanel, forceMoveHandler, gameController, undoButton, this);
 
+        // 将 AIModeEnabler 注入到 InfoSidePanel
+        infoSidePanel.setAIEnabler(gameController.getAIEnabler());
+
         // 设置状态标签和按钮引用到控制器
         gameController.setUndoButton(undoButton);
         gameController.setStatusLabel(statusLabel);

@@ -29,6 +29,7 @@ public class InfoSidePanel extends JPanel {
     private final JCheckBox allowLocalFlipCheck = new JCheckBox();
     private final JToggleButton localRedBtn = new JToggleButton("本地红方", true);
     private final JButton viewToggleBtn = new JButton("全局视角");
+    private final JToggleButton aiToggleBtn = new JToggleButton("AI对战");
     private final JButton exportBtn = new JButton("导出残局");
     private final JButton importBtn = new JButton("导入残局");
 
@@ -49,6 +50,9 @@ public class InfoSidePanel extends JPanel {
     private final BooleanSupplier isSettingsVisible;
     private final Runnable onExportGame;
     private final Runnable onImportGame;
+
+    // AI 模式管理器引用（由外部注入）
+    private AIModeEnabler aiEnabler;
 
     // 持方同步指令常量
     private static final String SYNC_SIDE_CMD = "SYNC_SIDE";
@@ -115,6 +119,7 @@ public class InfoSidePanel extends JPanel {
             updateViewToggleText();
         });
         controls.add(viewToggleBtn);
+        controls.add(aiToggleBtn);
         controls.add(disconnectBtn);
         controls.add(exportBtn);
         controls.add(importBtn);
@@ -204,6 +209,14 @@ public class InfoSidePanel extends JPanel {
         javax.swing.Timer timer = new javax.swing.Timer(5000, e -> refreshStatus());
         timer.setRepeats(true);
         timer.start();
+
+        // AI 对战按钮监听
+        aiToggleBtn.setToolTipText("开启/关闭 AI 对弈模式（AI 执黑方）");
+        aiToggleBtn.addActionListener(e -> {
+            if (aiEnabler != null) {
+                aiEnabler.setAIEnabled(aiToggleBtn.isSelected());
+            }
+        });
 
         installQualityTooltip();
         setupSideSync();
@@ -731,6 +744,15 @@ public class InfoSidePanel extends JPanel {
     // 新增：获取当前选中的棋子类型
     public Piece.Type getSelectedPieceType() {
         return selectedPieceType;
+    }
+
+    /**
+     * 注入 AI 模式管理器引用。
+     *
+     * @param enabler AIModeEnabler 实例
+     */
+    public void setAIEnabler(AIModeEnabler enabler) {
+        this.aiEnabler = enabler;
     }
 
     // 新增：清除选中的棋子

@@ -26,6 +26,7 @@ public class GameController implements SessionListener {
     private final RuleSettingsPanel ruleSettingsPanel;
     private final InfoSidePanel infoSidePanel;
     private final ForceMoveHandler forceMoveHandler;
+    private AIModeEnabler aiModeEnabler;
     private JButton undoButton;
     private JLabel statusLabel;
     private GameRulesConfig rulesConfig;
@@ -98,6 +99,9 @@ public class GameController implements SessionListener {
                 System.err.println("[GameController] Failed to migrate provider instance: " + t);
             }
         };
+
+        // 初始化 AIModeEnabler（在构造函数末尾，所有依赖对象已就绪）
+        this.aiModeEnabler = new AIModeEnabler(session, this, boardPanel);
     }
 
     /** 初始化所有监听器，当 ChineseChessFrame 组件创建完成后调用 */
@@ -134,6 +138,11 @@ public class GameController implements SessionListener {
 
     public RulesConfigProvider.InstanceChangeListener getProviderInstanceListener() {
         return providerInstanceListener;
+    }
+
+    /** 获取 AI 模式管理器，供 InfoSidePanel 注入 */
+    public AIModeEnabler getAIEnabler() {
+        return aiModeEnabler;
     }
 
     /** 撤销 */
@@ -228,6 +237,10 @@ public class GameController implements SessionListener {
         }
         statusLabel.setText(status);
 
+        if (aiModeEnabler != null) {
+            aiModeEnabler.onTurnChanged();
+        }
+
         if (undoButton != null) {
             boolean allowUndo = rulesConfig.getBoolean(RuleRegistry.ALLOW_UNDO.registryName);
             if (!netController.isActive()) {
@@ -252,6 +265,9 @@ public class GameController implements SessionListener {
     public void onMoveExecuted(Move move) {
         boardPanel.repaint();
         updateStatus();
+        if (aiModeEnabler != null) {
+            aiModeEnabler.onTurnChanged();
+        }
     }
 
     @Override
@@ -278,6 +294,9 @@ public class GameController implements SessionListener {
 
     /** 关闭时清理资源 */
     public void shutdown() {
+        try {
+            if (aiModeEnabler != null) aiModeEnabler.shutdown();
+        } catch (Throwable ignored) {}
         try {
             if (rulesConfig != null) rulesConfig.removeRuleChangeListener(rulesChangeListener);
         } catch (Throwable ignored) {}

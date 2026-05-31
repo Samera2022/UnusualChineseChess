@@ -30,6 +30,10 @@
             <groupId>io.github.samera2022</groupId>
             <artifactId>ucc-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.github.samera2022</groupId>
+            <artifactId>ucc-ai</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

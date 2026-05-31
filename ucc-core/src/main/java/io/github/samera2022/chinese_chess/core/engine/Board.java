@@ -21,6 +21,8 @@ public class Board implements ReadonlyBoard {
     private List<Piece> redPieces;
     private List<Piece> blackPieces;
     private final Map<String, Deque<Piece>> stacks = new HashMap<>();
+    /** true = 红方回合，false = 黑方回合 */
+    boolean turn = true;
 
     public Board() {
         this(STANDARD_ROWS, true, false);
@@ -40,8 +42,8 @@ public class Board implements ReadonlyBoard {
         }
     }
 
-    // Copy constructor for deepCopy
-    private Board(int rows, boolean unused) {
+    // Copy constructor for deepCopy / SimulationBoard
+    Board(int rows, boolean unused) {
         this.rows = rows;
         this.board = new Piece[rows][COLS];
         this.redPieces = new ArrayList<>();
@@ -356,7 +358,7 @@ public class Board implements ReadonlyBoard {
             }
             entries.add(new BoardState.StackEntry(r, c, types));
         }
-        return new BoardState(rows, COLS, entries);
+        return new BoardState(rows, COLS, entries, turn);
     }
 
     /**
@@ -370,6 +372,21 @@ public class Board implements ReadonlyBoard {
                 board.pushToStack(entry.row, entry.col, p);
             }
         }
+        board.turn = state.isRedTurn();
         return board;
+    }
+
+    /**
+     * 获取当前回合方，true 为红方。
+     */
+    public boolean isRedTurn() {
+        return turn;
+    }
+
+    /**
+     * 翻转回合。
+     */
+    public void flipTurn() {
+        turn = !turn;
     }
 }
