@@ -54,7 +54,7 @@ class MiniResNet(nn.Module):
 
     输入:
       - 棋盘张量:  [B, 14, H, W]   (14 通道 = 7 种棋子 × 2 方)
-      - 规则向量:   [B, rule_dim]   (默认 23 维，来自 RuleEncoder)
+      - 规则向量:   [B, rule_dim]   (默认 28 维，来自 RuleEncoder：27 布尔 + 1 连续值)
 
     输出:
       - policy: [B, board_h * board_w]  每格落子概率（未 softmax）
@@ -66,7 +66,7 @@ class MiniResNet(nn.Module):
         board_channels: int = 14,
         board_h: int = 10,
         board_w: int = 9,
-        rule_dim: int = 23,
+        rule_dim: int = 28,
         num_res_blocks: int = 5,
         filters: int = 128,
     ):
@@ -75,7 +75,7 @@ class MiniResNet(nn.Module):
             board_channels: 棋盘输入通道数（默认 14：7 种棋子 × 红黑双方）。
             board_h:       棋盘行数。
             board_w:       棋盘列数。
-            rule_dim:      规则向量维度（来自 RuleEncoder）。
+            rule_dim:      规则向量维度（来自 RuleEncoder，默认 28：27 布尔 + 1 连续值）。
             num_res_blocks: 残差块数量（默认 5，增加表达能力）。
             filters:       卷积滤波器数（默认 128，增加容量）。
         """
@@ -289,7 +289,7 @@ if __name__ == "__main__":
         board_channels=14,
         board_h=10,
         board_w=9,
-        rule_dim=23,
+        rule_dim=28,
         num_res_blocks=5,
         filters=128,
     )
@@ -299,7 +299,7 @@ if __name__ == "__main__":
     # 构造随机输入
     batch_size = 2
     board = torch.randn(batch_size, 14, 10, 9)     # [2, 14, 10, 9]
-    rule_vec = torch.randn(batch_size, 23)          # [2, 23]
+    rule_vec = torch.randn(batch_size, 28)          # [2, 28] (27 布尔 + 1 连续值)
 
     # 前向传播
     with torch.no_grad():
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     print("\n✓ MiniResNet 前向传播通过！")
 
     # 测试兼容旧参数（向后兼容）
-    print("\n测试向后兼容（旧参数 num_res_blocks=3, filters=64）…")
+    print("\n测试向后兼容（旧参数 num_res_blocks=3, filters=64, rule_dim=23）…")
     model_compat = MiniResNet(
         board_channels=14,
         board_h=10,
@@ -327,8 +327,9 @@ if __name__ == "__main__":
         num_res_blocks=3,
         filters=64,
     )
+    rule_vec_old = torch.randn(batch_size, 23)
     with torch.no_grad():
-        p2, v2 = model_compat(board, rule_vec)
+        p2, v2 = model_compat(board, rule_vec_old)
     assert p2.shape == (batch_size, 90)
     assert v2.shape == (batch_size, 1)
     compat_params = sum(p.numel() for p in model_compat.parameters())
@@ -344,7 +345,7 @@ if __name__ == "__main__":
         max_rows=18,
         max_cols=9,
         piece_types=7,
-        rule_dim=23,
+        rule_dim=28,
         d_model=256,
         nhead=8,
         num_layers=4,

@@ -15,7 +15,7 @@ import java.util.List;
  * <p>每条训练样本（{@link TrainingSample}）包含：
  * <ul>
  *   <li>{@code boardState}：局面快照</li>
- *   <li>{@code ruleVector}：规则向量（23 位：22 布尔 + 1 连续值）</li>
+ *   <li>{@code ruleVector}：规则向量（28 位：27 布尔 + 1 连续值）</li>
  *   <li>{@code policyTarget}：MCTS 搜索得出的策略分布（长度 = rows × cols）</li>
  *   <li>{@code valueTarget}：最终胜负结果（1=红胜, -1=黑胜, 0=平局）</li>
  * </ul>
@@ -54,7 +54,7 @@ public class TrainingDataCollector {
         /** 局面快照 */
         public final BoardState board;
 
-        /** 规则向量（23 位：前 22 位布尔规则开关，第 23 位连续值如 max_stacking_count/16） */
+        /** 规则向量（28 位：前 27 位布尔规则开关，第 28 位连续值如 max_stacking_count/16） */
         public final float[] rules;
 
         /** MCTS 搜索得出的策略分布（长度 = rows × cols，按行优先排列） */
@@ -67,7 +67,7 @@ public class TrainingDataCollector {
          * 构造一条训练样本。
          *
          * @param board  局面快照，不可为 {@code null}
-         * @param rules  规则向量（23 位），不可为 {@code null}
+         * @param rules  规则向量（28 位），不可为 {@code null}
          * @param policy MCTS 策略分布（长度 = rows × cols），不可为 {@code null}
          * @param value  胜负结果（1 = 红胜，-1 = 黑胜，0 = 平局）
          */
@@ -87,7 +87,7 @@ public class TrainingDataCollector {
      * 添加一条训练样本。
      *
      * @param state      局面快照
-     * @param ruleVector 规则向量（23 位）
+     * @param ruleVector 规则向量（28 位：27 布尔 + 1 连续值）
      * @param policy     MCTS 策略分布
      * @param value      胜负结果（1 = 红胜，-1 = 黑胜，0 = 平局）
      */

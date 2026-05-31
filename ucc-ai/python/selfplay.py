@@ -57,39 +57,70 @@ PIECE_VALUE: Dict[str, int] = {
 }
 
 NUM_CHANNELS = 14
-RULE_BOOL_DIM = 22          # RuleEncoder.encode() 输出长度
+RULE_BOOL_DIM = 27          # RuleEncoder.encode() 输出长度（22 原 + 5 新增子规则）
 RULE_CONTINUOUS_DIM = 1     # RuleEncoder.encodeContinuous() 输出长度
-RULE_FULL_DIM = RULE_BOOL_DIM + RULE_CONTINUOUS_DIM  # 23
+RULE_FULL_DIM = RULE_BOOL_DIM + RULE_CONTINUOUS_DIM  # 28
 
 # RuleEncoder 位序对应的规则布尔键名（与 ucc-core RuleEncoder 完全一致）
 RULE_BOOL_NAMES: List[str] = [
-    "allow_undo",                 #  0
-    "show_hints",                 #  1
-    "allow_force_move",           #  2
-    "allow_flying_general",       #  3
-    "disable_facing_generals",    #  4
-    "advisor_can_leave",          #  5
-    "international_king",         #  6
-    "international_advisor",      #  7
-    "no_river_limit",             #  8
-    "pawn_can_retreat",           #  9
-    "allow_inside_retreat",       # 10
-    "pawn_promotion",             # 11
-    "allow_own_base_line",        # 12
-    "unblock_piece",              # 13
-    "unblock_horse_leg",          # 14
-    "unblock_elephant_eye",       # 15
-    "allow_capture_own_piece",    # 16
-    "allow_capture_conversion",   # 17
-    "left_right_connected",       # 18
-    "death_match_until_victory",  # 19
-    "allow_piece_stacking",       # 20
-    "top_bottom_connected",       # 21
+    "allow_undo",                    #  0
+    "show_hints",                    #  1
+    "allow_force_move",              #  2
+    "allow_flying_general",          #  3
+    "disable_facing_generals",       #  4
+    "advisor_can_leave",             #  5
+    "international_king",            #  6
+    "international_advisor",         #  7
+    "no_river_limit",                #  8
+    "pawn_can_retreat",              #  9
+    "allow_inside_retreat",          # 10
+    "pawn_promotion",                # 11
+    "allow_own_base_line",           # 12
+    "unblock_piece",                 # 13
+    "unblock_horse_leg",             # 14
+    "unblock_elephant_eye",          # 15
+    "allow_capture_own_piece",       # 16
+    "allow_capture_conversion",      # 17
+    "left_right_connected",          # 18
+    "death_match_until_victory",     # 19
+    "allow_piece_stacking",          # 20
+    "top_bottom_connected",          # 21
+    "left_right_connected_horse",    # 22
+    "left_right_connected_elephant", # 23
+    "allow_carry_pieces_above",      # 24
+    "top_bottom_connected_horse",    # 25
+    "top_bottom_connected_elephant", # 26
 ]
+
+# 改变棋盘尺寸的规则索引
+# top_bottom_connected (index 21) 开启时棋盘从 10×9 变为 18×9
+TOP_BOTTOM_CONNECTED_IDX = 21
+
+# 棋盘尺寸常量
+STANDARD_ROWS = 10
+EXPANDED_ROWS = 18
+BOARD_COLS = 9
 
 # PyBridge 默认配置
 DEFAULT_CLASSPATH = "ucc-core.jar;ucc-common.jar;ucc-ai.jar"
 PYBRIDGE_MAIN = "io.github.samera2022.chinese_chess.ai.PyBridge"
+
+
+def get_rows_for_rules(rule_vector: List[float]) -> int:
+    """根据规则向量确定实际棋盘行数。
+
+    当 top_bottom_connected (index 21) 开启时，棋盘从 10×9 扩展为 18×9。
+
+    Args:
+        rule_vector: 23 维规则向量。
+
+    Returns:
+        10 或 18。
+    """
+    if len(rule_vector) > TOP_BOTTOM_CONNECTED_IDX:
+        if rule_vector[TOP_BOTTOM_CONNECTED_IDX] >= 0.5:
+            return EXPANDED_ROWS
+    return STANDARD_ROWS
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -146,7 +177,7 @@ class MCTSNode:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _rule_vector_to_rules_json(rule_vector: List[float]) -> str:
-    """将 23 维规则向量转为 PyBridge 可接受的 --rules JSON 字符串。
+    """将 RULE_FULL_DIM 维规则向量转为 PyBridge 可接受的 --rules JSON 字符串。
 
     格式与 GameRulesConfig.applySnapshot() 兼容：
     {"allow_undo": true, ..., "max_stacking_count": 2}
@@ -154,7 +185,8 @@ def _rule_vector_to_rules_json(rule_vector: List[float]) -> str:
     rules_obj: Dict[str, Any] = {}
     for i, name in enumerate(RULE_BOOL_NAMES):
         rules_obj[name] = bool(rule_vector[i] >= 0.5)
-    rules_obj["max_stacking_count"] = int(round(rule_vector[22] * 16.0))
+    # max_stacking_count 是连续值，存储在 RULE_BOOL_DIM 索引处（即布尔部分之后）
+    rules_obj["max_stacking_count"] = int(round(rule_vector[RULE_BOOL_DIM] * 16.0))
     return json.dumps(rules_obj, ensure_ascii=False)
 
 
@@ -356,25 +388,32 @@ def board_to_tensor(
     遍历 entries，根据 Piece.Type 枚举名字符串设置对应通道为 1.0。
     若同一格子有堆叠棋子（pieceTypes 含多项），每个类型均会设置。
 
+    **重要**：输出张量始终为固定尺寸 [14, rows, cols]（默认 18×9），
+    小棋盘（10×9）的多余行自动填零。这确保模型输入维度一致，
+    无论规则是否开启 top_bottom_connected。
+
     Args:
         board_state_dict: BoardState JSON 字典，格式如
             {"rows":10,"cols":9,"entries":[...],"redTurn":true}。
-        rows: 默认行数（如 board_state_dict 不含 rows 字段时使用）。
-        cols: 默认列数。
+        rows: 输出张量的行数（应为最大尺寸 EXPANDED_ROWS=18）。
+        cols: 输出张量的列数。
 
     Returns:
         numpy float32 数组，shape [14, rows, cols]。
     """
+    # 输出张量始终为固定尺寸（默认 18×9）
+    tensor = np.zeros((NUM_CHANNELS, rows, cols), dtype=np.float32)
+
+    # 实际棋盘尺寸（可能小于输出尺寸）
     actual_rows = board_state_dict.get("rows", rows)
     actual_cols = board_state_dict.get("cols", cols)
-    tensor = np.zeros((NUM_CHANNELS, actual_rows, actual_cols), dtype=np.float32)
 
     entries = board_state_dict.get("entries", [])
     for entry in entries:
         r = entry.get("row", 0)
         c = entry.get("col", 0)
-        # 跳过越界位置
-        if r < 0 or r >= actual_rows or c < 0 or c >= actual_cols:
+        # 跳过越界位置（相对于输出张量尺寸）
+        if r < 0 or r >= rows or c < 0 or c >= cols:
             continue
 
         piece_types = entry.get("pieceTypes", [])
@@ -405,6 +444,9 @@ def _generate_mock_board_state(
     随机放置若干棋子（双方比例约各半），不保证实际象棋规则合法性，
     仅用于验证神经网络对规则向量的敏感性。
 
+    保证初始棋盘双方至少各有一个将/帅（KING），
+    否则 _is_mock_game_over 会立即判定游戏结束。
+
     Args:
         rows: 行数。
         cols: 列数。
@@ -418,8 +460,8 @@ def _generate_mock_board_state(
     black_types = [t for t in all_piece_types if t.startswith("BLACK_")]
 
     num_pieces = random.randint(*num_pieces_range)
-    num_red = num_pieces // 2
-    num_black = num_pieces - num_red
+    num_red = max(num_pieces // 2, 2)   # 至少 2 个红子（含将）
+    num_black = max(num_pieces - num_red, 2)  # 至少 2 个黑子（含帅）
 
     used_positions: set = set()
     entries: List[Dict[str, Any]] = []
@@ -437,9 +479,13 @@ def _generate_mock_board_state(
                 })
                 return
 
-    for _ in range(num_red):
+    # 确保双方都有将/帅
+    place_one("RED_KING")
+    place_one("BLACK_KING")
+
+    for _ in range(num_red - 1):
         place_one(random.choice(red_types))
-    for _ in range(num_black):
+    for _ in range(num_black - 1):
         place_one(random.choice(black_types))
 
     return {
@@ -575,7 +621,9 @@ def _apply_mock_move(
             "redTurn": board_state.get("redTurn", True),
         }
 
-    # ── 阶段 2: 将棋子加入目标位置 ──
+    # ── 阶段 2: 将棋子加入目标位置（带吃子） ──
+    # 判定移动棋子是哪一方
+    moved_side = "RED" if (moved_piece_type or "").startswith("RED_") else "BLACK"
     target_found = False
     final_entries: List[Dict[str, Any]] = []
 
@@ -584,12 +632,19 @@ def _apply_mock_move(
         piece_types = list(entry.get("pieceTypes", []))
 
         if r == to_row and c == to_col:
-            piece_types.append(moved_piece_type)
             target_found = True
-
-        final_entries.append({
-            "row": r, "col": c, "pieceTypes": piece_types,
-        })
+            # 吃掉目标格所有对方棋子（保留己方棋子 + 叠上自己的）
+            surviving = [pt for pt in piece_types if pt.startswith(moved_side + "_")]
+            surviving.append(moved_piece_type)
+            if surviving:  # 只要还有棋子就保留该位置
+                final_entries.append({
+                    "row": r, "col": c, "pieceTypes": surviving,
+                })
+            # 若 surviving 为空（不该发生），该格不再有 entry
+        else:
+            final_entries.append({
+                "row": r, "col": c, "pieceTypes": piece_types,
+            })
 
     if not target_found:
         # 目标位置原为空
@@ -715,7 +770,7 @@ def mcts_search(
     model: Optional[MiniResNet],
     board_state: Dict[str, Any],
     rule_vector: List[float],
-    num_simulations: int = 400,
+    num_simulations: int = 50,
     c_puct: float = 2.0,
     temperature: float = 1.0,
     rows: int = 10,
@@ -946,10 +1001,10 @@ def mcts_search(
 def make_all_false_rule_vector() -> List[float]:
     """生成全 false 规则向量（标准规则）。
 
-    22 个布尔位全为 0.0，max_stacking_count / 16.0 = 0.0。
+    RULE_BOOL_DIM 个布尔位全为 0.0，max_stacking_count / 16.0 = 0.0。
 
     Returns:
-        长度 23 的 float 列表。
+        长度 RULE_FULL_DIM 的 float 列表。
     """
     return [0.0] * RULE_BOOL_DIM + [0.0]
 
@@ -957,11 +1012,11 @@ def make_all_false_rule_vector() -> List[float]:
 def make_random_rule_vector() -> List[float]:
     """生成完全随机的规则向量。
 
-    22 个布尔位随机 0.0 或 1.0，
+    RULE_BOOL_DIM 个布尔位随机 0.0 或 1.0，
     max_stacking_count 归一化值随机 ∈ [0, 1]。
 
     Returns:
-        长度 23 的 float 列表。
+        长度 RULE_FULL_DIM 的 float 列表。
     """
     bool_part = [random.choice([0.0, 1.0]) for _ in range(RULE_BOOL_DIM)]
     continuous_part = random.uniform(0.0, 1.0)
@@ -983,7 +1038,7 @@ def make_random_rule_vector_with_few_enabled(
         max_enabled: 最多开启数。
 
     Returns:
-        长度 23 的 float 列表。
+        长度 RULE_FULL_DIM 的 float 列表。
     """
     bool_part = [0.0] * RULE_BOOL_DIM
     num_enabled = random.randint(min_enabled, max_enabled)
@@ -1002,11 +1057,11 @@ def make_random_rule_vector_with_few_enabled(
 def selfplay_game(
     model: Optional[MiniResNet],
     rules: Optional[List[float]] = None,
-    max_steps: int = 200,
+    max_steps: int = 400,
     rows: int = 10,
     cols: int = 9,
     use_mock: bool = True,
-    num_simulations: int = 400,
+    num_simulations: int = 50,
     c_puct: float = 2.0,
     temperature: float = 1.0,
 ) -> Tuple[List[Dict[str, Any]], float]:
@@ -1043,17 +1098,20 @@ def selfplay_game(
     if rules is None:
         rules = make_random_rule_vector()
 
-    # 创建新棋盘
+    # 根据规则向量确定实际棋盘行数
+    actual_rows = get_rows_for_rules(rules)
+
+    # 创建新棋盘（使用规则决定的行数）
     if use_mock:
-        board_state = _generate_mock_board_state(rows, cols)
+        board_state = _generate_mock_board_state(actual_rows, cols)
     else:
-        result = query_java_new_game(rules, rows=rows)
+        result = query_java_new_game(rules, rows=actual_rows)
         if "error" in result:
             return [], 0.0
         board_state = result
 
     trajectory: List[Dict[str, Any]] = []
-    cells = rows * cols
+    cells = rows * cols  # 注意：这里用模型的固定 rows（最大尺寸），不是 actual_rows
     final_value = 0.0
 
     for step in range(max_steps):
@@ -1086,6 +1144,15 @@ def selfplay_game(
             if is_over:
                 final_value = terminal_val
                 break
+
+            # 随机提前终止：步数越大终止概率越高，模拟自然对局结束
+            # 20 步前不终止，之后概率线性上升到 max_steps 时的 80%
+            if step >= 20:
+                progress = (step - 20) / max(max_steps - 20, 1)
+                termination_prob = progress * 0.8
+                if random.random() < termination_prob:
+                    final_value = _evaluate_mock_position(board_state)
+                    break
 
         # b) 按策略采样选择着法
         move_idx = int(np.random.choice(cells, p=action_probs))

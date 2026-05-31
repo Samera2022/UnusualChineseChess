@@ -34,8 +34,8 @@ package io.github.samera2022.chinese_chess.ai;
  *   <tr><th>参数</th><th>形状</th><th>说明</th></tr>
  *   <tr><td>boardTensor</td><td>{@code [14][rows][cols]}</td>
  *       <td>14 通道棋盘表示（7 种棋子 × 2 方），每通道为二值掩码</td></tr>
- *   <tr><td>ruleVector</td><td>{@code [23]}</td>
- *       <td>规则向量：前 22 位为布尔规则开关，第 23 位为连续值
+ *   <tr><td>ruleVector</td><td>{@code [28]}</td>
+ *       <td>规则向量：前 27 位为布尔规则开关，第 28 位为连续值
  *           （如 max_stacking_count 归一化到 [0,1]）</td></tr>
  * </table>
  * <table>
@@ -56,8 +56,8 @@ public class PyTorchBridge {
     /** 棋盘张量期望通道数（7 种棋子 × 2 方） */
     private static final int EXPECTED_CHANNELS = 14;
 
-    /** 规则向量期望长度（22 布尔 + 1 连续值） */
-    private static final int EXPECTED_RULE_VECTOR_LENGTH = 23;
+    /** 规则向量期望长度（27 布尔 + 1 连续值） */
+    private static final int EXPECTED_RULE_VECTOR_LENGTH = 28;
 
     /** 模型文件路径（Phase 1 仅保存引用，不实际加载） */
     private final String modelPath;

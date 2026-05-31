@@ -30,9 +30,13 @@ from selfplay import (
     NUM_CHANNELS,
     RULE_BOOL_DIM,
     RULE_FULL_DIM,
+    EXPANDED_ROWS,
+    STANDARD_ROWS,
+    BOARD_COLS,
     # ── 棋盘转换 ──
     board_to_tensor,
     rule_vector_to_numpy,
+    get_rows_for_rules,
     # ── 规则向量生成 ──
     make_all_false_rule_vector,
     make_random_rule_vector,
@@ -478,17 +482,17 @@ def evaluate(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def train_main(
-    num_iterations: int = 1000,
+    num_iterations: int = 2000,
     games_per_iteration: int = 20,
     batch_size: int = 128,
     lr: float = 2e-3,
     weight_decay: float = 1e-4,
-    rows: int = 10,
-    cols: int = 9,
+    rows: int = EXPANDED_ROWS,
+    cols: int = BOARD_COLS,
     use_mock: bool = True,
-    num_simulations: int = 200,
-    replay_capacity: int = 50000,
-    eval_interval: int = 50,
+    num_simulations: int = 50,
+    replay_capacity: int = 100000,
+    eval_interval: int = 200,
     eval_games: int = 40,
     win_rate_threshold: float = 0.55,
     save_dir: str = "checkpoints",
@@ -544,6 +548,12 @@ def train_main(
     Returns:
         训练历史字典，含 "loss_history"、"eval_history"、"saved_checkpoints"。
     """
+    # 强制 stdout 行缓冲：服务器非 TTY 环境也实时输出（否则 print 会积压直到 4KB）
+    try:
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    except Exception:
+        pass  # 某些环境不支持，忽略
+
     cells = rows * cols
     os.makedirs(save_dir, exist_ok=True)
 
@@ -622,16 +632,18 @@ def train_main(
         # ── b) 自我对弈生成训练数据 ──
         total_samples_collected = 0
         for g in range(games_per_iteration):
+            print(f"    对局 {g+1}/{games_per_iteration} …", end="", flush=True)
             trajectory, final_value = selfplay_game(
                 model=model,
                 rules=rule_vector,
-                max_steps=200,
+                max_steps=1000,
                 rows=rows,
                 cols=cols,
                 use_mock=use_mock,
                 num_simulations=num_simulations,
                 temperature=1.0,
             )
+            print(f" {len(trajectory)} 步, value={final_value:.2f}", flush=True)
 
             # 将轨迹中每一步推入 ReplayBuffer
             # 价值标签：从当前回合方视角转换最终胜负值
@@ -820,8 +832,8 @@ def test_train(
         batch_size=8,
         lr=1e-3,
         weight_decay=1e-4,
-        rows=10,
-        cols=9,
+        rows=EXPANDED_ROWS,
+        cols=BOARD_COLS,
         use_mock=use_mock,
         num_simulations=20,
         replay_capacity=1000,
@@ -864,11 +876,11 @@ if __name__ == "__main__":
     if len(rb) >= 2:
         b_board, b_rules, b_policy, b_value = rb.sample(2)
         print(f"    sample(2) board:  {tuple(b_board.shape)}   (期望: (2, 14, 10, 9))")
-        print(f"    sample(2) rules:  {tuple(b_rules.shape)}   (期望: (2, 23))")
+        print(f"    sample(2) rules:  {tuple(b_rules.shape)}   (期望: (2, {RULE_FULL_DIM}))")
         print(f"    sample(2) policy: {tuple(b_policy.shape)}  (期望: (2, 90))")
         print(f"    sample(2) value:  {tuple(b_value.shape)}   (期望: (2, 1))")
         assert b_board.shape == (2, 14, 10, 9)
-        assert b_rules.shape == (2, 23)
+        assert b_rules.shape == (2, RULE_FULL_DIM)
         assert b_policy.shape == (2, 90)
         assert b_value.shape == (2, 1)
 
@@ -891,7 +903,7 @@ if __name__ == "__main__":
     # 验证加载数据完整性
     loaded_board, loaded_rules, loaded_policy, loaded_value = rb2.sample(1)
     assert loaded_board.shape == (1, 14, 10, 9)
-    assert loaded_rules.shape == (1, 23)
+    assert loaded_rules.shape == (1, RULE_FULL_DIM)
     assert loaded_policy.shape == (1, 90)
     assert loaded_value.shape == (1, 1)
     print("    ✓ ReplayBuffer 通过")
