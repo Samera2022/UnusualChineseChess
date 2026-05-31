@@ -16,6 +16,7 @@
 import json
 import os
 import random
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,6 +34,7 @@ from selfplay import (
     EXPANDED_ROWS,
     STANDARD_ROWS,
     BOARD_COLS,
+    DEVICE,
     # ── 棋盘转换 ──
     board_to_tensor,
     rule_vector_to_numpy,
@@ -132,10 +134,10 @@ class ReplayBuffer:
         values = np.array([[s[3]] for s in samples], dtype=np.float32)  # [B, 1]
 
         return (
-            torch.from_numpy(boards),
-            torch.from_numpy(rules),
-            torch.from_numpy(policies),
-            torch.from_numpy(values),
+            torch.from_numpy(boards).to(DEVICE),
+            torch.from_numpy(rules).to(DEVICE),
+            torch.from_numpy(policies).to(DEVICE),
+            torch.from_numpy(values).to(DEVICE),
         )
 
     def __len__(self) -> int:
@@ -262,15 +264,15 @@ def _make_curriculum_rule_vector(
     三阶段策略（来自强化学习接入方案 §7.2）：
       - 第 1 阶段（前 10% 迭代）：仅标准规则（全部 false）。
       - 第 2 阶段（10%-50% 迭代）：扩展规则随机开启 2-8 条
-        （跳过前 3 条基础 UI 规则 allow_undo / show_hints / allow_force_move）。
-      - 第 3 阶段（50%-100% 迭代）：全规则空间 22 位随机 + 连续堆叠值随机。
+        （跳过前 3 条基础 UI 规则）。
+      - 第 3 阶段（50%-100% 迭代）：全规则空间 27 位随机 + 连续堆叠值随机。
 
     Args:
         iteration: 当前迭代编号（0-based）。
         num_iterations: 总迭代次数。
 
     Returns:
-        长度 23 的规则向量 list（22 布尔 + 1 连续值）。
+        长度 RULE_FULL_DIM 的规则向量 list（27 布尔 + 1 连续值）。
     """
     progress = iteration / max(num_iterations, 1)
 
@@ -554,6 +556,19 @@ def train_main(
     except Exception:
         pass  # 某些环境不支持，忽略
 
+    # ── 非 mock 模式：启动长驻 Java PyBridge 进程 ──
+    pybridge = None
+    if not use_mock:
+        try:
+            from pybridge import PyBridgeSession
+            pybridge = PyBridgeSession()
+            pybridge.start()
+            print(f"   Java PyBridge 已启动（长驻进程）")
+        except Exception as e:
+            print(f"   [!] PyBridge 启动失败: {e}", flush=True)
+            print(f"   回退到 mock 模式", flush=True)
+            use_mock = True
+
     cells = rows * cols
     os.makedirs(save_dir, exist_ok=True)
 
@@ -565,7 +580,7 @@ def train_main(
         rule_dim=RULE_FULL_DIM,
         num_res_blocks=num_res_blocks,
         filters=filters,
-    )
+    ).to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     # 余弦退火学习率调度
@@ -642,6 +657,7 @@ def train_main(
                 use_mock=use_mock,
                 num_simulations=num_simulations,
                 temperature=1.0,
+                pybridge=pybridge if not use_mock else None,
             )
             print(f" {len(trajectory)} 步, value={final_value:.2f}", flush=True)
 
@@ -719,7 +735,7 @@ def train_main(
                 rule_dim=RULE_FULL_DIM,
                 num_res_blocks=num_res_blocks,
                 filters=filters,
-            )
+            ).to(DEVICE)
             old_model.load_state_dict(old_model_state)
             old_model.eval()
 
@@ -917,7 +933,7 @@ if __name__ == "__main__":
         rule_dim=RULE_FULL_DIM,
         num_res_blocks=3,
         filters=64,
-    )
+    ).to(DEVICE)
     test_optimizer = Adam(test_model.parameters(), lr=1e-3)
 
     test_batch = rb.sample(4)
@@ -947,11 +963,11 @@ if __name__ == "__main__":
     model_a = MiniResNet(
         board_channels=NUM_CHANNELS, board_h=10, board_w=9,
         rule_dim=RULE_FULL_DIM, num_res_blocks=2, filters=32,
-    )
+    ).to(DEVICE)
     model_b = MiniResNet(
         board_channels=NUM_CHANNELS, board_h=10, board_w=9,
         rule_dim=RULE_FULL_DIM, num_res_blocks=2, filters=32,
-    )
+    ).to(DEVICE)
     model_a.eval()
     model_b.eval()
 

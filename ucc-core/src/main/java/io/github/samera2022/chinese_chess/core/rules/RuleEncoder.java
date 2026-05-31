@@ -5,7 +5,7 @@ package io.github.samera2022.chinese_chess.core.rules;
  *
  * <p>编码分为两类：
  * <ul>
- *   <li>{@link #encode(GameRulesConfig)}：22 位布尔规则向量，每维取值 0.0f 或 1.0f。</li>
+ *   <li>{@link #encode(GameRulesConfig)}：27 位布尔规则向量，每维取值 0.0f 或 1.0f。</li>
  *   <li>{@link #encodeContinuous(GameRulesConfig)}：长度 1 的连续值向量，内容为归一化的 max_stacking_count。</li>
  * </ul>
  */
@@ -18,7 +18,7 @@ public final class RuleEncoder {
     /**
      * 将 GameRulesConfig 中的 27 个布尔规则编码为 float[27]。
      *
-     * <p>位序与 RuleRegistry 枚举常量的对应关系：
+     * <p>27 个布尔位与 RuleRegistry 枚举常量的对应关系：
      * <pre>
      *   0  | ALLOW_UNDO                    ("allow_undo")
      *   1  | SHOW_HINTS                    ("show_hints")
