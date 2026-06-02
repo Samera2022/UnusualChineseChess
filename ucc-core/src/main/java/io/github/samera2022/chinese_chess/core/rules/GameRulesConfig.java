@@ -37,12 +37,12 @@ public class GameRulesConfig {
     }
 
     private final List<RuleChangeListener> changeListeners = new ArrayList<>();
-    private final ExecutorService notifyExecutor = Executors.newSingleThreadExecutor(r -> {
+    private static final ExecutorService NOTIFY_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RuleChangeNotifier");
         t.setDaemon(true);
         return t;
     });
-    private final ExecutorService listenerExecutor = Executors.newSingleThreadExecutor(r -> {
+    private static final ExecutorService LISTENER_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "RuleChangeListener");
         t.setDaemon(true);
         return t;
@@ -155,9 +155,9 @@ public class GameRulesConfig {
             copy = new ArrayList<>(changeListeners);
         }
         if (!copy.isEmpty()) {
-            notifyExecutor.submit(() -> {
+            NOTIFY_EXECUTOR.submit(() -> {
                 for (RuleChangeListener l : copy) {
-                    listenerExecutor.submit(() -> {
+                    LISTENER_EXECUTOR.submit(() -> {
                         try {
                             l.onRuleChanged(key, oldV, newV, src);
                         } catch (Throwable inner) {
@@ -211,12 +211,25 @@ public class GameRulesConfig {
         enforceRuleConsistency(ChangeSource.INTERNAL_CONSISTENCY);
     }
 
+    /**
+     * 清理当前实例的监听器列表。线程池由全局静态方法 shutdownExecutors() 统一管理，
+     * 此处不再关闭共享的线程池，避免多实例场景下的线程泄漏。
+     */
     public void shutdown() {
+        synchronized (changeListeners) {
+            changeListeners.clear();
+        }
+    }
+
+    /**
+     * 关闭全局共享的静态线程池。应在应用关闭时调用一次。
+     */
+    public static void shutdownExecutors() {
         try {
-            notifyExecutor.shutdownNow();
-            listenerExecutor.shutdownNow();
-            notifyExecutor.awaitTermination(200, TimeUnit.MILLISECONDS);
-            listenerExecutor.awaitTermination(200, TimeUnit.MILLISECONDS);
+            NOTIFY_EXECUTOR.shutdownNow();
+            LISTENER_EXECUTOR.shutdownNow();
+            NOTIFY_EXECUTOR.awaitTermination(200, TimeUnit.MILLISECONDS);
+            LISTENER_EXECUTOR.awaitTermination(200, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

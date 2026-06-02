@@ -21,6 +21,8 @@ ucc-ai/target/
 ucc-ai/python/checkpoints_test/
 ucc-ai/python/checkpoints/
 ucc-ai/python/__pycache__/
+ucc-server/target/
+.venv-cpu/
 
 *.iml
 

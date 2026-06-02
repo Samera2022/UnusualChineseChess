@@ -22,7 +22,7 @@ public class Board implements ReadonlyBoard {
     private List<Piece> blackPieces;
     private final Map<String, Deque<Piece>> stacks = new HashMap<>();
     /** true = 红方回合，false = 黑方回合 */
-    boolean turn = true;
+    volatile boolean turn = true;
 
     public Board() {
         this(STANDARD_ROWS, true, false);
@@ -304,17 +304,8 @@ public class Board implements ReadonlyBoard {
     }
 
     public Board deepCopy() {
-        Board copy = new Board(this.rows, false);
-        for (int r = 0; r < rows; r++) {
-            for (int c = 0; c < COLS; c++) {
-                for (Piece p : getStack(r, c)) {
-                    Piece cp = new Piece(p.getType(), r, c);
-                    copy.pushToStack(r, c, cp);
-                }
-            }
-        }
-        copy.turn = this.turn;
-        return copy;
+        BoardState snapshot = this.toState();
+        return Board.fromState(snapshot);
     }
 
 
@@ -347,15 +338,21 @@ public class Board implements ReadonlyBoard {
      */
     public BoardState toState() {
         List<BoardState.StackEntry> entries = new ArrayList<>();
-        for (Map.Entry<String, Deque<Piece>> e : stacks.entrySet()) {
-            Deque<Piece> dq = e.getValue();
+        String[] keys;
+        synchronized (stacks) {
+            keys = stacks.keySet().toArray(new String[0]);
+        }
+        for (String key : keys) {
+            Deque<Piece> dq = stacks.get(key);
             if (dq == null || dq.isEmpty()) continue;
-            String[] parts = e.getKey().split(",");
+            String[] parts = key.split(",");
             int r = Integer.parseInt(parts[0]);
             int c = Integer.parseInt(parts[1]);
             List<Piece.Type> types = new ArrayList<>();
-            for (Piece p : dq) {
-                types.add(p.getType());
+            synchronized (dq) {
+                for (Piece p : dq) {
+                    types.add(p.getType());
+                }
             }
             entries.add(new BoardState.StackEntry(r, c, types));
         }

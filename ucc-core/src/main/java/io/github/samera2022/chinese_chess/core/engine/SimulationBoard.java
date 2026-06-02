@@ -5,6 +5,7 @@ import io.github.samera2022.chinese_chess.common.model.Piece;
 import io.github.samera2022.chinese_chess.common.spi.ReadonlyBoard;
 import io.github.samera2022.chinese_chess.common.spi.SimulationContext;
 import io.github.samera2022.chinese_chess.core.rules.MoveValidator;
+import io.github.samera2022.chinese_chess.core.rules.RulesConfigProvider;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -12,39 +13,14 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
-/**
- * 模拟棋盘 —— 用于 AI 搜索树的增量棋盘模拟。
- * <p>
- * 继承 {@link Board}（共享棋盘数据结构和操作方法），
- * 实现 {@link SimulationContext} 接口，为搜索算法提供轻量级的
- * 走子/撤消能力。通过内部类 {@link UndoRecord} 记录每步操作的
- * 完整状态，实现 O(1) 级撤消，避免每次 {@code deepCopy()} 的
- * 全量深拷贝开销。
- * </p>
- */
 public class SimulationBoard extends Board implements SimulationContext {
 
-    /** 走子合法性校验器 */
     private final MoveValidator validator;
-
-    /** 增量撤消栈：最近一步在栈顶 */
     private final Deque<UndoRecord> undoStack = new ArrayDeque<>();
-
-    /** 已执行的模拟走子历史 */
     private final List<Move> simulatedMoves = new ArrayList<>();
 
-    /**
-     * 从源 {@link Board} 深拷贝构造模拟棋盘。
-     * <p>
-     * 遍历源棋盘的所有位置和堆栈，为每个棋子创建新的 {@link Piece}
-     * 拷贝并推入对应位置，同时复制回合状态。
-     * </p>
-     *
-     * @param source 源棋盘，不可为 {@code null}
-     */
     public SimulationBoard(Board source) {
         super(source.getRows(), false);
-        // 深拷贝所有棋子及堆栈
         for (int r = 0; r < source.getRows(); r++) {
             for (int c = 0; c < source.getCols(); c++) {
                 List<Piece> stack = source.getStack(r, c);
@@ -54,13 +30,9 @@ public class SimulationBoard extends Board implements SimulationContext {
                 }
             }
         }
-        // 复制回合状态
         this.turn = source.turn;
-        // 初始化走子校验器（使用 this 自身作为棋盘引用）
-        this.validator = new MoveValidator(this);
+        this.validator = new MoveValidator(this, RulesConfigProvider.get());
     }
-
-    // ──────────────── SimulationContext 实现 ────────────────
 
     @Override
     public ReadonlyBoard getBoard() {
@@ -74,13 +46,11 @@ public class SimulationBoard extends Board implements SimulationContext {
             return false;
         }
 
-        // 记录目标位置原有状态
         Piece capturedTop = getPiece(toRow, toCol);
         List<Piece> capturedStack = capturedTop != null
                 ? new ArrayList<>(getStack(toRow, toCol))
                 : Collections.emptyList();
 
-        // 保存撤消记录
         UndoRecord record = new UndoRecord();
         record.fromRow = fromRow;
         record.fromCol = fromCol;
@@ -91,17 +61,13 @@ public class SimulationBoard extends Board implements SimulationContext {
         record.capturedStack = capturedStack;
         undoStack.push(record);
 
-        // 执行走子：移除源位置棋子
         removePiece(fromRow, fromCol);
-        // 将棋子移动到目标位置
         piece.move(toRow, toCol);
         setPiece(toRow, toCol, piece);
 
-        // 记录走子历史
         Move move = new Move(fromRow, fromCol, toRow, toCol, piece, capturedTop);
         simulatedMoves.add(move);
 
-        // 翻转回合
         flipTurn();
         return true;
     }
@@ -114,14 +80,11 @@ public class SimulationBoard extends Board implements SimulationContext {
 
         UndoRecord record = undoStack.pop();
 
-        // 移除目标位置的移动棋子
         removePiece(record.toRow, record.toCol);
 
-        // 将移动棋子恢复到源位置
         record.movedPiece.move(record.fromRow, record.fromCol);
         pushToStack(record.fromRow, record.fromCol, record.movedPiece);
 
-        // 恢复目标位置原有的堆栈（如果存在）
         if (!record.capturedStack.isEmpty()) {
             for (Piece p : record.capturedStack) {
                 Piece restored = new Piece(p.getType(), record.toRow, record.toCol);
@@ -129,12 +92,10 @@ public class SimulationBoard extends Board implements SimulationContext {
             }
         }
 
-        // 移除最后一条走子历史
         if (!simulatedMoves.isEmpty()) {
             simulatedMoves.remove(simulatedMoves.size() - 1);
         }
 
-        // 翻转回合
         flipTurn();
         return true;
     }
@@ -159,15 +120,6 @@ public class SimulationBoard extends Board implements SimulationContext {
         return new SimulationBoard(this);
     }
 
-    /**
-     * 启发式局面评估。
-     * <p>
-     * 采用简单子力优势计算：红方子力总和减去黑方子力总和。
-     * 正值表示红方优势，负值表示黑方优势。
-     * </p>
-     *
-     * @return 评估分值
-     */
     @Override
     public int evaluate() {
         int score = 0;
@@ -183,47 +135,257 @@ public class SimulationBoard extends Board implements SimulationContext {
     }
 
     /**
-     * 生成当前回合方的所有合法走法。
-     * <p>
-     * 遍历整个棋盘，对每个属于当前回合方的棋子，
-     * 遍历所有目标位置，通过 {@link #isValidMove} 检查合法性。
-     * </p>
-     *
-     * @return 合法走法列表（可能为空）
+     * 检查当前规则配置是否为纯标准规则。
+     * 任何扩展规则开启时返回 false，此时 generateLegalMoves 回退到全遍历以确保正确性。
      */
+    private boolean isStandardRulesOnly() {
+        // 检查所有会影响走法生成的扩展规则
+        return !RulesConfigProvider.get().getBoolean("top_bottom_connected")
+            && !RulesConfigProvider.get().getBoolean("left_right_connected")
+            && !RulesConfigProvider.get().getBoolean("international_king")
+            && !RulesConfigProvider.get().getBoolean("international_advisor")
+            && !RulesConfigProvider.get().getBoolean("pawn_can_retreat")
+            && !RulesConfigProvider.get().getBoolean("allow_inside_retreat")
+            && !RulesConfigProvider.get().getBoolean("allow_flying_general")
+            && !RulesConfigProvider.get().getBoolean("no_river_limit")
+            && !RulesConfigProvider.get().getBoolean("unblock_piece")
+            && !RulesConfigProvider.get().getBoolean("allow_capture_own_piece")
+            && !RulesConfigProvider.get().getBoolean("allow_piece_stacking");
+    }
+
     @Override
     public List<Move> generateLegalMoves() {
-        List<Move> moves = new ArrayList<>();
         boolean currentTurnIsRed = isRedTurn();
+        int H = getRows(), W = getCols();
 
-        for (int fr = 0; fr < getRows(); fr++) {
-            for (int fc = 0; fc < getCols(); fc++) {
-                Piece piece = getPiece(fr, fc);
-                if (piece == null || piece.isRed() != currentTurnIsRed) {
-                    continue;
-                }
-
-                // 遍历所有可能的目标位置
-                for (int tr = 0; tr < getRows(); tr++) {
-                    for (int tc = 0; tc < getCols(); tc++) {
-                        if (fr == tr && fc == tc) continue;
-                        if (!isValidMove(fr, fc, tr, tc)) continue;
-
-                        Piece capturedPiece = getPiece(tr, tc);
-                        Move move = new Move(fr, fc, tr, tc, piece, capturedPiece);
-                        moves.add(move);
+        // 如果存在扩展规则，回退到全遍历以确保正确性
+        if (!isStandardRulesOnly()) {
+            List<Move> moves = new ArrayList<>();
+            for (int fr = 0; fr < H; fr++) {
+                for (int fc = 0; fc < W; fc++) {
+                    Piece piece = getPiece(fr, fc);
+                    if (piece == null || piece.isRed() != currentTurnIsRed) continue;
+                    for (int tr = 0; tr < H; tr++) {
+                        for (int tc = 0; tc < W; tc++) {
+                            if (fr == tr && fc == tc) continue;
+                            if (!isValidMove(fr, fc, tr, tc)) continue;
+                            moves.add(new Move(fr, fc, tr, tc, piece, getPiece(tr, tc)));
+                        }
                     }
+                }
+            }
+            return moves;
+        }
+
+        // 标准规则：用候选位置加速
+        List<Move> moves = new ArrayList<>();
+        for (int fr = 0; fr < H; fr++) {
+            for (int fc = 0; fc < W; fc++) {
+                Piece piece = getPiece(fr, fc);
+                if (piece == null || piece.isRed() != currentTurnIsRed) continue;
+                for (int[] t : getCandidateTargets(fr, fc, piece)) {
+                    if (!isValidMove(fr, fc, t[0], t[1])) continue;
+                    moves.add(new Move(fr, fc, t[0], t[1], piece, getPiece(t[0], t[1])));
                 }
             }
         }
         return moves;
     }
 
-    // ──────────────── 内部辅助方法 ────────────────
-
     /**
-     * 返回棋子的基础子力价值。
+     * 根据棋子类型生成候选目标位置，仅生成该棋子可能走到的格子，
+     * 绕过棋盘上的其他棋子进行走法生成
      */
+    private List<int[]> getCandidateTargets(int fr, int fc, Piece piece) {
+        int H = getRows();
+        int W = getCols();
+        switch (piece.getType()) {
+            case RED_KING:
+            case BLACK_KING:
+                return kingTargets(fr, fc, H, W, piece);
+            case RED_ADVISOR:
+            case BLACK_ADVISOR:
+                return advisorTargets(fr, fc, H, W, piece);
+            case RED_ELEPHANT:
+            case BLACK_ELEPHANT:
+                return elephantTargets(fr, fc, H, W, piece);
+            case RED_HORSE:
+            case BLACK_HORSE:
+                return horseTargets(fr, fc, H, W, piece);
+            case RED_CHARIOT:
+            case BLACK_CHARIOT:
+                return chariotTargets(fr, fc, H, W, piece);
+            case RED_CANNON:
+            case BLACK_CANNON:
+                return cannonTargets(fr, fc, H, W, piece);
+            case RED_SOLDIER:
+            case BLACK_SOLDIER:
+                return soldierTargets(fr, fc, H, W, piece);
+            default:
+                return Collections.emptyList();
+        }
+    }
+
+    private void addIfValid(List<int[]> list, int r, int c, int H, int W) {
+        if (r >= 0 && r < H && c >= 0 && c < W) {
+            list.add(new int[]{r, c});
+        }
+    }
+
+    private void addIfValid(List<int[]> list, int r, int c, int H, int W, int modR, int modC) {
+        int rr = (r % modR + modR) % modR;
+        int cc = (c % modC + modC) % modC;
+        if (rr >= 0 && rr < H && cc >= 0 && cc < W) {
+            list.add(new int[]{rr, cc});
+        }
+    }
+
+    private List<int[]> kingTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        addIfValid(list, fr-1, fc, H, W);
+        addIfValid(list, fr+1, fc, H, W);
+        addIfValid(list, fr, fc-1, H, W);
+        addIfValid(list, fr, fc+1, H, W);
+        return list;
+    }
+
+    private List<int[]> advisorTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        addIfValid(list, fr-1, fc-1, H, W);
+        addIfValid(list, fr-1, fc+1, H, W);
+        addIfValid(list, fr+1, fc-1, H, W);
+        addIfValid(list, fr+1, fc+1, H, W);
+        return list;
+    }
+
+    private List<int[]> elephantTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        addIfValid(list, fr-2, fc-2, H, W);
+        addIfValid(list, fr-2, fc+2, H, W);
+        addIfValid(list, fr+2, fc-2, H, W);
+        addIfValid(list, fr+2, fc+2, H, W);
+        return list;
+    }
+
+    private List<int[]> horseTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        addIfValid(list, fr-2, fc-1, H, W);
+        addIfValid(list, fr-2, fc+1, H, W);
+        addIfValid(list, fr+2, fc-1, H, W);
+        addIfValid(list, fr+2, fc+1, H, W);
+        addIfValid(list, fr-1, fc-2, H, W);
+        addIfValid(list, fr-1, fc+2, H, W);
+        addIfValid(list, fr+1, fc-2, H, W);
+        addIfValid(list, fr+1, fc+2, H, W);
+        return list;
+    }
+
+    private List<int[]> chariotTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        // 上
+        for (int r = fr-1; r >= 0; r--) {
+            list.add(new int[]{r, fc});
+            if (getPiece(r, fc) != null) break;
+        }
+        // 下
+        for (int r = fr+1; r < H; r++) {
+            list.add(new int[]{r, fc});
+            if (getPiece(r, fc) != null) break;
+        }
+        // 左
+        for (int c = fc-1; c >= 0; c--) {
+            list.add(new int[]{fr, c});
+            if (getPiece(fr, c) != null) break;
+        }
+        // 右
+        for (int c = fc+1; c < W; c++) {
+            list.add(new int[]{fr, c});
+            if (getPiece(fr, c) != null) break;
+        }
+        return list;
+    }
+
+    private List<int[]> cannonTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        // 上：遇到第一个棋子前可以走，遇到后只能吃（跨过第一个棋子的下一个有棋子位置）
+        boolean found = false;
+        for (int r = fr-1; r >= 0; r--) {
+            if (!found) {
+                if (getPiece(r, fc) == null) {
+                    list.add(new int[]{r, fc});  // 空格可走
+                } else {
+                    found = true;  // 找到炮架
+                }
+            } else {
+                if (getPiece(r, fc) != null) {
+                    list.add(new int[]{r, fc});  // 炮架后的第一个棋子可吃
+                    break;
+                }
+            }
+        }
+        // 下
+        found = false;
+        for (int r = fr+1; r < H; r++) {
+            if (!found) {
+                if (getPiece(r, fc) == null) {
+                    list.add(new int[]{r, fc});
+                } else {
+                    found = true;
+                }
+            } else {
+                if (getPiece(r, fc) != null) {
+                    list.add(new int[]{r, fc});
+                    break;
+                }
+            }
+        }
+        // 左
+        found = false;
+        for (int c = fc-1; c >= 0; c--) {
+            if (!found) {
+                if (getPiece(fr, c) == null) {
+                    list.add(new int[]{fr, c});
+                } else {
+                    found = true;
+                }
+            } else {
+                if (getPiece(fr, c) != null) {
+                    list.add(new int[]{fr, c});
+                    break;
+                }
+            }
+        }
+        // 右
+        found = false;
+        for (int c = fc+1; c < W; c++) {
+            if (!found) {
+                if (getPiece(fr, c) == null) {
+                    list.add(new int[]{fr, c});
+                } else {
+                    found = true;
+                }
+            } else {
+                if (getPiece(fr, c) != null) {
+                    list.add(new int[]{fr, c});
+                    break;
+                }
+            }
+        }
+        return list;
+    }
+
+    private List<int[]> soldierTargets(int fr, int fc, int H, int W, Piece p) {
+        List<int[]> list = new ArrayList<>();
+        boolean isRed = p.isRed();
+        // 前：红向上(row减小)，黑向下(row增大)
+        int forward = isRed ? -1 : 1;
+        addIfValid(list, fr+forward, fc, H, W);
+        // 左右（仅在过河后可用，但 isValidMove 会拦）
+        addIfValid(list, fr, fc-1, H, W);
+        addIfValid(list, fr, fc+1, H, W);
+        return list;
+    }
+
     private static int getPieceValue(Piece piece) {
         switch (piece.getType()) {
             case RED_KING:
@@ -252,15 +414,6 @@ public class SimulationBoard extends Board implements SimulationContext {
         }
     }
 
-    // ──────────────── 内部类：UndoRecord ────────────────
-
-    /**
-     * 撤消记录 —— 保存一步走子前的完整状态，用于增量撤消。
-     * <p>
-     * 记录走子的源/目标坐标、移动的棋子（引用）、目标位置原有棋子
-     * 以及完整的原有堆栈。撤消时可按此信息精确恢复。
-     * </p>
-     */
     static final class UndoRecord {
         int fromRow;
         int fromCol;

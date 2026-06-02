@@ -657,6 +657,79 @@ def _is_mock_game_over(board_state: Dict[str, Any]) -> Tuple[bool, float]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 真实规则辅助函数（MCTS 内部使用，use_mock=False 时替代 mock 函数）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _apply_real_move(
+    board_state: Dict[str, Any],
+    move: Dict[str, int],
+    pybridge: Any,
+    rows: int,
+    cols: int,
+    rule_vector: Optional[List[float]] = None,
+) -> Dict[str, Any]:
+    """通过 Java 引擎执行真实走子，返回新的 BoardState 字典。
+
+    MCTS 内部需要在任意节点展开子节点，而 PyBridgeSession 长驻进程
+    不支持设置任意棋盘状态（仅支持线性对弈流程）。因此本函数使用
+    per-call subprocess（query_java_engine）来保证状态隔离和正确性。
+
+    Args:
+        board_state: 当前棋盘状态 JSON 字典。
+        move: 着法字典，含 fromRow, fromCol, toRow, toCol。
+        pybridge: PyBridgeSession 实例（备用，当前实现使用 per-call）。
+        rows: 棋盘行数。
+        cols: 棋盘列数。
+        rule_vector: 规则向量列表。
+
+    Returns:
+        走子后的新 BoardState 字典。
+    """
+    if rule_vector is None:
+        rule_vector = []
+    result = query_java_engine(board_state, rule_vector, move)
+    if result.get("success"):
+        return result.get("boardState", board_state)
+    return board_state
+
+
+def _is_real_game_over(board_state: Dict[str, Any]) -> Tuple[bool, float]:
+    """检查真实棋盘终止条件：某方将帅被吃或棋子全灭。
+
+    与 _is_mock_game_over 逻辑相同，但作用于 pybridge/simulate 返回的
+    真实 board_state。
+
+    Returns:
+        (是否结束, 局面价值): 1.0 红胜, -1.0 黑胜。
+    """
+    entries = board_state.get("entries", [])
+    has_red_king = False
+    has_black_king = False
+    has_red_piece = False
+    has_black_piece = False
+
+    for entry in entries:
+        for pt in entry.get("pieceTypes", []):
+            if pt == "RED_KING":
+                has_red_king = True
+                has_red_piece = True
+            elif pt.startswith("RED_"):
+                has_red_piece = True
+            elif pt == "BLACK_KING":
+                has_black_king = True
+                has_black_piece = True
+            elif pt.startswith("BLACK_"):
+                has_black_piece = True
+
+    if not has_red_king or not has_red_piece:
+        return True, -1.0
+    if not has_black_king or not has_black_piece:
+        return True, 1.0
+    return False, 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # MCTS 搜索
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -685,17 +758,38 @@ def mcts_search(
     rows: int = 10,
     cols: int = 9,
     use_mock: bool = True,
+    pybridge: Any = None,
     dirichlet_alpha: float = 0.3,
     dirichlet_weight: float = 0.25,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """神经网络引导的 MCTS 搜索（含 Dirichlet 噪声探索）。"""
+    """神经网络引导的 MCTS 搜索（含 Dirichlet 噪声探索）。
+
+    Args:
+        model: 神经网络模型（MiniResNet）。
+        board_state: 棋盘状态 JSON 字典。
+        rule_vector: 规则向量列表。
+        num_simulations: MCTS 模拟次数。
+        c_puct: 探索常数。
+        temperature: 温度参数。
+        rows: 棋盘行数。
+        cols: 棋盘列数。
+        use_mock: True 时使用纯 Python mock 模拟（不依赖 Java）。
+        pybridge: PyBridgeSession 实例（use_mock=False 时需要）。
+        dirichlet_alpha: Dirichlet 噪声 alpha 参数。
+        dirichlet_weight: Dirichlet 噪声权重。
+
+    Returns:
+        (action_probs, training_target): 动作概率和训练目标。
+    """
     cells = rows * cols
 
     rule_tensor = rule_vector_to_numpy(rule_vector)
 
-    # MCTS 内部始终用 mock 快速展开（不调 Java 子进程）
-    # 神经网络策略+价值头引导搜索方向，着法精确性由实际对局保证
-    root_moves = _generate_mock_legal_moves(board_state, rows, cols)
+    # 根节点着法生成
+    if use_mock or pybridge is None:
+        root_moves = _generate_mock_legal_moves(board_state, rows, cols)
+    else:
+        root_moves = query_java_legal_moves(board_state, rule_vector)
 
     if not root_moves:
         return np.zeros(cells, dtype=np.float32), np.zeros(cells, dtype=np.float32)
@@ -728,11 +822,13 @@ def mcts_search(
 
         prior = (1.0 - dirichlet_weight) * nn_prior + dirichlet_weight * noise[i]
 
-        if use_mock:
+        if use_mock or pybridge is None:
             child_board = _apply_mock_move(board_state, move, rows, cols)
         else:
-            # 非 mock 模式也先用 mock 展开（MCTS 内部展开不调 Java 以加速）
-            child_board = _apply_mock_move(board_state, move, rows, cols)
+            child_board = _apply_real_move(
+                board_state, move, pybridge, rows, cols,
+                rule_vector=rule_vector,
+            )
         child_state = {"board": child_board, "rules": rule_vector}
         child = MCTSNode(state=child_state, parent=root, prior=prior)
         root.children[json.dumps(move, sort_keys=True)] = child
@@ -764,20 +860,24 @@ def mcts_search(
             node = node.children[best_move_key]
             search_path.append(node)
 
-        # Evaluation
+        # Evaluation — 终局检查
         node_board = node.state.get("board", board_state)
 
-        if use_mock:
+        if use_mock or pybridge is None:
             is_over, terminal_value = _is_mock_game_over(node_board)
-            if is_over:
-                is_red_turn = node_board.get("redTurn", True)
-                leaf_value = terminal_value if is_red_turn else -terminal_value
-                for path_node in reversed(search_path):
-                    path_node.visit_count += 1
-                    path_node.total_value += leaf_value
-                    leaf_value = -leaf_value
-                continue
+        else:
+            is_over, terminal_value = _is_real_game_over(node_board)
 
+        if is_over:
+            is_red_turn = node_board.get("redTurn", True)
+            leaf_value = terminal_value if is_red_turn else -terminal_value
+            for path_node in reversed(search_path):
+                path_node.visit_count += 1
+                path_node.total_value += leaf_value
+                leaf_value = -leaf_value
+            continue
+
+        # 神经网络评估
         node_tensor = board_to_tensor(node_board, rows, cols)
 
         if model is not None:
@@ -791,19 +891,21 @@ def mcts_search(
                 leaf_value = float(value.item())
         else:
             policy_probs = np.ones(cells, dtype=np.float32) / cells
-            if use_mock:
+            if use_mock or pybridge is None:
                 raw_eval = _evaluate_mock_position(node_board)
                 is_red_turn = node_board.get("redTurn", True)
                 leaf_value = raw_eval if is_red_turn else -raw_eval
             else:
-                # 非 mock 模式也做启发式评估（MCTS 树内不调 Java）
-                raw_eval = _evaluate_mock_position(node_board)
-                is_red_turn = node_board.get("redTurn", True)
-                leaf_value = raw_eval if is_red_turn else -raw_eval
+                # 无模型且使用真实规则时，返回 0 作为 fallback
+                # （神经网络 value 不可用，不应使用 mock 启发式评估）
+                leaf_value = 0.0
 
-        # Expansion（始终用 mock，MCTS 树内不调 Java）
+        # Expansion
         if not node.is_expanded:
-            node_legal_moves = _generate_mock_legal_moves(node_board, rows, cols)
+            if use_mock or pybridge is None:
+                node_legal_moves = _generate_mock_legal_moves(node_board, rows, cols)
+            else:
+                node_legal_moves = query_java_legal_moves(node_board, rule_vector)
 
             node.is_expanded = True
 
@@ -814,10 +916,13 @@ def mcts_search(
                 else:
                     prior = 0.0
 
-                if use_mock:
+                if use_mock or pybridge is None:
                     child_board = _apply_mock_move(node_board, move, rows, cols)
                 else:
-                    child_board = _apply_mock_move(node_board, move, rows, cols)
+                    child_board = _apply_real_move(
+                        node_board, move, pybridge, rows, cols,
+                        rule_vector=rule_vector,
+                    )
                 child_state = {"board": child_board, "rules": rule_vector}
                 child = MCTSNode(state=child_state, parent=node, prior=prior)
                 node.children[json.dumps(move, sort_keys=True)] = child
@@ -912,7 +1017,8 @@ def selfplay_game(
       - use_mock=True: 纯 Python 模拟（不依赖 Java）
       - use_mock=False: 通过长驻 PyBridgeSession 调用 Java 引擎
         （新协议：一次启动，全程复用 stdin/stdout 管道）
-        MCTS 树搜索内部始终用 mock 快速展开，只在实际走子时调 Java。
+        MCTS 树搜索内部使用 per-call subprocess 展开节点，
+        实际走子时通过长驻管道调用 Java。
     """
     if rules is None:
         rules = make_random_rule_vector()
@@ -935,7 +1041,9 @@ def selfplay_game(
     for step in range(max_steps):
         step_temperature = temperature if step < 30 else max(0.1, temperature * 0.5)
 
-        # MCTS 搜索（内部始终用 mock 快速展开）
+        # MCTS 搜索
+        # 当 use_mock=False 时，传递 pybridge 给 mcts_search
+        # 使 MCTS 内部使用真实规则（per-call subprocess）展开节点
         action_probs, training_target = mcts_search(
             model=model,
             board_state=board_state,
@@ -945,7 +1053,8 @@ def selfplay_game(
             temperature=step_temperature,
             rows=rows,
             cols=cols,
-            use_mock=True,  # MCTS 树搜索不用 Java
+            use_mock=use_mock,
+            pybridge=pybridge,
         )
 
         if action_probs.sum() < 1e-12:
@@ -1019,7 +1128,22 @@ def selfplay_game(
 
     # 终局评估：mock 和非 mock 都需要（对局可能因 max_steps 自然结束）
     if final_value == 0.0:
-        final_value = _evaluate_mock_position(board_state)
+        if use_mock:
+            final_value = _evaluate_mock_position(board_state)
+        else:
+            # 有神经网络时使用模型评估，否则用启发式
+            if model is not None:
+                tensor = board_to_tensor(board_state, rows, cols)
+                rule_t = rule_vector_to_numpy(rules)
+                with torch.no_grad():
+                    bt = torch.from_numpy(tensor).unsqueeze(0).to(DEVICE)
+                    rt = torch.from_numpy(rule_t).unsqueeze(0).to(DEVICE)
+                    _, val = model(bt, rt)
+                    final_value = float(val.item())
+            else:
+                raw_eval = _evaluate_mock_position(board_state)
+                is_red_turn = board_state.get("redTurn", True)
+                final_value = raw_eval if is_red_turn else -raw_eval
 
     return trajectory, final_value
 

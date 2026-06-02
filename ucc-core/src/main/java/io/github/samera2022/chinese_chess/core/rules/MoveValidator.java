@@ -5,14 +5,13 @@ import io.github.samera2022.chinese_chess.common.model.Piece;
 import io.github.samera2022.chinese_chess.common.rules.RuleRegistry;
 
 public class MoveValidator {
-    private Board board;
-    private GameRulesConfig rulesConfig;
-    public MoveValidator(Board board) { this.board = board; this.rulesConfig = RulesConfigProvider.get(); }
-    public void setRulesConfig(GameRulesConfig c) { if (c != null) this.rulesConfig = c; }
+    private final Board board;
+    private final GameRulesConfig rulesConfig;
+    public MoveValidator(Board board, GameRulesConfig rulesConfig) { this.board = board; this.rulesConfig = rulesConfig; }
+    public GameRulesConfig getRulesConfig() { return rulesConfig; }
     public boolean isValidMove(int fr,int fc,int tr,int tc) { return isValidMove(fr,fc,tr,tc,-1); }
 
     public boolean isValidMove(int fr,int fc,int tr,int tc,int si) {
-        if (rulesConfig == null) rulesConfig = RulesConfigProvider.get();
         if (!board.isValid(fr,fc) || !board.isValid(tr,tc)) return false;
         Piece p; if (si>=0) { java.util.List<Piece> s=board.getStack(fr,fc); if(si>=s.size())return false; p=s.get(si); } else p=board.getPiece(fr,fc);
         if (p==null) return false;

@@ -308,7 +308,7 @@ def _play_eval_game(
     max_steps: int = 200,
     rows: int = 10,
     cols: int = 9,
-    use_mock: bool = True,
+    use_mock: bool = False,
     num_simulations: int = 200,
     c_puct: float = 2.0,
     temperature: float = 0.1,
@@ -325,7 +325,7 @@ def _play_eval_game(
         max_steps: 最大走子步数（防止无限循环）。
         rows: 棋盘行数。
         cols: 棋盘列数。
-        use_mock: True 时使用模拟数据（不调用 Java）。
+        use_mock: False 时通过 Java PyBridge 引擎获取真实局面数据。
         num_simulations: 每步 MCTS 模拟次数。
         c_puct: UCB 探索系数。
         temperature: 策略温度（评估时建议低温度如 0.1）。
@@ -413,7 +413,7 @@ def evaluate(
     num_games: int = 100,
     rows: int = 10,
     cols: int = 9,
-    use_mock: bool = True,
+    use_mock: bool = False,
     num_simulations: int = 200,
 ) -> float:
     """两个模型对弈 num_games 局，返回 model_a 的胜率。
@@ -428,7 +428,7 @@ def evaluate(
         num_games: 对弈局数。
         rows: 棋盘行数。
         cols: 棋盘列数。
-        use_mock: True 时使用模拟数据。
+        use_mock: False 时通过 Java PyBridge 引擎获取真实局面数据。
         num_simulations: 每步 MCTS 模拟次数。
 
     Returns:
@@ -491,7 +491,7 @@ def train_main(
     weight_decay: float = 1e-4,
     rows: int = EXPANDED_ROWS,
     cols: int = BOARD_COLS,
-    use_mock: bool = True,
+    use_mock: bool = False,
     num_simulations: int = 50,
     replay_capacity: int = 100000,
     eval_interval: int = 200,
@@ -536,7 +536,7 @@ def train_main(
         weight_decay: L2 正则化系数。
         rows: 棋盘行数（默认 10，上下连通时为 18）。
         cols: 棋盘列数。
-        use_mock: True 时使用模拟数据（不调用 Java PyBridge）。
+        use_mock: False 时通过 Java PyBridge 引擎获取真实局面数据。
         num_simulations: 每步 MCTS 模拟次数。
         replay_capacity: ReplayBuffer 最大容量。
         eval_interval: 评估间隔（每 N 轮）。
@@ -823,7 +823,7 @@ def train_main(
 def test_train(
     iterations: int = 5,
     games_per_iteration: int = 2,
-    use_mock: bool = True,
+    use_mock: bool = False,
 ) -> Dict[str, Any]:
     """小规模测试训练 — 用于快速验证训练流水线完整性。
 
@@ -832,7 +832,7 @@ def test_train(
     Args:
         iterations: 迭代次数。
         games_per_iteration: 每轮对局数。
-        use_mock: True 时使用模拟数据。
+        use_mock: False 时通过 Java PyBridge 引擎获取真实局面数据。
 
     Returns:
         训练历史字典。

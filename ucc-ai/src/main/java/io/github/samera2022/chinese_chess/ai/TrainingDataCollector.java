@@ -73,8 +73,8 @@ public class TrainingDataCollector {
          */
         public TrainingSample(BoardState board, float[] rules, float[] policy, float value) {
             this.board = board;
-            this.rules = rules;
-            this.policy = policy;
+            this.rules = rules.clone();
+            this.policy = policy.clone();
             this.value = value;
         }
     }

@@ -1,6 +1,7 @@
 package io.github.samera2022.chinese_chess.core.rules;
 
 import io.github.samera2022.chinese_chess.core.engine.Board;
+import io.github.samera2022.chinese_chess.core.engine.SimulationBoard;
 import io.github.samera2022.chinese_chess.common.model.Piece;
 
 /**
@@ -70,39 +71,20 @@ public class CheckDetector {
      * 检查移动后是否能脱离将
      */
     private boolean canEscapeCheck(Piece piece, int toRow, int toCol, boolean isRed) {
-        // 保存原始状态
-        int originalRow = piece.getRow();
-        int originalCol = piece.getCol();
-        Piece capturedPiece = board.getPiece(toRow, toCol);
-        java.util.List<Piece> capturedStack = null;
-        if (capturedPiece != null) {
-            // 保存完整的堆栈信息以便恢复
-            capturedStack = new java.util.ArrayList<>(board.getStack(toRow, toCol));
-        }
+        // 创建轻量级副本进行试探（SimulationBoard 构造即深拷贝）
+        SimulationBoard simBoard = new SimulationBoard(board);
+        // 在副本上操作对应棋子
+        Piece simPiece = simBoard.getPiece(piece.getRow(), piece.getCol());
+        if (simPiece == null) return false;
 
-        // 执行移动：从原位置移除，放到目标位置
-        board.removePiece(originalRow, originalCol);
-        // 清除目标位置（含堆叠）
-        board.clearStack(toRow, toCol);
-        piece.move(toRow, toCol);
-        board.pushToStack(toRow, toCol, piece);
+        // 执行试探走子
+        simBoard.removePiece(simPiece.getRow(), simPiece.getCol());
+        simBoard.clearStack(toRow, toCol);        // 清除目标位置
+        simPiece.move(toRow, toCol);
+        simBoard.pushToStack(toRow, toCol, simPiece);
 
-        // 检查移动后是否仍在将
-        boolean stillInCheck = isInCheck(isRed);
-
-        // 恢复原始状态：先清除临时位置
-        board.clearStack(toRow, toCol);
-        // 恢复被吃棋子（含堆叠）
-        if (capturedStack != null) {
-            for (Piece p : capturedStack) {
-                p.move(toRow, toCol);
-                board.pushToStack(toRow, toCol, p);
-            }
-        }
-        // 恢复移动的棋子
-        piece.move(originalRow, originalCol);
-        board.pushToStack(originalRow, originalCol, piece);
-
-        return !stillInCheck;
+        // 在副本上检查
+        CheckDetector simDetector = new CheckDetector(simBoard, new MoveValidator(simBoard, validator.getRulesConfig()));
+        return !simDetector.isInCheck(isRed);
     }
 }

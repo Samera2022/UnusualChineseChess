@@ -241,39 +241,83 @@ class ChessTransformer(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # ── Transformer Encoder（骨架） ──
-        # 将在 Phase 3+ 中接入实际棋盘表示
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True
-        # )
-        # self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        # ── Transformer Encoder ──
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # ── 占位：策略头与价值头 ──
-        self.policy_head = None   # 待实现
-        self.value_head = None    # 待实现
+        # ── 策略头与价值头 ──
+        self.policy_head = nn.Linear(d_model, max_rows * max_cols)
+        self.value_head = nn.Sequential(
+            nn.Linear(d_model, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 1),
+            nn.Tanh(),
+        )
 
     def forward(
         self,
-        board_tokens: torch.Tensor | None = None,
-        rule_vec: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        board_tokens: torch.Tensor,
+        rule_vec: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        前向传播骨架（Phase 3+ 实现）。
+        前向传播 — 完整前向传播。
 
         Args:
-            board_tokens: [B, seq_len]  棋盘序列化 token。
+            board_tokens: [B, seq_len]  棋盘序列化 token（0=空, 1..7=红方, 8..14=黑方）。
             rule_vec:     [B, rule_dim]  规则向量。
 
         Returns:
-            (policy, value) — 当前返回 (None, None) 占位。
+            (policy, value):
+              - policy: [B, max_rows * max_cols]  每格落子 logit。
+              - value:  [B, 1]                    局面胜率 ∈ [-1, 1]。
         """
-        # TODO: Phase 3+ 实现
-        #   1. 计算环面位置编码
-        #   2. 嵌入棋子 token
-        #   3. 拼接规则编码
-        #   4. 送入 Transformer Encoder
-        #   5. 策略头 / 价值头输出
-        return None, None
+        B = board_tokens.size(0)
+        seq_len = self.max_rows * self.max_cols
+        device = board_tokens.device
+
+        # ── 1. 棋子 token 嵌入 ──
+        # board_tokens: [B, seq_len] → [B, seq_len, d_model]
+        token_emb = self.piece_embed(board_tokens)  # [B, seq_len, d_model]
+
+        # ── 2. 环面位置编码 ──
+        # 对每个位置 i, r = i // max_cols, c = i % max_cols
+        row_indices = torch.arange(self.max_rows, device=device)     # [max_rows]
+        col_indices = torch.arange(self.max_cols, device=device)     # [max_cols]
+        # 扩展为网格索引
+        row_idx = row_indices.view(-1, 1).expand(self.max_rows, self.max_cols).flatten()  # [seq_len]
+        col_idx = col_indices.view(1, -1).expand(self.max_rows, self.max_cols).flatten()  # [seq_len]
+
+        row_emb = self.row_embed(row_idx)   # [seq_len, d_model//2]
+        col_emb = self.col_embed(col_idx)   # [seq_len, d_model//2]
+        pos_enc = torch.cat([row_emb, col_emb], dim=-1)  # [seq_len, d_model]
+        pos_enc = pos_enc.unsqueeze(0)                    # [1, seq_len, d_model]
+
+        # token 嵌入 + 位置编码
+        seq = token_emb + pos_enc  # [B, seq_len, d_model]
+
+        # ── 3. 规则编码拼接 ──
+        # rule_vec: [B, rule_dim] → [B, d_model]
+        rule_enc = self.rule_encoder(rule_vec)          # [B, d_model]
+        rule_enc = rule_enc.unsqueeze(1)                # [B, 1, d_model]
+
+        # 拼接到序列末尾 → [B, seq_len + 1, d_model]
+        seq = torch.cat([seq, rule_enc], dim=1)
+
+        # ── 4. Transformer Encoder ──
+        # [B, seq_len + 1, d_model] → [B, seq_len + 1, d_model]
+        encoded = self.transformer(seq)
+
+        # ── 5. 取规则 token 位置输出 ──
+        # 规则 token 在最后一个位置 (索引 seq_len)
+        global_repr = encoded[:, -1, :]  # [B, d_model]
+
+        # ── 6. 策略头 / 价值头 ──
+        policy = self.policy_head(global_repr)  # [B, max_rows * max_cols]
+        value = self.value_head(global_repr)    # [B, 1]
+
+        return policy, value
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -338,7 +382,7 @@ if __name__ == "__main__":
 
     # ── ChessTransformer ──
     print("\n" + "=" * 60)
-    print("测试 ChessTransformer 实例化")
+    print("测试 ChessTransformer 前向传播")
     print("=" * 60)
 
     ct = ChessTransformer(
@@ -353,4 +397,32 @@ if __name__ == "__main__":
     )
     ct_params = sum(p.numel() for p in ct.parameters())
     print(f"模型参数量: {ct_params:,}")
-    print("✓ ChessTransformer 实例化成功（forward 返回占位 None）")
+
+    # 构造随机输入 board_tokens
+    # board_tokens: [B, seq_len], 每个 token 在 0..14 之间（0=空, 1..7=红方, 8..14=黑方）
+    batch_size = 4
+    seq_len = ct.max_rows * ct.max_cols  # 18*9 = 162
+    board_tokens = torch.randint(0, 15, (batch_size, seq_len))  # [4, 162]
+    rule_vec = torch.randn(batch_size, 28)                       # [4, 28]
+
+    # 前向传播
+    with torch.no_grad():
+        policy, value = ct(board_tokens, rule_vec)
+
+    print(f"输入 board_tokens shape: {board_tokens.shape}")
+    print(f"输入 rule_vec shape:     {rule_vec.shape}")
+    print(f"输出 policy shape:        {policy.shape}   (期望: [{batch_size}, {seq_len}])")
+    print(f"输出 value shape:         {value.shape}    (期望: [{batch_size}, 1])")
+
+    # 验证 shape
+    assert policy.shape == (batch_size, seq_len), \
+        f"policy shape 错误: {policy.shape} != ({batch_size}, {seq_len})"
+    assert value.shape == (batch_size, 1), \
+        f"value shape 错误: {value.shape} != ({batch_size}, 1)"
+
+    # 验证 value 在 [-1, 1] 范围内（Tanh 输出）
+    assert value.min() >= -1.0 and value.max() <= 1.0, \
+        f"value 超出 [-1, 1] 范围: [{value.min():.4f}, {value.max():.4f}]"
+    print(f"✓ value 在 [-1, 1] 范围内: [{value.min().item():.4f}, {value.max().item():.4f}]")
+
+    print("\n✓ ChessTransformer 前向传播通过！")

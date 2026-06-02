@@ -64,12 +64,9 @@ public final class RulesConfigProvider {
     }
 
     /**
-     * Shutdown provider-managed resources (delegates to the config's notifier shutdown).
+     * 关闭全局共享线程池。调用 GameRulesConfig.shutdownExecutors() 统一清理。
      */
     public static void shutdown() {
-        GameRulesConfig inst = INSTANCE;
-        if (inst != null) {
-            try { inst.shutdown(); } catch (Throwable ignored) {}
-        }
+        GameRulesConfig.shutdownExecutors();
     }
 }

@@ -175,7 +175,80 @@ public class BoardPanel extends JPanel {
     private void showStackSelectionForSourceDialog(int r,int c){}
     private void showStackInfoDialog(int r,int c){}
     public boolean isStackedPiece(Piece p){return p!=null&&board().getStack(p.getRow(),p.getCol()).size()>1;}
-    private void calculateValidMoves(){validMoves.clear();ReadonlyBoard b=board();for(int r=0;r<b.getRows();r++)for(int c=0;c<b.getCols();c++)if(session.isValidMove(selectedRow,selectedCol,r,c,selectedStackIndex))validMoves.add(new Point(r,c));}
+    private void calculateValidMoves() {
+        validMoves.clear();
+        ReadonlyBoard b = board();
+        Piece p = b.getPiece(selectedRow, selectedCol);
+        if (p == null) return;
+        int H = b.getRows(), W = b.getCols();
+        switch (p.getType()) {
+            case RED_KING: case BLACK_KING:
+                addIfValid(selectedRow-1,selectedCol,H,W); addIfValid(selectedRow+1,selectedCol,H,W);
+                addIfValid(selectedRow,selectedCol-1,H,W); addIfValid(selectedRow,selectedCol+1,H,W);
+                break;
+            case RED_ADVISOR: case BLACK_ADVISOR:
+                addIfValid(selectedRow-1,selectedCol-1,H,W); addIfValid(selectedRow-1,selectedCol+1,H,W);
+                addIfValid(selectedRow+1,selectedCol-1,H,W); addIfValid(selectedRow+1,selectedCol+1,H,W);
+                break;
+            case RED_ELEPHANT: case BLACK_ELEPHANT:
+                addIfValid(selectedRow-2,selectedCol-2,H,W); addIfValid(selectedRow-2,selectedCol+2,H,W);
+                addIfValid(selectedRow+2,selectedCol-2,H,W); addIfValid(selectedRow+2,selectedCol+2,H,W);
+                break;
+            case RED_HORSE: case BLACK_HORSE:
+                addIfValid(selectedRow-2,selectedCol-1,H,W); addIfValid(selectedRow-2,selectedCol+1,H,W);
+                addIfValid(selectedRow+2,selectedCol-1,H,W); addIfValid(selectedRow+2,selectedCol+1,H,W);
+                addIfValid(selectedRow-1,selectedCol-2,H,W); addIfValid(selectedRow-1,selectedCol+2,H,W);
+                addIfValid(selectedRow+1,selectedCol-2,H,W); addIfValid(selectedRow+1,selectedCol+2,H,W);
+                break;
+            case RED_CHARIOT: case BLACK_CHARIOT:
+                for (int r = selectedRow-1; r >= 0; r--) { addIfValid(r,selectedCol,H,W); if (b.getPiece(r,selectedCol) != null) break; }
+                for (int r = selectedRow+1; r < H; r++) { addIfValid(r,selectedCol,H,W); if (b.getPiece(r,selectedCol) != null) break; }
+                for (int c = selectedCol-1; c >= 0; c--) { addIfValid(selectedRow,c,H,W); if (b.getPiece(selectedRow,c) != null) break; }
+                for (int c = selectedCol+1; c < W; c++) { addIfValid(selectedRow,c,H,W); if (b.getPiece(selectedRow,c) != null) break; }
+                break;
+            case RED_CANNON: case BLACK_CANNON:
+                addCannonMoves(selectedRow,selectedCol,H,W,b);
+                break;
+            case RED_SOLDIER: case BLACK_SOLDIER:
+                int fwd = p.isRed() ? -1 : 1;
+                addIfValid(selectedRow+fwd,selectedCol,H,W);
+                addIfValid(selectedRow,selectedCol-1,H,W);
+                addIfValid(selectedRow,selectedCol+1,H,W);
+                break;
+        }
+        java.util.List<Point> copy = new java.util.ArrayList<>(validMoves);
+        for (Point pt : copy) {
+            if (!session.isValidMove(selectedRow, selectedCol, pt.x, pt.y, selectedStackIndex))
+                validMoves.remove(pt);
+        }
+    }
+
+    private void addIfValid(int r, int c, int H, int W) {
+        if (r >= 0 && r < H && c >= 0 && c < W) validMoves.add(new Point(r, c));
+    }
+
+    private void addCannonMoves(int fr, int fc, int H, int W, ReadonlyBoard b) {
+        boolean found = false;
+        for (int r = fr-1; r >= 0; r--) {
+            if (!found) { if (b.getPiece(r,fc)==null) validMoves.add(new Point(r,fc)); else found=true; }
+            else { if (b.getPiece(r,fc)!=null) { validMoves.add(new Point(r,fc)); break; } }
+        }
+        found = false;
+        for (int r = fr+1; r < H; r++) {
+            if (!found) { if (b.getPiece(r,fc)==null) validMoves.add(new Point(r,fc)); else found=true; }
+            else { if (b.getPiece(r,fc)!=null) { validMoves.add(new Point(r,fc)); break; } }
+        }
+        found = false;
+        for (int c = fc-1; c >= 0; c--) {
+            if (!found) { if (b.getPiece(fr,c)==null) validMoves.add(new Point(fr,c)); else found=true; }
+            else { if (b.getPiece(fr,c)!=null) { validMoves.add(new Point(fr,c)); break; } }
+        }
+        found = false;
+        for (int c = fc+1; c < W; c++) {
+            if (!found) { if (b.getPiece(fr,c)==null) validMoves.add(new Point(fr,c)); else found=true; }
+            else { if (b.getPiece(fr,c)!=null) { validMoves.add(new Point(fr,c)); break; } }
+        }
+    }
 
     // ==================== Rendering ====================
     private Font riverFont(){return new Font("LiSu",Font.BOLD,(int)Math.max(14,cellSize/1.5f));}

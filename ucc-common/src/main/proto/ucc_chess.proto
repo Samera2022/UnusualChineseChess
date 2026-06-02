@@ -1,0 +1,148 @@
+// ucc_chess.proto
+syntax = "proto3";
+package ucc;
+option java_package = "io.github.samera2022.chinese_chess.common.proto";
+option java_multiple_files = true;
+
+// ═══════════════════════════════════════════
+// 空消息（替代 google.protobuf.Empty，避免 protoc include 路径问题）
+// ═══════════════════════════════════════════
+message Empty {}
+
+// ═══════════════════════════════════════════
+// 棋盘局面
+// ═══════════════════════════════════════════
+message BoardStateProto {
+    int32 rows = 1;
+    int32 cols = 2;
+    bool red_turn = 3;
+    repeated StackEntry entries = 4;
+
+    message StackEntry {
+        int32 row = 1;
+        int32 col = 2;
+        repeated PieceType piece_types = 3;
+    }
+}
+
+// ═══════════════════════════════════════════
+// 棋子类型枚举
+// ═══════════════════════════════════════════
+enum PieceType {
+    RED_KING = 0;
+    RED_ADVISOR = 1;
+    RED_ELEPHANT = 2;
+    RED_HORSE = 3;
+    RED_CHARIOT = 4;
+    RED_CANNON = 5;
+    RED_SOLDIER = 6;
+    BLACK_KING = 7;
+    BLACK_ADVISOR = 8;
+    BLACK_ELEPHANT = 9;
+    BLACK_HORSE = 10;
+    BLACK_CHARIOT = 11;
+    BLACK_CANNON = 12;
+    BLACK_SOLDIER = 13;
+}
+
+// ═══════════════════════════════════════════
+// 规则配置
+// ═══════════════════════════════════════════
+message RulesConfigProto {
+    repeated float rule_vector = 1;  // 长度 28
+}
+
+// ═══════════════════════════════════════════
+// 着法
+// ═══════════════════════════════════════════
+message MoveProto {
+    int32 from_row = 1;
+    int32 from_col = 2;
+    int32 to_row = 3;
+    int32 to_col = 4;
+    int32 selected_stack_index = 5;  // -1 表示不从堆栈选择
+}
+
+// ═══════════════════════════════════════════
+// 推理请求（Java → Python）
+// ═══════════════════════════════════════════
+message InferenceRequest {
+    repeated BoardStateProto boards = 1;
+    repeated RulesConfigProto rules = 2;
+}
+
+// ═══════════════════════════════════════════
+// 推理响应（Python → Java）
+// ═══════════════════════════════════════════
+message InferenceResponse {
+    repeated PolicyValuePair results = 1;
+
+    message PolicyValuePair {
+        repeated float policy = 1;
+        float value = 2;
+    }
+}
+
+// ═══════════════════════════════════════════
+// 训练样本
+// ═══════════════════════════════════════════
+message TrainingSample {
+    BoardStateProto board = 1;
+    RulesConfigProto rules = 2;
+    repeated float policy = 3;
+    float value = 4;
+}
+
+// ═══════════════════════════════════════════
+// 模型权重
+// ═══════════════════════════════════════════
+message ModelWeights {
+    bytes weights_data = 1;
+    int32 iteration = 2;
+}
+
+// ═══════════════════════════════════════════
+// WebSocket 对局消息
+// ═══════════════════════════════════════════
+message WsMessage {
+    enum Type {
+        CREATE_ROOM = 0;
+        JOIN_ROOM = 1;
+        START_MATCHMAKING = 2;
+        CANCEL_MATCHMAKING = 3;
+        MATCH_FOUND = 4;
+        ROOM_LIST = 5;
+        SUBMIT_MOVE = 10;
+        OPPONENT_MOVE = 11;
+        REQUEST_UNDO = 12;
+        OPPONENT_UNDO = 13;
+        RESIGN = 14;
+        GAME_OVER = 15;
+        SYNC_GAME_STATE = 20;
+        REQUEST_SYNC = 21;
+        SPECTATE = 30;
+        SPECTATE_UPDATE = 31;
+        ERROR = 99;
+        PING = 100;
+        PONG = 101;
+    }
+    Type type = 1;
+    string room_code = 2;
+    string player_id = 3;
+    bytes payload = 4;
+    int64 timestamp = 5;
+}
+
+// ═══════════════════════════════════════════
+// 服务定义
+// ═══════════════════════════════════════════
+
+service InferenceService {
+    rpc BatchInfer(InferenceRequest) returns (InferenceResponse);
+    rpc UpdateModel(ModelWeights) returns (Empty);
+    rpc Ping(Empty) returns (Empty);
+}
+service TrainingService {
+    rpc PushSamples(stream TrainingSample) returns (Empty);
+    rpc PullWeights(Empty) returns (ModelWeights);
+}
