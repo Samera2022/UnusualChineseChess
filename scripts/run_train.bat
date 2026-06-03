@@ -53,10 +53,10 @@ start "UCC-Training" cmd /k ""!PYTHON!" "!PYTHON_DIR!\train_server.py" --port 50
 echo       训练服务已启动，窗口标题: UCC-Training
 timeout /t 2 /nobreak >nul
 
-:: Step 5: 启动 Java 训练引擎（install 后的 jar 在本地仓库，classpath 自动正确解析）
+:: Step 5: 启动 Java 训练引擎（compile+exec 一体，确保 proto stubs 在 classpath 中）
 echo [5/5] 启动 Java 训练引擎...
 cd /d "!PROJECT_ROOT!"
-call mvn exec:java -pl ucc-server -Dexec.mainClass="io.github.samera2022.chinese_chess.server.UCCServer" -Dexec.args="--train" -Dexec.classpathScope=runtime
+call mvn compile exec:java -pl ucc-server -am -Dexec.mainClass="io.github.samera2022.chinese_chess.server.UCCServer" -Dexec.args="--train" -Dexec.classpathScope=runtime
 
 :: 清理
 echo 训练完成，清理进程...

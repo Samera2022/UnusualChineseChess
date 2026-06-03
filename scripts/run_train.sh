@@ -43,11 +43,12 @@ TRAIN_PID=$!
 echo "      训练服务 PID: $TRAIN_PID"
 sleep 2
 
-# Step 5: 启动 Java 训练（install 后的 jar 在本地仓库，classpath 自动正确解析）
+# Step 5: 启动 Java 训练（compile+exec 一体 + -am，确保跨模块 proto stubs 在 classpath 中）
 echo "[5/5] 启动 Java 训练引擎..."
-cd "$PROJECT_ROOT" && mvn exec:java -pl ucc-server \
+cd "$PROJECT_ROOT" && mvn compile exec:java -pl ucc-server -am \
     -Dexec.mainClass="io.github.samera2022.chinese_chess.server.UCCServer" \
-    -Dexec.args="--train"
+    -Dexec.args="--train" \
+    -Dexec.classpathScope=runtime
 
 # Cleanup
 echo "训练完成，清理子进程..."

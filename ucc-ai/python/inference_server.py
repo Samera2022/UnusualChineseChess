@@ -10,11 +10,18 @@ import argparse
 import grpc
 import logging
 import os
+import sys
 import torch
 import numpy as np
 from concurrent import futures
 from typing import Optional
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    stream=sys.stdout,
+    force=True,
+)
 logger = logging.getLogger(__name__)
 
 try:
@@ -83,7 +90,9 @@ class InferenceServicer:
 
     def BatchInfer(self, request, context):
         batch_size = len(request.boards)
+        logger.info(">>> BatchInfer 被调用: batch_size=%d", batch_size)
         if batch_size == 0:
+            logger.warning("BatchInfer 收到空请求，返回空响应")
             return ucc_chess_pb2.InferenceResponse()
 
         # 模型固定使用 18×9 输入（初始化时 board_h=18, board_w=9）
@@ -97,14 +106,23 @@ class InferenceServicer:
         for i, (board_proto, rules_proto) in enumerate(
             zip(request.boards, request.rules)):
             board_dict = proto_to_dict(board_proto)
-            # board_to_tensor 按 board_dict 中的实际 rows 填充，多余的保持零
             actual_rows = board_dict.get("rows", 10)
+            actual_cols = board_dict.get("cols", 9)
+            entries_count = len(board_dict.get("entries", []))
+            logger.info("  样本[%d]: rows=%d, cols=%d, entries=%d, redTurn=%s",
+                        i, actual_rows, actual_cols, entries_count, board_dict.get("redTurn"))
+            # board_to_tensor 按 board_dict 中的实际 rows 填充，多余的保持零
             partial = board_to_tensor(board_dict, actual_rows, cols)
             board_tensors[i, :, :actual_rows, :] = partial
             rule_tensors[i] = np.array(rules_proto.rule_vector, dtype=np.float32)
+            rule_sum = float(rule_tensors[i].sum())
+            logger.info("         rule_vector sum=%.2f, len=%d", rule_sum, len(rule_tensors[i]))
 
         board_batch = torch.from_numpy(board_tensors).to(self.device)
         rule_batch = torch.from_numpy(rule_tensors).to(self.device)
+
+        logger.info("  开始前向推理: board_shape=%s, rule_shape=%s",
+                    str(list(board_batch.shape)), str(list(rule_batch.shape)))
 
         with torch.no_grad():
             if self.use_amp:
@@ -115,6 +133,10 @@ class InferenceServicer:
 
         policy_probs = torch.softmax(policy_logits, dim=1).cpu().numpy()
         values_np = values.cpu().numpy()
+
+        logger.info("  推理完成: policy_shape=%s, value_range=[%.4f, %.4f]",
+                    str(list(policy_probs.shape)),
+                    float(values_np.min()), float(values_np.max()))
 
         response = ucc_chess_pb2.InferenceResponse()
         for i in range(batch_size):

@@ -23,6 +23,12 @@ ucc-ai/python/checkpoints/
 ucc-ai/python/__pycache__/
 ucc-server/target/
 .venv-cpu/
+android-sdk/
+ucc-android/app/build
+ucc-android/build
+ucc-android/gradle
+ucc-android/.gradle
+ucc-android/.idea
 
 *.iml
 

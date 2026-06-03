@@ -59,14 +59,17 @@ from train import ReplayBuffer, train_step
 DEFAULT_TRAIN_PORT = 50052
 """训练 gRPC 服务默认端口。"""
 
-MIN_SAMPLES_TO_TRAIN = 128
-"""触发训练的最小样本数。"""
+MIN_SAMPLES_TO_TRAIN = 32
+"""触发训练的最小样本数（测试模式降低）。"""
 
-TRAIN_BATCH_SIZE = 64
-"""训练 batch 大小。"""
+TRAIN_BATCH_SIZE = 32
+"""训练 batch 大小（测试模式降低）。"""
 
-TRAIN_INTERVAL_SECONDS = 5.0
+TRAIN_INTERVAL_SECONDS = 1.0
 """后台训练线程轮询间隔（秒）。"""
+
+TRAIN_IDLE_TIMEOUT_SECONDS = 120.0
+"""无新样本超时秒数。超过此时间未收到新样本，训练线程自动退出。"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -152,17 +155,20 @@ class TrainingServicer(ucc_chess_pb2_grpc.TrainingServiceServicer):
                 value = float(proto_sample.value)
 
                 # 5. 校验数据完整性
-                rows = board_dict.get("rows", STANDARD_ROWS)
+                actual_rows = board_dict.get("rows", STANDARD_ROWS)
                 cols = board_dict.get("cols", BOARD_COLS)
+                # 模型固定 board_h=18，policy 长度固定为 18*9=162
+                rows = EXPANDED_ROWS
                 expected_policy_len = rows * cols
                 if len(policy) != expected_policy_len:
-                    # 长度不符时裁剪或填充
+                    # 长度不符时裁剪或填充（统一到 18×9=162）
                     if len(policy) > expected_policy_len:
                         policy = policy[:expected_policy_len]
                     else:
                         policy = np.pad(policy, (0, expected_policy_len - len(policy)))
 
                 # 6. 推入 ReplayBuffer（复用 train.py 中定义的 push 接口）
+                # 注意：始终用 EXPANDED_ROWS 以保证 board_tensor 为 [14, 18, 9] 与模型初始化一致
                 self.buffer.push(
                     board=board_dict,
                     rules=rules_list,
@@ -254,6 +260,7 @@ class TrainingServicer(ucc_chess_pb2_grpc.TrainingServiceServicer):
         """
         print("  [TrainingLoop] 后台训练线程已启动", flush=True)
 
+        last_received = time.time()
         while True:
             try:
                 time.sleep(TRAIN_INTERVAL_SECONDS)
@@ -261,6 +268,14 @@ class TrainingServicer(ucc_chess_pb2_grpc.TrainingServiceServicer):
                 # 检查是否需要触发训练
                 with self._lock:
                     pending = self._samples_pushed_since_last_train
+                    total_received = self._total_samples_received
+
+                # 空闲超时检测：长时间无新样本则退出
+                if pending == 0 and total_received > 0:
+                    if time.time() - last_received > TRAIN_IDLE_TIMEOUT_SECONDS:
+                        print(f"  [TrainingLoop] 已空闲 {TRAIN_IDLE_TIMEOUT_SECONDS}s 无新样本，退出训练循环",
+                              flush=True)
+                        break
 
                 if pending < self.min_samples:
                     continue
@@ -268,8 +283,11 @@ class TrainingServicer(ucc_chess_pb2_grpc.TrainingServiceServicer):
                 if len(self.buffer) < self.batch_size:
                     continue
 
+                # 有训练活动，重置空闲计时器
+                last_received = time.time()
+
                 # ── 执行训练 ──
-                model.train()
+                self.model.train()
                 total_loss_sum = 0.0
                 policy_loss_sum = 0.0
                 value_loss_sum = 0.0
